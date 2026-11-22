@@ -66,6 +66,12 @@ export class CreateStoreDto {
 }
 
 export class UpdateStoreConfigDto {
+  /** App Secret Mini App riêng của store (chỉ ghi, không đọc lại được). Chuỗi rỗng = xoá. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  zaloAppSecret?: string;
+
   @IsOptional()
   @IsString()
   @MaxLength(100)

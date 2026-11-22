@@ -125,7 +125,7 @@ export class AppAuthGuard implements CanActivate {
     const payload = this.authService.verifyToken(raw);
     const user = await this.prisma.user.findUnique({
       where: { id: payload.sub },
-      select: { id: true, email: true, role: true, customerId: true },
+      select: { id: true, email: true, role: true, customerId: true, customer: { select: { status: true } } },
     });
     if (!user) throw new UnauthorizedException("Tài khoản không còn tồn tại");
 
@@ -133,7 +133,9 @@ export class AppAuthGuard implements CanActivate {
     if (adminOnly && !isAdmin) {
       throw new ForbiddenException("Chỉ quản trị viên nền tảng được thực hiện thao tác này");
     }
-    req.auth = { isAdmin, userId: user.id, email: user.email, customerId: user.customerId };
+    // Chủ shop chỉ quản lý store của mình khi tài khoản người bán đã được kích hoạt
+    const customerId = !isAdmin && user.customer?.status !== "active" ? null : user.customerId;
+    req.auth = { isAdmin, userId: user.id, email: user.email, customerId };
     return true;
   }
 }

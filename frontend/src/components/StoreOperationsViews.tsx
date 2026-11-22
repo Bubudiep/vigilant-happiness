@@ -1,10 +1,12 @@
 import {
+  AutoComplete,
   Button,
   Form,
   Input,
   InputNumber,
   Modal,
   Popconfirm,
+  Popover,
   Segmented,
   Select,
   Statistic,
@@ -14,10 +16,12 @@ import {
   App as AntApp,
 } from "antd";
 import dayjs from "dayjs";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   LuBookOpen,
   LuCalendarCheck,
+  LuChevronLeft,
+  LuChevronRight,
   LuCircleCheck,
   LuClock,
   LuFileText,
@@ -37,7 +41,6 @@ import {
   StoreConfig,
   StoreDocumentItem,
   StoreEventItem,
-  StoreOrderItem,
   StoreSupportTicket,
 } from "../data/store-api";
 
@@ -47,6 +50,7 @@ export type StoreNavKey =
   | "events"
   | "products"
   | "customers"
+  | "albums"
   | "loyalty"
   | "orders"
   | "miniapp"
@@ -62,116 +66,8 @@ export type StoreNavKey =
   | "care"
   | "audit"
   | "antispam"
+  | "accounts"
   | "api";
-
-const DEFAULT_EVENTS: StoreEventItem[] = [
-  {
-    id: "ev_1",
-    title: "Flash Sale Cuối Tuần - Giảm 20%",
-    type: "flash_sale",
-    startDate: dayjs().format("YYYY-MM-DD"),
-    endDate: dayjs().add(3, "day").format("YYYY-MM-DD"),
-    status: "running",
-    participants: 128,
-    description: "Áp dụng cho đơn đặt qua Zalo Mini App từ 299.000đ",
-  },
-  {
-    id: "ev_2",
-    title: "Check-in nhận điểm thành viên",
-    type: "checkin",
-    startDate: dayjs().add(5, "day").format("YYYY-MM-DD"),
-    endDate: dayjs().add(15, "day").format("YYYY-MM-DD"),
-    status: "upcoming",
-    participants: 42,
-    description: "Tặng 50 điểm thưởng khi khách mở Mini App lần đầu",
-  },
-];
-
-const DEFAULT_ORDERS: StoreOrderItem[] = [
-  {
-    id: "ord_1",
-    code: "DH-261101",
-    customerName: "Nguyễn Minh Anh",
-    phone: "0903 445 667",
-    itemsSummary: "2x Sản phẩm nổi bật",
-    total: 890000,
-    status: "pending",
-    createdAt: dayjs().subtract(2, "hour").format("DD/MM/YYYY HH:mm"),
-  },
-  {
-    id: "ord_2",
-    code: "DH-261102",
-    customerName: "Trần Quốc Bảo",
-    phone: "0912 889 123",
-    itemsSummary: "1x Gói dịch vụ VIP",
-    total: 1450000,
-    status: "shipping",
-    createdAt: dayjs().subtract(1, "day").format("DD/MM/YYYY HH:mm"),
-  },
-  {
-    id: "ord_3",
-    code: "DH-261103",
-    customerName: "Lê Thu Hà",
-    phone: "0988 221 334",
-    itemsSummary: "3x Combo ưu đãi",
-    total: 640000,
-    status: "completed",
-    createdAt: dayjs().subtract(2, "day").format("DD/MM/YYYY HH:mm"),
-  },
-];
-
-const DEFAULT_TICKETS: StoreSupportTicket[] = [
-  {
-    id: "tk_1",
-    subject: "Hướng dẫn gắn Zalo OA ID vào Mini App",
-    category: "zalo_review",
-    priority: "normal",
-    status: "resolved",
-    createdAt: dayjs().subtract(3, "day").format("DD/MM/YYYY"),
-    message: "Đã cấu hình OA ID và hoàn tất kiểm duyệt trên Zalo Mini App.",
-  },
-];
-
-const DEFAULT_BOOKINGS: StoreBookingItem[] = [
-  {
-    id: "bk_1",
-    code: "LH-261101",
-    customerName: "Nguyễn Minh Anh",
-    phone: "0903 445 667",
-    serviceName: "Tư vấn & Thử sản phẩm tại cửa hàng",
-    date: dayjs().format("YYYY-MM-DD"),
-    timeSlot: "10:30",
-    staffName: "Lan Anh",
-    status: "confirmed",
-    note: "Khách hẹn xem bộ sưu tập mới",
-    createdAt: dayjs().subtract(3, "hour").format("DD/MM/YYYY HH:mm"),
-  },
-  {
-    id: "bk_2",
-    code: "LH-261102",
-    customerName: "Phạm Thảo Vy",
-    phone: "0977 112 889",
-    serviceName: "Chăm sóc dịch vụ VIP 60 phút",
-    date: dayjs().format("YYYY-MM-DD"),
-    timeSlot: "14:00",
-    staffName: "Minh Thư",
-    status: "pending",
-    note: "Khách đặt qua Zalo Mini App",
-    createdAt: dayjs().subtract(1, "hour").format("DD/MM/YYYY HH:mm"),
-  },
-  {
-    id: "bk_3",
-    code: "LH-261103",
-    customerName: "Trần Quốc Bảo",
-    phone: "0912 889 123",
-    serviceName: "Lấy hàng & Bảo hành định kỳ",
-    date: dayjs().add(1, "day").format("YYYY-MM-DD"),
-    timeSlot: "09:00",
-    staffName: "Quốc Huy",
-    status: "pending",
-    createdAt: dayjs().subtract(30, "minute").format("DD/MM/YYYY HH:mm"),
-  },
-];
 
 const TIME_SLOTS = ["08:30", "09:00", "10:00", "10:30", "11:00", "13:30", "14:00", "15:00", "16:30", "18:00", "19:30"];
 
@@ -182,18 +78,33 @@ const BOOKING_STATUS_OPTIONS = [
   { value: "cancelled", label: "Đã hủy" },
 ];
 
-function BookingCreateModal({
+export function BookingCreateModal({
   open,
   onClose,
   store,
   onCreate,
+  defaults,
+  staffOptions = [],
 }: {
   open: boolean;
   onClose: () => void;
   store: StoreConfig;
   onCreate: (item: StoreBookingItem) => void;
+  /** Điền sẵn khi bấm vào ô trống trên lịch nhóm */
+  defaults?: { date?: string; staffName?: string; customerName?: string; phone?: string };
+  staffOptions?: string[];
 }) {
   const [form] = Form.useForm();
+
+  useEffect(() => {
+    if (!open) return;
+    form.setFieldsValue({
+      date: defaults?.date ?? dayjs().format("YYYY-MM-DD"),
+      ...(defaults?.staffName ? { staffName: defaults.staffName } : {}),
+      ...(defaults?.customerName ? { customerName: defaults.customerName, phone: defaults.phone ?? "" } : {}),
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   const handleSelectExistingCustomer = (customerId: string) => {
     const found = store.customers.find((c) => c.id === customerId);
@@ -243,7 +154,7 @@ function BookingCreateModal({
           serviceName: store.products[0]?.name || "Tư vấn dịch vụ",
         }}
       >
-        {store.customers.length > 0 && (
+        {store.customers.length > 0 && !defaults?.customerName && (
           <Form.Item label="Chọn nhanh từ tệp khách hàng (tuỳ chọn)">
             <Select
               allowClear
@@ -297,7 +208,11 @@ function BookingCreateModal({
 
         <div className="grid grid-cols-2 gap-3">
           <Form.Item name="staffName" label="Nhân viên phụ trách">
-            <Input placeholder="VD: Lan Anh" />
+            <AutoComplete
+              placeholder="VD: Lan Anh"
+              options={staffOptions.map((n) => ({ value: n }))}
+              filterOption={(input, opt) => String(opt?.value ?? "").toLowerCase().includes(input.toLowerCase())}
+            />
           </Form.Item>
           <Form.Item name="status" label="Trạng thái">
             <Select options={BOOKING_STATUS_OPTIONS} />
@@ -327,8 +242,8 @@ export function OverviewSection({
   const { message } = AntApp.useApp();
   const [bookingModalOpen, setBookingModalOpen] = useState(false);
 
-  const orders = store.orders ?? DEFAULT_ORDERS;
-  const bookings = store.bookings ?? DEFAULT_BOOKINGS;
+  const orders = store.orders ?? [];
+  const bookings = store.bookings ?? [];
   const todayStr = dayjs().format("YYYY-MM-DD");
   const todayBookings = bookings.filter((b) => b.date === todayStr);
   const pendingBookings = bookings.filter((b) => b.status === "pending").length;
@@ -336,14 +251,14 @@ export function OverviewSection({
   const lowStockCount = store.products.filter((p) => (p.stock ?? 25) <= 10).length;
 
   const handleCreateBooking = (item: StoreBookingItem) => {
-    updateCurrentStore((s) => ({ ...s, bookings: [item, ...(s.bookings ?? DEFAULT_BOOKINGS)] }));
+    updateCurrentStore((s) => ({ ...s, bookings: [item, ...(s.bookings ?? [])] }));
     message.success(`Đã tạo lịch hẹn ${item.code} cho ${item.customerName}!`);
   };
 
   const handleQuickStatus = (id: string, status: StoreBookingItem["status"]) => {
     updateCurrentStore((s) => ({
       ...s,
-      bookings: (s.bookings ?? DEFAULT_BOOKINGS).map((b) => (b.id === id ? { ...b, status } : b)),
+      bookings: (s.bookings ?? []).map((b) => (b.id === id ? { ...b, status } : b)),
     }));
     message.success("Đã cập nhật trạng thái lịch hẹn");
   };
@@ -527,6 +442,17 @@ export function OverviewSection({
   );
 }
 
+const STATUS_STYLE: Record<StoreBookingItem["status"], { chip: string; dot: string; label: string }> = {
+  pending: { chip: "border-amber-200 bg-amber-50 text-amber-900", dot: "bg-amber-500", label: "Chờ xác nhận" },
+  confirmed: { chip: "border-sky-200 bg-sky-50 text-sky-900", dot: "bg-sky-500", label: "Đã xác nhận" },
+  completed: { chip: "border-emerald-200 bg-emerald-50 text-emerald-900", dot: "bg-emerald-500", label: "Hoàn thành" },
+  cancelled: { chip: "border-slate-200 bg-slate-50 text-slate-400 line-through", dot: "bg-slate-300", label: "Đã hủy" },
+};
+const WEEKDAY = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
+const UNASSIGNED = "__none__";
+/** Hôm qua + hôm nay + 5 ngày tới */
+const CAL_DAYS = 7;
+
 export function BookingsSection({
   store,
   updateCurrentStore,
@@ -535,54 +461,131 @@ export function BookingsSection({
   updateCurrentStore: (updater: (s: StoreConfig) => StoreConfig) => void;
 }) {
   const { message } = AntApp.useApp();
-  const [modalOpen, setModalOpen] = useState(false);
+  const [view, setView] = useState<"calendar" | "list">("calendar");
+  const [modal, setModal] = useState<{ open: boolean; date?: string; staffName?: string }>({ open: false });
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [dateFilter, setDateFilter] = useState<string>("");
+  const [hideCancelled, setHideCancelled] = useState(true);
+  const [start, setStart] = useState(() => dayjs().subtract(1, "day").startOf("day"));
+  const [openChip, setOpenChip] = useState<string | null>(null);
 
-  const bookings = store.bookings ?? DEFAULT_BOOKINGS;
-  const filtered = bookings.filter((b) => {
-    const matchStatus = statusFilter === "all" || b.status === statusFilter;
-    const matchDate = !dateFilter || b.date === dateFilter;
-    return matchStatus && matchDate;
-  });
+  const bookings = store.bookings ?? [];
+  const todayStr = dayjs().format("YYYY-MM-DD");
+  const days = Array.from({ length: CAL_DAYS }, (_, i) => start.add(i, "day"));
+  const dayKeys = days.map((d) => d.format("YYYY-MM-DD"));
+
+  const inRange = bookings.filter(
+    (b) => dayKeys.includes(b.date) && (statusFilter === "all" || b.status === statusFilter) && !(hideCancelled && b.status === "cancelled"),
+  );
+  const staffNames = Array.from(
+    new Set([...bookings.map((b) => b.staffName?.trim()).filter((n): n is string => !!n)]),
+  ).sort((x, y) => x.localeCompare(y, "vi"));
+  // Mỗi hàng = 1 nhân viên đã từng nhận lịch (để đặt lịch mới vào ô trống) + hàng "Chưa phân công"
+  const rows = [...staffNames, UNASSIGNED];
+
+  const cell = (staff: string, date: string) =>
+    inRange
+      .filter((b) => b.date === date && (staff === UNASSIGNED ? !b.staffName?.trim() : b.staffName?.trim() === staff))
+      .sort((x, y) => x.timeSlot.localeCompare(y.timeSlot));
+
+  const filteredList = bookings.filter(
+    (b) => (statusFilter === "all" || b.status === statusFilter) && (!dateFilter || b.date === dateFilter),
+  );
 
   const handleCreate = (item: StoreBookingItem) => {
-    updateCurrentStore((s) => ({ ...s, bookings: [item, ...(s.bookings ?? DEFAULT_BOOKINGS)] }));
-    message.success(`Đã tạo lịch hẹn ${item.code} cho ${item.customerName}!`);
+    updateCurrentStore((s) => ({ ...s, bookings: [item, ...(s.bookings ?? [])] }));
+    message.success(`Đã tạo lịch hẹn cho ${item.customerName}`);
   };
 
-  const updateStatus = (id: string, status: StoreBookingItem["status"]) => {
+  const patchBooking = (id: string, patch: Partial<StoreBookingItem>, msg = "Đã cập nhật lịch hẹn") => {
     updateCurrentStore((s) => ({
       ...s,
-      bookings: (s.bookings ?? DEFAULT_BOOKINGS).map((b) => (b.id === id ? { ...b, status } : b)),
+      bookings: (s.bookings ?? []).map((b) => (b.id === id ? { ...b, ...patch } : b)),
     }));
-    message.success("Đã cập nhật trạng thái lịch hẹn");
+    message.success(msg);
   };
 
   const removeBooking = (id: string) => {
-    updateCurrentStore((s) => ({
-      ...s,
-      bookings: (s.bookings ?? DEFAULT_BOOKINGS).filter((b) => b.id !== id),
-    }));
+    updateCurrentStore((s) => ({ ...s, bookings: (s.bookings ?? []).filter((b) => b.id !== id) }));
+    setOpenChip(null);
     message.success("Đã xoá lịch hẹn");
   };
 
+  const pendingCount = inRange.filter((b) => b.status === "pending").length;
+  const todayCount = inRange.filter((b) => b.date === todayStr).length;
+
+  const chipDetail = (b: StoreBookingItem) => (
+    <div className="w-[260px] space-y-2 text-xs">
+      <div>
+        <div className="text-sm font-bold text-slate-900">{b.customerName}</div>
+        <a href={`tel:${b.phone}`} className="font-mono text-brand-600">
+          {b.phone}
+        </a>
+      </div>
+      <div className="rounded-lg bg-slate-50 p-2 text-slate-600">
+        <div className="font-semibold text-slate-800">{b.serviceName}</div>
+        <div>
+          {b.timeSlot} · {WEEKDAY[dayjs(b.date).day()]} {dayjs(b.date).format("DD/MM")} · {b.staffName || "Chưa phân công"}
+        </div>
+        {b.note && <div className="mt-1 text-slate-500">“{b.note}”</div>}
+        <div className="mt-1 font-mono text-[10px] text-slate-400">{b.code}</div>
+      </div>
+      <div className="flex flex-wrap gap-1">
+        {BOOKING_STATUS_OPTIONS.map((o) => (
+          <button
+            key={o.value}
+            type="button"
+            onClick={() => patchBooking(b.id, { status: o.value as StoreBookingItem["status"] }, `Đã chuyển sang "${o.label}"`)}
+            className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold transition ${
+              b.status === o.value ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 text-slate-600 hover:border-slate-400"
+            }`}
+          >
+            {o.label}
+          </button>
+        ))}
+      </div>
+      <Select
+        size="small"
+        className="w-full"
+        value={b.staffName || UNASSIGNED}
+        onChange={(v) => patchBooking(b.id, { staffName: v === UNASSIGNED ? "" : v }, "Đã đổi người phụ trách")}
+        options={[
+          { value: UNASSIGNED, label: "Chưa phân công" },
+          ...staffNames.map((n) => ({ value: n, label: n })),
+        ]}
+      />
+      <div className="flex justify-end">
+        <Popconfirm title="Xoá lịch hẹn này?" onConfirm={() => removeBooking(b.id)}>
+          <Button size="small" type="text" danger icon={<LuTrash2 size={13} />}>
+            Xoá
+          </Button>
+        </Popconfirm>
+      </div>
+    </div>
+  );
+
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h3 className="flex items-center gap-2 text-base font-bold text-slate-900">
-            <LuCalendarCheck size={18} className="text-brand-600" /> Quản lý Lịch hẹn ({filtered.length})
+            <LuCalendarCheck size={18} className="text-brand-600" /> Lịch hẹn
           </h3>
-          <p className="text-xs text-slate-500">Quản lý lịch khách đặt trên Zalo Mini App và đặt lịch trực tiếp cho khách.</p>
+          <p className="text-xs text-slate-500">
+            {view === "calendar"
+              ? `${days[0].format("DD/MM")} – ${days[CAL_DAYS - 1].format("DD/MM")} · ${inRange.length} lịch · ${todayCount} hôm nay · ${pendingCount} chờ xác nhận`
+              : "Toàn bộ lịch khách đặt trên Mini App và lịch đặt tại quầy."}
+          </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Input
-            type="date"
+          <Segmented
             size="small"
-            value={dateFilter}
-            onChange={(e) => setDateFilter(e.target.value)}
-            style={{ width: 150 }}
+            value={view}
+            onChange={(v) => setView(v as "calendar" | "list")}
+            options={[
+              { value: "calendar", label: "Lịch nhóm" },
+              { value: "list", label: "Danh sách" },
+            ]}
           />
           <Select
             size="small"
@@ -591,80 +594,205 @@ export function BookingsSection({
             style={{ width: 150 }}
             options={[{ value: "all", label: "Tất cả trạng thái" }, ...BOOKING_STATUS_OPTIONS]}
           />
-          <Button type="primary" icon={<LuPlus size={15} />} onClick={() => setModalOpen(true)}>
-            Đặt lịch cho khách
+          <Button type="primary" icon={<LuPlus size={15} />} onClick={() => setModal({ open: true })}>
+            Đặt lịch
           </Button>
         </div>
       </div>
 
-      <Table
-        rowKey="id"
-        size="small"
-        dataSource={filtered}
-        pagination={{ pageSize: 8 }}
-        columns={[
-          {
-            title: "Mã / Thời gian",
-            render: (_, r) => (
-              <div>
-                <div className="font-mono text-xs font-bold text-slate-900">{r.code}</div>
-                <div className="text-[11px] font-semibold text-brand-600">
-                  {r.timeSlot} · {dayjs(r.date).format("DD/MM/YYYY")}
+      {view === "calendar" ? (
+        <>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-1">
+              <Button size="small" icon={<LuChevronLeft size={14} />} onClick={() => setStart((d) => d.subtract(CAL_DAYS, "day"))} />
+              <Button size="small" onClick={() => setStart(dayjs().subtract(1, "day").startOf("day"))}>
+                Hôm nay
+              </Button>
+              <Button size="small" icon={<LuChevronRight size={14} />} onClick={() => setStart((d) => d.add(CAL_DAYS, "day"))} />
+            </div>
+            <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-500">
+              {(Object.keys(STATUS_STYLE) as StoreBookingItem["status"][]).map((k) => (
+                <span key={k} className="flex items-center gap-1">
+                  <span className={`h-2 w-2 rounded-full ${STATUS_STYLE[k].dot}`} /> {STATUS_STYLE[k].label}
+                </span>
+              ))}
+              <label className="flex cursor-pointer items-center gap-1.5">
+                <Switch size="small" checked={hideCancelled} onChange={setHideCancelled} /> Ẩn lịch đã huỷ
+              </label>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto rounded-xl border border-slate-200">
+            <div className="grid min-w-[900px]" style={{ gridTemplateColumns: `170px repeat(${CAL_DAYS}, minmax(0, 1fr))` }}>
+              {/* Hàng tiêu đề ngày */}
+              <div className="sticky left-0 z-10 border-b border-slate-200 bg-slate-50 px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-slate-400">
+                Nhân viên
+              </div>
+              {days.map((d) => {
+                const key = d.format("YYYY-MM-DD");
+                const isToday = key === todayStr;
+                const isPast = d.isBefore(dayjs(), "day");
+                const count = inRange.filter((b) => b.date === key).length;
+                return (
+                  <div
+                    key={key}
+                    className={`border-b border-l border-slate-200 px-2 py-2 text-center ${isToday ? "bg-brand-50" : "bg-slate-50"}`}
+                  >
+                    <div className={`text-[11px] font-bold ${isToday ? "text-brand-600" : isPast ? "text-slate-400" : "text-slate-500"}`}>
+                      {isToday ? "Hôm nay" : WEEKDAY[d.day()]}
+                    </div>
+                    <div className={`text-base font-extrabold ${isToday ? "text-brand-600" : isPast ? "text-slate-400" : "text-slate-900"}`}>
+                      {d.format("DD/MM")}
+                    </div>
+                    <div className="text-[10px] text-slate-400">{count ? `${count} lịch` : "—"}</div>
+                  </div>
+                );
+              })}
+
+              {/* Mỗi hàng = 1 nhân viên */}
+              {rows.map((staff) => (
+                <div key={staff} className="contents">
+                  <div className="sticky left-0 z-10 flex items-start gap-2 border-b border-slate-100 bg-white px-3 py-2.5">
+                    <span
+                      className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-black ${
+                        staff === UNASSIGNED ? "border border-dashed border-slate-300 text-slate-400" : "bg-slate-900 text-white"
+                      }`}
+                    >
+                      {staff === UNASSIGNED ? "?" : staff.slice(0, 1).toUpperCase()}
+                    </span>
+                    <div className="min-w-0">
+                      <div className="truncate text-xs font-bold text-slate-800">{staff === UNASSIGNED ? "Chưa phân công" : staff}</div>
+                      <div className="text-[10px] text-slate-400">
+                        {inRange.filter((b) => (staff === UNASSIGNED ? !b.staffName?.trim() : b.staffName?.trim() === staff)).length} lịch
+                      </div>
+                    </div>
+                  </div>
+                  {dayKeys.map((date) => {
+                    const items = cell(staff, date);
+                    const isToday = date === todayStr;
+                    return (
+                      <div
+                        key={date}
+                        className={`group relative min-h-[76px] space-y-1 border-b border-l border-slate-100 p-1.5 ${isToday ? "bg-brand-50/40" : ""}`}
+                      >
+                        {items.map((b) => (
+                          <Popover
+                            key={b.id}
+                            trigger="click"
+                            open={openChip === b.id}
+                            onOpenChange={(o) => setOpenChip(o ? b.id : null)}
+                            content={chipDetail(b)}
+                            placement="right"
+                          >
+                            <button
+                              type="button"
+                              className={`block w-full rounded-lg border px-1.5 py-1 text-left transition hover:shadow-sm ${STATUS_STYLE[b.status].chip}`}
+                            >
+                              <div className="flex items-center gap-1 text-[11px] font-bold">
+                                <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${STATUS_STYLE[b.status].dot}`} />
+                                {b.timeSlot}
+                                <span className="truncate font-semibold">{b.customerName}</span>
+                              </div>
+                              <div className="truncate text-[10px] opacity-75">{b.serviceName}</div>
+                            </button>
+                          </Popover>
+                        ))}
+                        {date >= todayStr && (
+                          <button
+                            type="button"
+                            onClick={() => setModal({ open: true, date, staffName: staff === UNASSIGNED ? undefined : staff })}
+                            className="flex w-full items-center justify-center rounded-lg border border-dashed border-transparent py-0.5 text-slate-300 opacity-0 transition hover:border-brand-300 hover:text-brand-600 group-hover:opacity-100"
+                            title="Đặt lịch vào ô này"
+                          >
+                            <LuPlus size={13} />
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
-              </div>
-            ),
-          },
-          {
-            title: "Khách hàng",
-            render: (_, r) => (
-              <div>
-                <div className="font-semibold text-slate-900">{r.customerName}</div>
-                <div className="text-[11px] text-slate-500">{r.phone}</div>
-              </div>
-            ),
-          },
-          {
-            title: "Dịch vụ / Ghi chú",
-            render: (_, r) => (
-              <div>
-                <div className="font-medium text-slate-800">{r.serviceName}</div>
-                {r.note && <div className="text-[11px] text-slate-400">{r.note}</div>}
-              </div>
-            ),
-          },
-          {
-            title: "Phụ trách",
-            dataIndex: "staffName",
-            render: (v) => v || <span className="text-slate-400">—</span>,
-          },
-          {
-            title: "Trạng thái",
-            dataIndex: "status",
-            render: (status, r) => (
-              <Select
-                size="small"
-                value={status}
-                style={{ width: 135 }}
-                onChange={(next) => updateStatus(r.id, next)}
-                options={BOOKING_STATUS_OPTIONS}
-              />
-            ),
-          },
-          {
-            title: "",
-            width: 56,
-            render: (_, r) => (
-              <Popconfirm title="Xoá lịch hẹn này?" onConfirm={() => removeBooking(r.id)}>
-                <Button size="small" danger icon={<LuTrash2 size={13} />} />
-              </Popconfirm>
-            ),
-          },
-        ]}
-      />
+              ))}
+            </div>
+          </div>
+          {bookings.length === 0 && (
+            <div className="mt-3 text-center text-xs text-slate-400">
+              Chưa có lịch hẹn. Khách đặt trên Mini App sẽ hiện ở đây — hoặc bấm “Đặt lịch” để tạo cho khách.
+            </div>
+          )}
+        </>
+      ) : (
+        <>
+          <div className="mb-3 flex justify-end">
+            <Input type="date" size="small" value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} style={{ width: 150 }} />
+          </div>
+          <Table
+            rowKey="id"
+            size="small"
+            dataSource={[...filteredList].sort((x, y) => (y.date + y.timeSlot).localeCompare(x.date + x.timeSlot))}
+            pagination={{ pageSize: 10 }}
+            columns={[
+              {
+                title: "Thời gian",
+                render: (_, r) => (
+                  <div>
+                    <div className="text-xs font-bold text-brand-600">
+                      {r.timeSlot} · {dayjs(r.date).format("DD/MM/YYYY")}
+                    </div>
+                    <div className="font-mono text-[10px] text-slate-400">{r.code}</div>
+                  </div>
+                ),
+              },
+              {
+                title: "Khách hàng",
+                render: (_, r) => (
+                  <div>
+                    <div className="font-semibold text-slate-900">{r.customerName}</div>
+                    <div className="text-[11px] text-slate-500">{r.phone}</div>
+                  </div>
+                ),
+              },
+              {
+                title: "Dịch vụ / Ghi chú",
+                render: (_, r) => (
+                  <div>
+                    <div className="font-medium text-slate-800">{r.serviceName}</div>
+                    {r.note && <div className="text-[11px] text-slate-400">{r.note}</div>}
+                  </div>
+                ),
+              },
+              { title: "Phụ trách", dataIndex: "staffName", render: (v) => v || <span className="text-slate-400">—</span> },
+              {
+                title: "Trạng thái",
+                dataIndex: "status",
+                render: (status, r) => (
+                  <Select
+                    size="small"
+                    value={status}
+                    style={{ width: 135 }}
+                    onChange={(next) => patchBooking(r.id, { status: next })}
+                    options={BOOKING_STATUS_OPTIONS}
+                  />
+                ),
+              },
+              {
+                title: "",
+                width: 56,
+                render: (_, r) => (
+                  <Popconfirm title="Xoá lịch hẹn này?" onConfirm={() => removeBooking(r.id)}>
+                    <Button size="small" danger icon={<LuTrash2 size={13} />} />
+                  </Popconfirm>
+                ),
+              },
+            ]}
+          />
+        </>
+      )}
 
       <BookingCreateModal
-        open={modalOpen}
-        onClose={() => setModalOpen(false)}
+        open={modal.open}
+        defaults={{ date: modal.date, staffName: modal.staffName }}
+        staffOptions={staffNames}
+        onClose={() => setModal({ open: false })}
         store={store}
         onCreate={handleCreate}
       />
@@ -682,7 +810,7 @@ export function EventsSection({
   const { message } = AntApp.useApp();
   const [modalOpen, setModalOpen] = useState(false);
   const [form] = Form.useForm();
-  const events = store.events ?? DEFAULT_EVENTS;
+  const events = store.events ?? [];
 
   const handleAddEvent = (values: Omit<StoreEventItem, "id" | "participants">) => {
     const newItem: StoreEventItem = {
@@ -690,7 +818,7 @@ export function EventsSection({
       id: `ev_${Date.now()}`,
       participants: 0,
     };
-    updateCurrentStore((s) => ({ ...s, events: [newItem, ...(s.events ?? DEFAULT_EVENTS)] }));
+    updateCurrentStore((s) => ({ ...s, events: [newItem, ...(s.events ?? [])] }));
     setModalOpen(false);
     form.resetFields();
     message.success("Đã thêm sự kiện mới!");
@@ -699,7 +827,7 @@ export function EventsSection({
   const removeEvent = (id: string) => {
     updateCurrentStore((s) => ({
       ...s,
-      events: (s.events ?? DEFAULT_EVENTS).filter((e) => e.id !== id),
+      events: (s.events ?? []).filter((e) => e.id !== id),
     }));
   };
 
@@ -826,96 +954,6 @@ export function EventsSection({
   );
 }
 
-export function OrdersSection({
-  store,
-  updateCurrentStore,
-}: {
-  store: StoreConfig;
-  updateCurrentStore: (updater: (s: StoreConfig) => StoreConfig) => void;
-}) {
-  const { message } = AntApp.useApp();
-  const [statusFilter, setStatusFilter] = useState<string>("all");
-  const orders = store.orders ?? DEFAULT_ORDERS;
-  const filtered = statusFilter === "all" ? orders : orders.filter((o) => o.status === statusFilter);
-
-  const updateOrderStatus = (id: string, status: StoreOrderItem["status"]) => {
-    updateCurrentStore((s) => ({
-      ...s,
-      orders: (s.orders ?? DEFAULT_ORDERS).map((o) => (o.id === id ? { ...o, status } : o)),
-    }));
-    message.success("Đã cập nhật trạng thái đơn hàng");
-  };
-
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h3 className="text-base font-bold text-slate-900">Quản lý Đơn hàng ({filtered.length})</h3>
-          <p className="text-xs text-slate-500">Theo dõi đơn đặt từ Zalo Mini App và cập nhật trạng thái giao hàng.</p>
-        </div>
-        <Select
-          value={statusFilter}
-          onChange={setStatusFilter}
-          style={{ width: 180 }}
-          options={[
-            { value: "all", label: "Tất cả trạng thái" },
-            { value: "pending", label: "Chờ xác nhận" },
-            { value: "confirmed", label: "Đã xác nhận" },
-            { value: "shipping", label: "Đang giao" },
-            { value: "completed", label: "Hoàn thành" },
-            { value: "cancelled", label: "Đã hủy" },
-          ]}
-        />
-      </div>
-
-      <Table
-        rowKey="id"
-        size="small"
-        dataSource={filtered}
-        pagination={{ pageSize: 8 }}
-        columns={[
-          { title: "Mã đơn", dataIndex: "code", render: (c) => <span className="font-mono font-bold">{c}</span> },
-          {
-            title: "Khách hàng",
-            render: (_, r) => (
-              <div>
-                <div className="font-semibold text-slate-900">{r.customerName}</div>
-                <div className="text-[11px] text-slate-500">{r.phone}</div>
-              </div>
-            ),
-          },
-          { title: "Chi tiết", dataIndex: "itemsSummary" },
-          {
-            title: "Tổng tiền",
-            dataIndex: "total",
-            render: (v) => <span className="font-bold text-brand-600">{v.toLocaleString("vi-VN")}đ</span>,
-          },
-          { title: "Thời gian", dataIndex: "createdAt" },
-          {
-            title: "Trạng thái",
-            dataIndex: "status",
-            render: (status, r) => (
-              <Select
-                size="small"
-                value={status}
-                style={{ width: 135 }}
-                onChange={(next) => updateOrderStatus(r.id, next)}
-                options={[
-                  { value: "pending", label: "Chờ xác nhận" },
-                  { value: "confirmed", label: "Đã xác nhận" },
-                  { value: "shipping", label: "Đang giao" },
-                  { value: "completed", label: "Hoàn thành" },
-                  { value: "cancelled", label: "Đã hủy" },
-                ]}
-              />
-            ),
-          },
-        ]}
-      />
-    </div>
-  );
-}
-
 export function InventorySection({
   store,
   updateCurrentStore,
@@ -995,7 +1033,7 @@ export function SupportSection({
 }) {
   const { message } = AntApp.useApp();
   const [form] = Form.useForm();
-  const tickets = store.tickets ?? DEFAULT_TICKETS;
+  const tickets = store.tickets ?? [];
 
   const submitTicket = (values: { subject: string; category: StoreSupportTicket["category"]; priority: StoreSupportTicket["priority"]; message: string }) => {
     const ticket: StoreSupportTicket = {
@@ -1004,7 +1042,7 @@ export function SupportSection({
       status: "open",
       createdAt: dayjs().format("DD/MM/YYYY HH:mm"),
     };
-    updateCurrentStore((s) => ({ ...s, tickets: [ticket, ...(s.tickets ?? DEFAULT_TICKETS)] }));
+    updateCurrentStore((s) => ({ ...s, tickets: [ticket, ...(s.tickets ?? [])] }));
     form.resetFields();
     message.success("Đã gửi yêu cầu hỗ trợ tới đội ngũ kỹ thuật recloud.vn!");
   };
@@ -1102,49 +1140,6 @@ const DOC_CATEGORY_OPTIONS: { value: StoreDocumentItem["category"]; label: strin
   { value: "guide", label: "Hướng dẫn khách hàng", color: "geekblue" },
 ];
 
-const DEFAULT_DOCUMENTS: StoreDocumentItem[] = [
-  {
-    id: "doc_warranty",
-    slug: "chinh-sach-bao-hanh",
-    title: "Chính sách bảo hành sản phẩm",
-    category: "warranty",
-    published: true,
-    updatedAt: dayjs().format("DD/MM/YYYY HH:mm"),
-    content:
-      "1. Thời gian bảo hành: 12 tháng kể từ ngày mua hàng trên Zalo Mini App hoặc tại cửa hàng.\n2. Điều kiện bảo hành: Sản phẩm còn nguyên tem/mã đơn hàng, lỗi kỹ thuật từ nhà sản xuất.\n3. Quy trình tiếp nhận: Khách hàng mang trực tiếp đến cửa hàng hoặc nhắn qua Zalo OA kèm mã đơn hàng để được hỗ trợ trong 24 giờ.",
-  },
-  {
-    id: "doc_return",
-    slug: "quy-dinh-doi-tra",
-    title: "Quy định đổi trả hàng & hoàn tiền",
-    category: "return",
-    published: true,
-    updatedAt: dayjs().format("DD/MM/YYYY HH:mm"),
-    content:
-      "1. Thời hạn đổi trả: Trong vòng 07 ngày kể từ ngày nhận hàng.\n2. Yêu cầu sản phẩm: Còn nguyên nhãn mác, chưa qua sử dụng, không bị hư hỏng do tác động bên ngoài.\n3. Hoàn tiền: Thực hiện chuyển khoản hoặc hoàn về ví thanh toán trong 1–3 ngày làm việc sau khi cửa hàng nhận lại sản phẩm.",
-  },
-  {
-    id: "doc_payment",
-    slug: "chinh-sach-thanh-toan",
-    title: "Hướng dẫn thanh toán & giao nhận",
-    category: "payment",
-    published: true,
-    updatedAt: dayjs().format("DD/MM/YYYY HH:mm"),
-    content:
-      "- Thanh toán khi nhận hàng (COD).\n- Chuyển khoản ngân hàng qua mã VietQR tự động xác nhận.\n- Thanh toán qua ví ZaloPay / MoMo ngay trên Zalo Mini App.\n- Miễn phí giao hàng nội thành cho đơn từ 299.000đ.",
-  },
-  {
-    id: "doc_terms",
-    slug: "dieu-khoan-va-luu-y",
-    title: "Điều khoản sử dụng & Lưu ý đặt hàng",
-    category: "terms",
-    published: true,
-    updatedAt: dayjs().format("DD/MM/YYYY HH:mm"),
-    content:
-      "- Quý khách vui lòng kiểm tra kỹ thông tin số điện thoại và địa chỉ nhận hàng trước khi xác nhận đơn.\n- Điểm thưởng thành viên được cộng tự động sau khi đơn hàng chuyển sang trạng thái Hoàn thành.\n- Mọi thắc mắc vui lòng liên hệ Hotline hoặc Zalo OA của cửa hàng.",
-  },
-];
-
 export function DocumentsSection({
   store,
   updateCurrentStore,
@@ -1153,7 +1148,7 @@ export function DocumentsSection({
   updateCurrentStore: (updater: (s: StoreConfig) => StoreConfig) => void;
 }) {
   const { message } = AntApp.useApp();
-  const docs = store.documents ?? DEFAULT_DOCUMENTS;
+  const docs = store.documents ?? [];
   const [selectedDocId, setSelectedDocId] = useState<string>(docs[0]?.id ?? "");
   const [catFilter, setCatFilter] = useState<string>("all");
   const [editorMode, setEditorMode] = useState<"edit" | "preview">("edit");
@@ -1166,7 +1161,7 @@ export function DocumentsSection({
   const patchDoc = (id: string, patch: Partial<StoreDocumentItem>) => {
     updateCurrentStore((s) => ({
       ...s,
-      documents: (s.documents ?? DEFAULT_DOCUMENTS).map((d) =>
+      documents: (s.documents ?? []).map((d) =>
         d.id === id ? { ...d, ...patch, updatedAt: dayjs().format("DD/MM/YYYY HH:mm") } : d,
       ),
     }));
@@ -1196,7 +1191,7 @@ export function DocumentsSection({
     };
     updateCurrentStore((s) => ({
       ...s,
-      documents: [created, ...(s.documents ?? DEFAULT_DOCUMENTS)],
+      documents: [created, ...(s.documents ?? [])],
     }));
     setSelectedDocId(created.id);
     setCreateOpen(false);

@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
+import { AlbumsModule } from "./albums/albums.module";
 import { AntiSpamModule } from "./antispam/antispam.module";
 import { AuditModule } from "./audit/audit.module";
 import { AuthModule } from "./auth/auth.module";
@@ -14,6 +15,7 @@ import { NotifyModule } from "./notify/notify.module";
 import { OAuthModule } from "./oauth/oauth.module";
 import { PortalModule } from "./portal/portal.module";
 import { PrismaModule } from "./prisma/prisma.module";
+import { ShopModule } from "./shop/shop.module";
 import { StoresModule } from "./stores/stores.module";
 import { SubmissionsModule } from "./submissions/submissions.module";
 import { SubscriptionsModule } from "./subscriptions/subscriptions.module";
@@ -34,6 +36,8 @@ import { TemplatesModule } from "./templates/templates.module";
     TemplatesModule,
     SubmissionsModule,
     StoresModule,
+    ShopModule,
+    AlbumsModule,
     MediaModule,
     CustomersModule,
     DebtsModule,

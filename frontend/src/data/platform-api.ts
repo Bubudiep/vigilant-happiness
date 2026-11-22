@@ -2,6 +2,9 @@ import { getStoredAuthToken } from "./auth";
 import { siteConfig } from "./site";
 
 /** Lỗi API kèm mã HTTP để giao diện phân biệt "chưa đăng nhập" / "không có quyền" / "mất kết nối". */
+/** Phát khi API trả 401 với token đang lưu (phiên hết hạn / bị thu hồi). */
+export const AUTH_EXPIRED_EVENT = "recloud:auth-expired";
+
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -29,7 +32,11 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const body = await res.json().catch(() => null);
   if (!res.ok) {
     const msg = Array.isArray(body?.message) ? body.message[0] : body?.message || body?.error_description;
-    if (res.status === 401) throw new ApiError("Phiên đăng nhập hết hạn — vui lòng đăng nhập lại bằng Google", 401);
+    if (res.status === 401) {
+      // App lắng nghe sự kiện này để đăng xuất và về trang đăng nhập
+      if (token) window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT));
+      throw new ApiError("Phiên đăng nhập hết hạn — vui lòng đăng nhập lại bằng Google", 401);
+    }
     if (res.status === 403) throw new ApiError(msg || "Tài khoản không có quyền (cần nằm trong ADMIN_EMAILS)", 403);
     throw new ApiError(msg || `Lỗi ${res.status}`, res.status);
   }
@@ -228,6 +235,8 @@ export interface PlatformCustomerRow extends PlatformCustomerLite {
   note?: string | null;
   createdAt: string;
   _count: { stores: number; subscriptions: number; staff: number };
+  /** Tài khoản Google đăng nhập web quản trị gắn với khách này */
+  users?: { id: string; email?: string | null; name: string; avatarUrl?: string | null }[];
   subscriptions: { expiresAt: string; plan: { name: string } }[];
 }
 
@@ -252,10 +261,32 @@ export const saveCustomer = (id: string | null, data: Record<string, unknown>) =
   id
     ? api<PlatformCustomerRow>(`/customers/${id}`, { method: "PATCH", body: JSON.stringify(data) })
     : api<PlatformCustomerRow>("/customers", { method: "POST", body: JSON.stringify(data) });
+/** active: kích hoạt người bán · suspended: tạm khoá · pending: chờ duyệt */
+export const setCustomerStatus = (id: string, status: "active" | "pending" | "suspended") =>
+  api<PlatformCustomerRow>(`/customers/${id}`, { method: "PATCH", body: JSON.stringify({ status }) });
 export const deleteCustomer = (id: string) => api(`/customers/${id}`, { method: "DELETE" });
 export const addStaff = (customerId: string, data: { name: string; phone: string; role?: string }) =>
   api<StaffRow>(`/customers/${customerId}/staff`, { method: "POST", body: JSON.stringify(data) });
 export const removeStaff = (staffId: string) => api(`/customers/staff/${staffId}`, { method: "DELETE" });
+
+// ───────────────────────── Tài khoản quản trị ─────────────────────────
+
+export interface AccountRow {
+  id: string;
+  name: string;
+  email?: string | null;
+  avatarUrl?: string | null;
+  role: string;
+  isAdmin: boolean;
+  /** Là quản trị nhờ ADMIN_EMAILS trong .env (không gỡ được ở giao diện) */
+  adminViaEnv: boolean;
+  lastLoginAt: string;
+  customer?: { id: string; name: string; companyName?: string | null; status: string } | null;
+}
+
+export const fetchAccounts = () => api<AccountRow[]>("/admin/accounts");
+export const setAccountRole = (id: string, role: "admin" | "owner") =>
+  api(`/admin/accounts/${id}`, { method: "PATCH", body: JSON.stringify({ role }) });
 
 // ───────────────────────── Nhật ký thao tác ─────────────────────────
 

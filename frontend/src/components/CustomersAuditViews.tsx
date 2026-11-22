@@ -1,12 +1,14 @@
-import { Alert, App as AntApp, Button, Drawer, Empty, Input, Modal, Popconfirm, Select, Table, Tag } from "antd";
+import { Alert, App as AntApp, Button, Drawer, Empty, Input, Modal, Popconfirm, Segmented, Select, Table, Tag } from "antd";
 import dayjs from "dayjs";
 import { useCallback, useEffect, useState } from "react";
 import { LuPlus, LuRefreshCw, LuTrash2 } from "react-icons/lu";
 import {
+  AccountRow,
   addStaff,
   ApiError,
   AuditRow,
   deleteCustomer,
+  fetchAccounts,
   fetchAudit,
   fetchCustomerDetail,
   fetchCustomerRows,
@@ -14,7 +16,19 @@ import {
   PlatformCustomerRow,
   removeStaff,
   saveCustomer,
+  setAccountRole,
+  setCustomerStatus,
 } from "../data/platform-api";
+
+const STATUS_TAG: Record<string, { color: string; label: string }> = {
+  active: { color: "green", label: "Hoạt động" },
+  pending: { color: "orange", label: "Chờ kích hoạt" },
+  suspended: { color: "red", label: "Tạm khoá" },
+};
+const StatusTag = ({ status }: { status: string }) => {
+  const t = STATUS_TAG[status] ?? { color: "default", label: status };
+  return <Tag color={t.color} className="m-0">{t.label}</Tag>;
+};
 
 const errMsg = (e: unknown, fb = "Thao tác thất bại") => (e instanceof ApiError ? e.message : fb);
 
@@ -53,6 +67,7 @@ export function CustomersPlatformSection() {
   const { message } = AntApp.useApp();
   const list = useList(fetchCustomerRows);
   const [kw, setKw] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "pending">("all");
   const [edit, setEdit] = useState<EditState | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
   const [detail, setDetail] = useState<PlatformCustomerDetail | null>(null);
@@ -88,10 +103,24 @@ export function CustomersPlatformSection() {
     }
   };
 
+  const pendingCount = (list.data ?? []).filter((c) => c.status === "pending").length;
   const rows = (list.data ?? []).filter((c) => {
+    if (statusFilter === "pending" && c.status !== "pending") return false;
     const k = kw.trim().toLowerCase();
-    return !k || `${c.name} ${c.companyName ?? ""} ${c.phone}`.toLowerCase().includes(k);
+    const emails = (c.users ?? []).map((u) => u.email ?? "").join(" ");
+    return !k || `${c.name} ${c.companyName ?? ""} ${c.phone} ${emails}`.toLowerCase().includes(k);
   });
+
+  const changeStatus = async (id: string, status: "active" | "suspended") => {
+    try {
+      await setCustomerStatus(id, status);
+      message.success(status === "active" ? "Đã kích hoạt người bán" : "Đã tạm khoá người bán");
+      list.load();
+      if (openId === id) loadDetail(id);
+    } catch (e) {
+      message.error(errMsg(e));
+    }
+  };
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -102,8 +131,16 @@ export function CustomersPlatformSection() {
             Khách đăng nhập Zalo bằng số trùng <b>SĐT khách hàng</b> hoặc <b>SĐT nhân sự</b> bên dưới sẽ thấy dự án và ticket trong Mini App.
           </p>
         </div>
-        <div className="flex gap-2">
-          <Input.Search allowClear placeholder="Tìm tên / SĐT" style={{ width: 200 }} onChange={(e) => setKw(e.target.value)} />
+        <div className="flex flex-wrap gap-2">
+          <Segmented
+            value={statusFilter}
+            onChange={(v) => setStatusFilter(v as "all" | "pending")}
+            options={[
+              { value: "all", label: "Tất cả" },
+              { value: "pending", label: `Chờ kích hoạt${pendingCount ? ` (${pendingCount})` : ""}` },
+            ]}
+          />
+          <Input.Search allowClear placeholder="Tìm tên / SĐT / email" style={{ width: 200 }} onChange={(e) => setKw(e.target.value)} />
           <Button icon={<LuRefreshCw size={14} />} onClick={list.load} loading={list.loading} />
           <Button type="primary" icon={<LuPlus size={15} />} onClick={() => setEdit({ id: null, name: "", companyName: "", phone: "", email: "" })}>
             Thêm khách hàng
@@ -133,11 +170,31 @@ export function CustomersPlatformSection() {
               ),
             },
             { title: "SĐT Zalo", dataIndex: "phone", render: (v: string) => <span className="font-mono text-xs">{v}</span> },
+            {
+              title: "Tài khoản đăng nhập",
+              render: (_, r) =>
+                r.users?.length ? (
+                  <div className="text-[11px] text-slate-600">{r.users.map((u) => <div key={u.id}>{u.email || u.name}</div>)}</div>
+                ) : (
+                  <span className="text-xs text-slate-300">—</span>
+                ),
+            },
             { title: "Gói", render: (_, r) => (r.subscriptions[0] ? <Tag color="blue">{r.subscriptions[0].plan.name}</Tag> : <span className="text-xs text-slate-300">—</span>) },
             { title: "Hạn", width: 100, render: (_, r) => (r.subscriptions[0] ? <span className="text-[11px]">{dayjs(r.subscriptions[0].expiresAt).format("DD/MM/YYYY")}</span> : "") },
             { title: "Store", width: 70, render: (_, r) => r._count.stores },
             { title: "Nhân sự", width: 80, render: (_, r) => r._count.staff },
-            { title: "Trạng thái", width: 100, render: (_, r) => <Tag color={r.status === "active" ? "green" : "default"}>{r.status === "active" ? "Hoạt động" : r.status}</Tag> },
+            {
+              title: "Trạng thái",
+              width: 150,
+              render: (_, r) =>
+                r.status === "pending" ? (
+                  <Button size="small" type="primary" onClick={(e) => { e.stopPropagation(); changeStatus(r.id, "active"); }}>
+                    Kích hoạt
+                  </Button>
+                ) : (
+                  <StatusTag status={r.status} />
+                ),
+            },
           ]}
         />
       )}
@@ -153,10 +210,20 @@ export function CustomersPlatformSection() {
         )}
       </Modal>
 
-      <Drawer open={!!openId} onClose={() => setOpenId(null)} width={460} title={detail ? detail.companyName || detail.name : "Khách hàng"}>
+      <Drawer open={!!openId} onClose={() => setOpenId(null)} size={460} title={detail ? detail.companyName || detail.name : "Khách hàng"}>
         {detail && (
           <div className="space-y-5 text-sm">
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <StatusTag status={detail.status} />
+              {detail.status !== "active" ? (
+                <Button size="small" type="primary" onClick={() => changeStatus(detail.id, "active")}>
+                  Kích hoạt người bán
+                </Button>
+              ) : (
+                <Popconfirm title="Tạm khoá? Người bán sẽ không vào được trang quản trị store." onConfirm={() => changeStatus(detail.id, "suspended")}>
+                  <Button size="small">Tạm khoá</Button>
+                </Popconfirm>
+              )}
               <Button size="small" onClick={() => setEdit({ id: detail.id, name: detail.name, companyName: detail.companyName ?? "", phone: detail.phone, email: detail.email ?? "" })}>
                 Sửa thông tin
               </Button>
@@ -178,6 +245,9 @@ export function CustomersPlatformSection() {
                 Liên hệ: {detail.name} · <span className="font-mono">{detail.phone}</span>
               </div>
               {detail.email && <div>Email: {detail.email}</div>}
+              {detail.address && <div>Địa chỉ: {detail.address}</div>}
+              {!!detail.users?.length && <div>Tài khoản: {detail.users.map((u) => u.email || u.name).join(", ")}</div>}
+              {detail.note && <div>Ghi chú: {detail.note}</div>}
               <div>Store: {detail.stores.map((s) => s.name).join(", ") || "—"}</div>
             </div>
             <div>
@@ -294,6 +364,132 @@ export function AuditSection() {
             { title: "Đối tượng", render: (_, r) => <span className="font-mono text-[11px] text-slate-500">{r.targetType} {r.targetId}</span> },
             { title: "Chi tiết", render: (_, r) => <span className="text-[11px] text-slate-500">{r.meta ? JSON.stringify(r.meta) : ""}</span> },
             { title: "IP", width: 120, render: (_, r) => <span className="font-mono text-[11px]">{r.ip}</span> },
+          ]}
+        />
+      )}
+    </div>
+  );
+}
+
+// ═════════════════════════════ Tài khoản quản trị ═════════════════════════════
+
+/** Đánh dấu tài khoản Google nào là "Quản trị nền tảng" (thấy mọi store, duyệt người bán…). */
+export function AccountsSection({ currentUserId }: { currentUserId: string }) {
+  const { message } = AntApp.useApp();
+  const list = useList(fetchAccounts);
+  const [kw, setKw] = useState("");
+  const [busy, setBusy] = useState<string | null>(null);
+
+  const rows = (list.data ?? []).filter((a) => {
+    const k = kw.trim().toLowerCase();
+    return !k || `${a.name} ${a.email ?? ""} ${a.customer?.companyName ?? ""}`.toLowerCase().includes(k);
+  });
+
+  const toggle = async (a: AccountRow, admin: boolean) => {
+    setBusy(a.id);
+    try {
+      await setAccountRole(a.id, admin ? "admin" : "owner");
+      message.success(admin ? `Đã đánh dấu ${a.email ?? a.name} là quản trị nền tảng` : "Đã gỡ quyền quản trị nền tảng");
+      list.load();
+    } catch (e) {
+      message.error(errMsg(e));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h3 className="text-base font-bold text-slate-900">Tài khoản quản trị</h3>
+          <p className="text-xs text-slate-500">
+            Tài khoản được đánh dấu <b>Quản trị nền tảng</b> thấy mọi gian hàng, duyệt người bán và dùng các mục quản trị.
+            Tài khoản khác là chủ shop — chỉ quản lý gian hàng của mình.
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Input.Search allowClear placeholder="Tìm tên / email" style={{ width: 220 }} onChange={(e) => setKw(e.target.value)} />
+          <Button icon={<LuRefreshCw size={14} />} onClick={list.load} loading={list.loading} />
+        </div>
+      </div>
+      {list.error ? (
+        <Retry error={list.error} onRetry={list.load} />
+      ) : (
+        <Table<AccountRow>
+          rowKey="id"
+          size="small"
+          loading={list.loading}
+          dataSource={rows}
+          pagination={{ pageSize: 15 }}
+          locale={{ emptyText: <Empty description="Chưa có tài khoản" /> }}
+          columns={[
+            {
+              title: "Tài khoản",
+              render: (_, a) => (
+                <div className="flex items-center gap-2.5">
+                  {a.avatarUrl ? (
+                    <img src={a.avatarUrl} alt="" referrerPolicy="no-referrer" className="h-8 w-8 rounded-lg object-cover" />
+                  ) : (
+                    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-200 text-xs font-bold text-slate-600">
+                      {a.name.slice(0, 1).toUpperCase()}
+                    </span>
+                  )}
+                  <div>
+                    <div className="text-sm font-semibold text-slate-900">
+                      {a.name} {a.id === currentUserId && <span className="text-[11px] font-normal text-slate-400">(bạn)</span>}
+                    </div>
+                    <div className="text-[11px] text-slate-500">{a.email}</div>
+                  </div>
+                </div>
+              ),
+            },
+            {
+              title: "Người bán",
+              render: (_, a) =>
+                a.customer ? (
+                  <div className="text-xs">
+                    <div className="font-semibold text-slate-800">{a.customer.companyName || a.customer.name}</div>
+                    <StatusTag status={a.customer.status} />
+                  </div>
+                ) : (
+                  <span className="text-xs text-slate-300">—</span>
+                ),
+            },
+            {
+              title: "Đăng nhập gần nhất",
+              width: 150,
+              render: (_, a) => <span className="text-[11px] text-slate-500">{dayjs(a.lastLoginAt).format("DD/MM/YYYY HH:mm")}</span>,
+            },
+            {
+              title: "Vai trò",
+              width: 220,
+              render: (_, a) =>
+                a.adminViaEnv ? (
+                  <Tag color="purple" className="m-0">Quản trị (ADMIN_EMAILS)</Tag>
+                ) : a.isAdmin ? (
+                  <div className="flex items-center gap-2">
+                    <Tag color="purple" className="m-0">Quản trị nền tảng</Tag>
+                    {a.id !== currentUserId && (
+                      <Popconfirm title="Gỡ quyền quản trị nền tảng?" onConfirm={() => toggle(a, false)}>
+                        <Button size="small" type="link" danger loading={busy === a.id}>
+                          Gỡ
+                        </Button>
+                      </Popconfirm>
+                    )}
+                  </div>
+                ) : (
+                  <Popconfirm
+                    title="Đánh dấu là quản trị nền tảng?"
+                    description="Tài khoản này sẽ thấy và sửa được mọi gian hàng."
+                    onConfirm={() => toggle(a, true)}
+                  >
+                    <Button size="small" loading={busy === a.id}>
+                      Đặt làm quản trị
+                    </Button>
+                  </Popconfirm>
+                ),
+            },
           ]}
         />
       )}

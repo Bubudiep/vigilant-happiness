@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   InternalServerErrorException,
   UnauthorizedException,
@@ -7,6 +8,7 @@ import {
 import { ConfigService } from "@nestjs/config";
 import { randomBytes } from "crypto";
 import * as jwt from "jsonwebtoken";
+import { normalizeVnPhone } from "../oauth/zalo.service";
 import { PrismaService } from "../prisma/prisma.service";
 
 export interface JwtPayload {
@@ -59,7 +61,7 @@ export class AuthService {
   }
 
   /** Chỉ cho phép đường dẫn nội bộ ("/admin/..."), chặn "//evil.com" hay "/\evil.com". */
-  private safeRedirectPath(path: string | undefined, fallback = "/admin/overview"): string {
+  private safeRedirectPath(path: string | undefined, fallback = "/admin"): string {
     if (!path || !path.startsWith("/") || path.startsWith("//") || path.startsWith("/\\")) return fallback;
     return path;
   }
@@ -87,7 +89,7 @@ export class AuthService {
     return { clientId, clientSecret, callbackUrl };
   }
 
-  getGoogleAuthUrl(redirectPath = "/admin/overview", loginHint?: string): string {
+  getGoogleAuthUrl(redirectPath = "/admin", loginHint?: string): string {
     const { clientId, callbackUrl } = this.getGoogleConfig();
     const safeRedirect = this.safeRedirectPath(redirectPath);
     const state = Buffer.from(JSON.stringify({ redirect: safeRedirect }), "utf8").toString("base64url");
@@ -111,14 +113,14 @@ export class AuthService {
   }
 
   parseRedirectFromState(state?: string): string {
-    if (!state) return "/admin/overview";
+    if (!state) return "/admin";
     try {
       const parsed = JSON.parse(Buffer.from(state, "base64url").toString("utf8")) as { redirect?: string };
       return this.safeRedirectPath(parsed.redirect);
     } catch {
       // ignore invalid state
     }
-    return "/admin/overview";
+    return "/admin";
   }
 
   async handleGoogleCallback(code: string, state?: string) {
@@ -288,11 +290,88 @@ export class AuthService {
         role: true,
         customerId: true,
         lastLoginAt: true,
+        customer: {
+          select: { id: true, name: true, companyName: true, phone: true, address: true, status: true, createdAt: true },
+        },
       },
     });
     if (!user) {
       throw new UnauthorizedException("Không tìm thấy tài khoản người dùng");
     }
-    return user;
+    const isAdmin = this.isAdminUser(user);
+    const accountStatus = isAdmin
+      ? "admin"
+      : !user.customer
+        ? "unregistered"
+        : user.customer.status === "active"
+          ? "active"
+          : user.customer.status === "pending"
+            ? "pending"
+            : "suspended";
+    return { ...user, isAdmin, accountStatus };
+  }
+
+  /**
+   * Token riêng cho một phạm vi (VD "shop" = khách của gian hàng). Ký bằng khoá dẫn xuất
+   * `${JWT_SECRET}:${scope}` nên không dùng thay JWT trang quản trị được, và ngược lại.
+   */
+  signScoped(scope: string, payload: Record<string, unknown>, expiresIn: string | number) {
+    return jwt.sign({ ...payload, scp: scope }, `${this.getJwtSecret()}:${scope}`, { expiresIn } as jwt.SignOptions);
+  }
+
+  verifyScoped<T extends Record<string, unknown>>(scope: string, token: string): T {
+    try {
+      const p = jwt.verify(token, `${this.getJwtSecret()}:${scope}`) as T & { scp?: string };
+      if (p.scp !== scope) throw new Error("scope");
+      return p;
+    } catch {
+      throw new UnauthorizedException("Phiên đăng nhập hết hạn hoặc không hợp lệ");
+    }
+  }
+
+  /** Secret của server dùng để mã hoá dữ liệu nhạy cảm trong DB (secret-box). */
+  getServerSecret(): string {
+    const fileSecret = this.config.get<string>("FILE_SIGN_SECRET");
+    return fileSecret && fileSecret.length >= 16 ? fileSecret : this.getJwtSecret();
+  }
+
+  /** Email trong ADMIN_EMAILS hoặc role = admin → quản trị nền tảng. */
+  isAdminUser(user: { role: string; email: string | null }): boolean {
+    const emails = (this.config.get<string>("ADMIN_EMAILS") ?? "")
+      .split(",")
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean);
+    return user.role === "admin" || (!!user.email && emails.includes(user.email.toLowerCase()));
+  }
+
+  /**
+   * Chủ shop tự đăng ký làm người bán: tạo PlatformCustomer ở trạng thái "pending",
+   * quản trị viên kích hoạt (đổi sang "active") ở trang Khách hàng reMini.
+   * Gửi lại khi đang chờ duyệt thì cập nhật thông tin.
+   */
+  async registerSeller(
+    userId: string,
+    dto: { name: string; companyName?: string; phone: string; address?: string; note?: string },
+  ) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, include: { customer: true } });
+    if (!user) throw new UnauthorizedException("Không tìm thấy tài khoản người dùng");
+    const phone = normalizeVnPhone(dto.phone);
+    if (!phone) throw new BadRequestException("Số điện thoại không hợp lệ");
+    const data = {
+      name: dto.name.trim(),
+      companyName: dto.companyName?.trim() || null,
+      phone,
+      address: dto.address?.trim() || null,
+      note: dto.note?.trim() || null,
+      email: user.email,
+    };
+    if (user.customer) {
+      if (user.customer.status !== "pending") throw new ConflictException("Tài khoản đã đăng ký người bán");
+      await this.prisma.platformCustomer.update({ where: { id: user.customer.id }, data });
+    } else {
+      const customer = await this.prisma.platformCustomer.create({ data: { ...data, status: "pending" } });
+      await this.prisma.user.update({ where: { id: user.id }, data: { customerId: customer.id, phone: user.phone ?? phone } });
+    }
+    return this.getMe(userId);
   }
 }

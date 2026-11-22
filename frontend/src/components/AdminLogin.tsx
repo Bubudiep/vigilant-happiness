@@ -101,7 +101,7 @@ function ZaloIcon() {
 }
 
 export default function AdminLogin({
-  redirectTo = "/admin/overview",
+  redirectTo = "/admin",
   onSuccess,
   onBackToSite,
 }: {

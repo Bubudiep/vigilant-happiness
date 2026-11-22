@@ -31,7 +31,7 @@ export const oauthConfig = {
   googleOAuthUrl: (import.meta.env.VITE_GOOGLE_OAUTH_URL as string | undefined) || "",
 };
 
-export function getGoogleLoginUrl(redirectPath = "/admin/overview", loginHint?: string): string {
+export function getGoogleLoginUrl(redirectPath = "/admin", loginHint?: string): string {
   if (oauthConfig.googleOAuthUrl) {
     return oauthConfig.googleOAuthUrl;
   }
@@ -180,3 +180,53 @@ export function consumeOAuthCallbackFromUrl(): AuthUser | null {
   }
   return null;
 }
+
+// ───────────────────────── Trạng thái tài khoản người bán ─────────────────────────
+
+/** admin: quản trị nền tảng · unregistered: chưa đăng ký · pending: chờ kích hoạt · active · suspended: bị khoá */
+export type AccountStatus = "admin" | "unregistered" | "pending" | "active" | "suspended";
+
+export interface SellerProfile {
+  id: string;
+  name: string;
+  companyName?: string | null;
+  phone: string;
+  address?: string | null;
+  status: string;
+  createdAt: string;
+}
+
+export interface AccountInfo {
+  id: string;
+  name: string;
+  email?: string | null;
+  isAdmin: boolean;
+  accountStatus: AccountStatus;
+  customer?: SellerProfile | null;
+}
+
+async function authJson<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const token = getStoredAuthToken();
+  const res = await fetch(`${siteConfig.apiUrl}${path}`, {
+    ...init,
+    headers: {
+      ...(init.body ? { "Content-Type": "application/json" } : {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+  const body = await res.json().catch(() => null);
+  if (!res.ok) {
+    const msg = Array.isArray(body?.message) ? body.message[0] : body?.message;
+    const err = new Error(msg || `Lỗi ${res.status}`) as Error & { status?: number };
+    err.status = res.status;
+    throw err;
+  }
+  return body as T;
+}
+
+/** Lấy quyền + trạng thái kích hoạt người bán của tài khoản đang đăng nhập. */
+export const fetchAccount = () => authJson<AccountInfo>("/auth/me");
+
+/** Gửi đăng ký người bán (chờ quản trị viên kích hoạt). */
+export const registerSeller = (data: { name: string; companyName?: string; phone: string; address?: string; note?: string }) =>
+  authJson<AccountInfo>("/auth/register-seller", { method: "POST", body: JSON.stringify(data) });

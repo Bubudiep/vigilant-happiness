@@ -24,6 +24,7 @@ export class CustomersService {
             staff: true,
           },
         },
+        users: { select: { id: true, email: true, name: true, avatarUrl: true } },
         subscriptions: {
           where: { status: "active" },
           include: { plan: true },
@@ -49,6 +50,7 @@ export class CustomersService {
           },
           orderBy: { createdAt: "desc" },
         },
+        users: { select: { id: true, email: true, name: true, avatarUrl: true } },
         staff: {
           include: { store: { select: { id: true, name: true, slug: true } } },
           orderBy: { createdAt: "desc" },

@@ -52,8 +52,9 @@ export class ZaloService {
   }
 
   /** Trả về SĐT dạng 0xxxxxxxxx, hoặc null nếu không lấy được (người dùng từ chối / thiếu cấu hình). */
-  async getPhoneNumber(accessToken: string, phoneToken: string): Promise<string | null> {
-    const secret = this.config.get<string>("ZALO_APP_SECRET");
+  async getPhoneNumber(accessToken: string, phoneToken: string, appSecret?: string | null): Promise<string | null> {
+    // Mini App riêng của từng store có App Secret riêng; mặc định dùng secret của Mini App reMini
+    const secret = appSecret || this.config.get<string>("ZALO_APP_SECRET");
     if (!secret) {
       console.warn("[zalo] Chưa cấu hình ZALO_APP_SECRET – bỏ qua bước lấy số điện thoại");
       return null;

@@ -1,7 +1,5 @@
 import type { BuilderSchema } from "../miniapp-builder";
-import { FREEPIK_STOCK, resolveLocalStockUrl } from "../miniapp-builder/stock-images";
-import { getStoredAuthToken } from "./auth";
-import { siteConfig } from "./site";
+import { api } from "./platform-api";
 
 export interface StoreThemeConfig {
   primary: string;
@@ -55,13 +53,35 @@ export interface StoreOrderItem {
   phone: string;
   itemsSummary: string;
   total: number;
+  customerId?: string | null;
+  address?: string;
+  note?: string;
   status: "pending" | "confirmed" | "shipping" | "completed" | "cancelled";
   createdAt: string;
+  items?: StoreOrderLine[];
+  subtotal?: number;
+  shippingFee?: number;
+  discountAmount?: number;
+  voucherCode?: string;
+  /** miniapp = khách đặt trong Mini App, admin = tạo tại quầy */
+  source?: "miniapp" | "admin";
+  paymentMethod?: PaymentMethod;
+}
+
+export type PaymentMethod = "cod" | "cash" | "bank_transfer" | "card" | "ewallet";
+
+export interface StoreOrderLine {
+  productId: string | null;
+  productName: string;
+  unitPrice: number;
+  quantity: number;
+  imageUrl?: string | null;
 }
 
 export interface StoreBookingItem {
   id: string;
   code: string;
+  customerId?: string | null;
   customerName: string;
   phone: string;
   serviceName: string;
@@ -99,6 +119,9 @@ export interface StoreVoucherItem {
   startDate: string;
   endDate: string;
   active: boolean;
+  /** Số mã thẻ (dùng 1 lần) đã sinh / đã dùng */
+  codeCount?: number;
+  codeUsed?: number;
 }
 
 export interface StoreDocumentItem {
@@ -131,6 +154,11 @@ export interface StoreCustomerItem {
   totalSpent: number;
   note?: string;
   createdAt: string;
+  /** Có giá trị khi khách đã đăng nhập Zalo trong Mini App của store (tài khoản khách) */
+  zaloUserId?: string | null;
+  avatarUrl?: string | null;
+  address?: string | null;
+  lastLoginAt?: string | null;
 }
 
 export interface StoreConfig {
@@ -156,161 +184,27 @@ export interface StoreConfig {
   vouchers?: StoreVoucherItem[];
   tickets?: StoreSupportTicket[];
   builder?: BuilderSchema;
+  /** Đã lưu App Secret Mini App riêng của store (không đọc lại được) */
+  hasZaloAppSecret?: boolean;
+  /** Chỉ dùng khi gửi lên: App Secret mới (chuỗi rỗng = xoá) */
+  zaloAppSecret?: string;
 }
 
-const STORAGE_KEY = "recloud_stores_v1";
-
-const initialStores: StoreConfig[] = [
-  {
-    id: "store_lumi",
-    slug: "lumi-studio",
-    name: "LUMI Studio",
-    subtitle: "Thời trang thiết kế · Giao nhanh nội thành",
-    templateId: "thoi_trang_01",
-    zaloAppId: "3546317553033780315",
-    zaloOaId: "oa_lumi_studio",
-    phone: "0901234567",
-    address: "45 Lê Lợi, Quận 1, TP.HCM",
-    active: true,
-    theme: {
-      primary: "#1f1f1f",
-      accent: "#c8a27a",
-      bg: "#f7f5f2",
-      headerVariant: "pastel",
-      bannerVariant: "poster",
-      productCardVariant: "editorial",
-      memberCardVariant: "minimal",
-    },
-    sliders: [
-      {
-        id: "sl_1",
-        eyebrow: "NEW COLLECTION",
-        title: "BST Thu Đông 2026",
-        subtitle: "Giảm đến 30% cho thành viên mới trên Zalo",
-        from: "#1f1f1f",
-        to: "#7a5c45",
-        cta: "Mua ngay",
-      },
-      {
-        id: "sl_2",
-        eyebrow: "MEMBER DAY",
-        title: "Tặng Voucher 50K",
-        subtitle: "Áp dụng cho đơn từ 399.000đ",
-        from: "#4f46e5",
-        to: "#06b6d4",
-        cta: "Nhận mã",
-      },
-    ],
-    products: [
-      { id: "sp_1", name: "Áo sơ mi linen tay dài", category: "Áo", price: 459000, salePrice: 359000, unit: "S / M / L", tag: "Bán chạy", imageUrl: FREEPIK_STOCK.retail.products[0], active: true },
-      { id: "sp_2", name: "Đầm midi hoa nhí lụa", category: "Váy đầm", price: 659000, salePrice: 499000, unit: "S / M / L", tag: "Mới", imageUrl: FREEPIK_STOCK.retail.products[1], active: true },
-      { id: "sp_3", name: "Quần âu ống suông", category: "Quần", price: 529000, salePrice: 429000, unit: "26 - 30", imageUrl: FREEPIK_STOCK.retail.products[2], active: true },
-    ],
-    customers: [
-      { id: "kh_1", name: "Nguyễn Lan Anh", phone: "0909123456", tier: "Vàng", points: 2450, totalOrders: 8, totalSpent: 4850000, note: "Thích size M, màu trung tính", createdAt: "2026-11-10T08:30:00Z" },
-      { id: "kh_2", name: "Trần Minh Thư", phone: "0912345678", tier: "Bạc", points: 1120, totalOrders: 4, totalSpent: 2150000, note: "Khách từ Zalo OA", createdAt: "2026-11-15T14:20:00Z" },
-      { id: "kh_3", name: "Lê Hoàng Nam", phone: "0987654321", tier: "Thành viên", points: 350, totalOrders: 1, totalSpent: 459000, createdAt: "2026-11-18T09:15:00Z" },
-    ],
-  },
-  {
-    id: "store_kcn",
-    slug: "vinatech-kcn",
-    name: "VinaTech Industrial",
-    subtitle: "Cổng nhân sự nội bộ · KCN VSIP",
-    templateId: "kcn_doanh_nghiep_01",
-    zaloAppId: "3546317553033780315",
-    phone: "0900888999",
-    address: "Lô B2, KCN VSIP, Bình Dương",
-    active: true,
-    theme: {
-      primary: "#0f766e",
-      accent: "#0284c7",
-      bg: "#f4f6f8",
-      headerVariant: "solid",
-      bannerVariant: "split",
-      productCardVariant: "horizontal",
-      memberCardVariant: "vip",
-    },
-    sliders: [
-      {
-        id: "sl_k1",
-        eyebrow: "THÔNG BÁO NHÂN SỰ",
-        title: "Chốt công kỳ tháng 11",
-        subtitle: "Hoàn thành giải trình công trước ngày 25/11",
-        from: "#0f766e",
-        to: "#0284c7",
-        cta: "Xem bảng công",
-      },
-    ],
-    products: [
-      { id: "dv_1", name: "Đăng ký suất ăn ca tăng cường", category: "Phúc lợi", price: 0, unit: "Theo ngày", tag: "Nội bộ", active: true },
-      { id: "dv_2", name: "Đăng ký tuyến xe đưa đón số 04", category: "Xe tuyến", price: 0, unit: "Tháng", active: true },
-    ],
-    customers: [
-      { id: "nv_1", name: "Nguyễn Văn Hùng", phone: "0933112233", tier: "Chính thức", points: 22, totalOrders: 14, totalSpent: 0, note: "Mã NV: VN-2048 · Chuyền A3", createdAt: "2026-11-01T07:00:00Z" },
-      { id: "nv_2", name: "Phạm Thị Hoa", phone: "0944556677", tier: "Tổ trưởng", points: 26, totalOrders: 18, totalSpent: 0, note: "Mã NV: VN-1092 · Xưởng 2", createdAt: "2026-11-02T07:00:00Z" },
-    ],
-  },
-];
-
-function migrateStoreMediaToLocal(stores: StoreConfig[]): StoreConfig[] {
-  return stores.map((store) => ({
-    ...store,
-    products: store.products.map((p, i) => ({
-      ...p,
-      imageUrl: p.imageUrl
-        ? resolveLocalStockUrl(p.imageUrl)
-        : FREEPIK_STOCK.retail.products[i % FREEPIK_STOCK.retail.products.length],
-    })),
-    builder: store.builder
-      ? {
-          ...store.builder,
-          pages: store.builder.pages.map((pg) => ({
-            ...pg,
-            blocks: pg.blocks.map((b) => ({
-              ...b,
-              props: {
-                ...b.props,
-                items: b.props.items?.map((it) => ({
-                  ...it,
-                  image: resolveLocalStockUrl(it.image),
-                })),
-              },
-            })),
-          })),
-        }
-      : store.builder,
-  }));
+export interface StoreOwnerLite {
+  id: string;
+  name: string;
+  companyName?: string | null;
 }
 
-function readLocalStores(): StoreConfig[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw) as StoreConfig[];
-      const migrated = migrateStoreMediaToLocal(parsed);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(migrated));
-      return migrated;
-    }
-  } catch {
-    // ignore
-  }
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(initialStores));
-  return initialStores;
-}
-
-function writeLocalStores(stores: StoreConfig[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(stores));
-}
-
-/** Gắn JWT (nếu đã đăng nhập Google) để backend biết store nào thuộc tài khoản này. */
-function authHeaders(extra: Record<string, string> = {}): Record<string, string> {
-  const token = getStoredAuthToken();
-  return token ? { ...extra, Authorization: `Bearer ${token}` } : extra;
-}
+/** Store kèm thông tin khách sở hữu (backend trả về trong danh sách / chi tiết). */
+export type StoreWithOwner = StoreConfig & {
+  customer?: StoreOwnerLite | null;
+  /** true khi đã tải chi tiết (sản phẩm, khách, lịch hẹn, thiết kế…); danh sách chỉ có thông tin tóm tắt */
+  loaded?: boolean;
+};
 
 /** Backend lưu thiết kế ở `builderSchema`; giao diện dùng `builder`. */
-function fromApi(raw: StoreConfig & { builderSchema?: BuilderSchema | null }): StoreConfig {
+function fromApi(raw: StoreWithOwner & { builderSchema?: BuilderSchema | null }): StoreWithOwner {
   const { builderSchema, ...rest } = raw;
   return {
     ...rest,
@@ -321,91 +215,129 @@ function fromApi(raw: StoreConfig & { builderSchema?: BuilderSchema | null }): S
   };
 }
 
-export async function fetchStores(): Promise<{ stores: StoreConfig[]; source: "api" | "local" }> {
-  try {
-    const res = await fetch(`${siteConfig.apiUrl}/stores`, { headers: authHeaders() });
-    if (res.ok) {
-      const list = (await res.json()) as StoreConfig[];
-      if (Array.isArray(list) && list.length > 0) {
-        const detailed = await Promise.all(
-          list.map(async (s) => {
-            const detailRes = await fetch(`${siteConfig.apiUrl}/stores/${s.id}`, { headers: authHeaders() });
-            return fromApi(detailRes.ok ? ((await detailRes.json()) as StoreConfig) : s);
-          }),
-        );
-        return { stores: detailed, source: "api" };
-      }
-    }
-  } catch {
-    // fallback to localStorage when backend isn't started yet
-  }
-  return { stores: readLocalStores(), source: "local" };
+/**
+ * Danh sách store của tài khoản đang đăng nhập (chủ shop chỉ nhận store của mình,
+ * quản trị viên nhận tất cả). Không còn dữ liệu demo / bản lưu trình duyệt.
+ */
+export async function fetchStoreDetail(id: string): Promise<StoreWithOwner> {
+  return { ...fromApi(await api<StoreWithOwner>(`/stores/${id}`)), loaded: true };
 }
 
 /**
- * Lưu cấu hình. Luôn lưu bản nháp localStorage; nếu backend có store này thì đồng bộ
- * cả thiết kế (builderSchema) để Mini App đọc được qua /stores/public/:slug.
- * Trả về "api" khi backend đã nhận, "local" khi chỉ lưu trên trình duyệt.
+ * Danh sách store (tóm tắt, không kèm sản phẩm / lịch hẹn / thiết kế) — chi tiết tải riêng khi chọn store
+ * bằng fetchStoreDetail, tránh tải dữ liệu của mọi store lúc mở trang.
  */
-export async function saveStoreConfig(store: StoreConfig): Promise<"api" | "local"> {
-  const local = readLocalStores();
-  const next = local.some((s) => s.id === store.id)
-    ? local.map((s) => (s.id === store.id ? store : s))
-    : [store, ...local];
-  writeLocalStores(next);
-  try {
-    const res = await fetch(`${siteConfig.apiUrl}/stores/${store.id}/config`, {
-      method: "PATCH",
-      headers: authHeaders({ "Content-Type": "application/json" }),
-      body: JSON.stringify({
-        name: store.name,
-        subtitle: store.subtitle,
-        templateId: store.templateId,
-        zaloAppId: store.zaloAppId,
-        zaloOaId: store.zaloOaId,
-        phone: store.phone,
-        address: store.address,
-        active: store.active,
-        theme: store.theme,
-        sliders: store.sliders,
-        ...(store.builder ? { builderSchema: store.builder } : {}),
-      }),
-    });
-    return res.ok ? "api" : "local";
-  } catch {
-    return "local";
-  }
+export async function fetchStores(): Promise<StoreWithOwner[]> {
+  const list = await api<StoreWithOwner[]>("/stores");
+  return list.map((s) => ({ ...fromApi(s), loaded: false }));
 }
 
-/**
- * Tạo store trên backend (nếu đã đăng nhập & backend đang chạy). Thành công thì trả về
- * store với id thật của DB, để các lần lưu sau PATCH đúng bản ghi; lỗi thì trả về null.
- */
-export async function createStoreRemote(store: StoreConfig): Promise<StoreConfig | null> {
-  try {
-    const res = await fetch(`${siteConfig.apiUrl}/stores`, {
-      method: "POST",
-      headers: authHeaders({ "Content-Type": "application/json" }),
-      body: JSON.stringify({
-        name: store.name,
-        slug: store.slug,
-        subtitle: store.subtitle,
-        templateId: store.templateId,
-        zaloAppId: store.zaloAppId,
-        phone: store.phone,
-        address: store.address,
-        theme: store.theme,
-        sliders: store.sliders,
-      }),
-    });
-    if (!res.ok) return null;
-    const created = fromApi((await res.json()) as StoreConfig);
-    return { ...store, id: created.id };
-  } catch {
-    return null;
-  }
+/** Lưu thông tin, theme và thiết kế (builderSchema) lên máy chủ — Mini App đọc qua /stores/public/:slug. */
+export async function saveStoreConfig(store: StoreConfig): Promise<void> {
+  await api(`/stores/${store.id}/config`, {
+    method: "PATCH",
+    body: JSON.stringify({
+      name: store.name,
+      subtitle: store.subtitle,
+      templateId: store.templateId,
+      zaloAppId: store.zaloAppId,
+      zaloOaId: store.zaloOaId,
+      phone: store.phone,
+      address: store.address,
+      active: store.active,
+      theme: store.theme,
+      sliders: store.sliders,
+      ...(store.builder ? { builderSchema: store.builder } : {}),
+      ...(store.zaloAppSecret?.trim() ? { zaloAppSecret: store.zaloAppSecret.trim() } : {}),
+    }),
+  });
 }
 
-export function saveAllLocalStores(stores: StoreConfig[]) {
-  writeLocalStores(stores);
+export interface CreateStoreInput {
+  name: string;
+  slug: string;
+  subtitle?: string;
+  templateId: string;
+  phone?: string;
+  address?: string;
+  zaloAppId?: string;
+  theme: StoreThemeConfig;
+  sliders: StoreSliderItem[];
 }
+
+/** Tạo store trên máy chủ (gắn vào tài khoản người bán đang đăng nhập). Lỗi ném ApiError. */
+export async function createStore(input: CreateStoreInput): Promise<StoreWithOwner> {
+  const created = await api<StoreWithOwner>("/stores", { method: "POST", body: JSON.stringify(input) });
+  return { ...fromApi(created), loaded: false };
+}
+
+type ProductInput = Omit<StoreProductItem, "id">;
+type CustomerInput = Omit<StoreCustomerItem, "id" | "createdAt">;
+
+export const addStoreProduct = (storeId: string, data: ProductInput) =>
+  api<StoreProductItem>(`/stores/${storeId}/products`, { method: "POST", body: JSON.stringify(data) });
+export const updateStoreProduct = (storeId: string, id: string, data: Partial<ProductInput>) =>
+  api<StoreProductItem>(`/stores/${storeId}/products/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+export const deleteStoreProduct = (storeId: string, id: string) =>
+  api(`/stores/${storeId}/products/${id}`, { method: "DELETE" });
+
+export const addStoreCustomer = (storeId: string, data: CustomerInput) =>
+  api<StoreCustomerItem>(`/stores/${storeId}/customers`, { method: "POST", body: JSON.stringify(data) });
+export const updateStoreCustomer = (storeId: string, id: string, data: Partial<CustomerInput>) =>
+  api<StoreCustomerItem>(`/stores/${storeId}/customers/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+export const deleteStoreCustomer = (storeId: string, id: string) =>
+  api(`/stores/${storeId}/customers/${id}`, { method: "DELETE" });
+
+// ───────────── Đơn hàng tạo tại quầy ─────────────
+
+export interface CreateOrderInput {
+  customerId?: string;
+  customerName: string;
+  phone?: string;
+  address?: string;
+  note?: string;
+  status: StoreOrderItem["status"];
+  paymentMethod: PaymentMethod;
+  saveCustomer?: boolean;
+  voucherCode?: string;
+  shippingFee?: number;
+  extraDiscount?: number;
+  items: { productId?: string | null; productName?: string; unitPrice?: number; quantity: number }[];
+}
+
+export const createStoreOrder = (storeId: string, data: CreateOrderInput) =>
+  api<StoreOrderItem & { customer: StoreCustomerItem | null; customerCreated: boolean }>(`/stores/${storeId}/data/orders`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+
+export const previewVoucher = (storeId: string, data: { code: string; subtotal: number; shippingFee: number; customerId?: string }) =>
+  api<{ voucherId: string; code: string; title: string; discount: number; singleUse: boolean }>(`/stores/${storeId}/data/orders/preview-voucher`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+
+// ───────────── Mã voucher in thẻ ─────────────
+
+export interface VoucherCodeItem {
+  id: string;
+  code: string;
+  usedAt: string | null;
+  orderCode: string | null;
+  createdAt: string;
+}
+
+export const fetchVoucherCodes = (storeId: string, voucherId: string) =>
+  api<VoucherCodeItem[]>(`/stores/${storeId}/data/vouchers/${voucherId}/codes`);
+
+export const generateVoucherCodes = (storeId: string, voucherId: string, data: { count: number; prefix?: string; length?: number }) =>
+  api<{ created: number; total: number; quantity: number }>(`/stores/${storeId}/data/vouchers/${voucherId}/codes`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+
+export const deleteVoucherCodes = (storeId: string, voucherId: string, ids?: string[]) =>
+  api<{ deleted: number }>(`/stores/${storeId}/data/vouchers/${voucherId}/codes/delete`, {
+    method: "POST",
+    body: JSON.stringify({ ids }),
+  });

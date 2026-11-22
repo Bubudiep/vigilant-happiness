@@ -1,23 +1,22 @@
 import {
   Button,
   Drawer,
-  Dropdown,
   Form,
   Input,
   InputNumber,
   Modal,
   Popconfirm,
   QRCode,
+  Result,
   Select,
+  Spin,
   Switch,
   Table,
-  Tag,
   Tooltip,
   App as AntApp,
 } from "antd";
-import dayjs from "dayjs";
-import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   LuBookOpen,
   LuCalendarCheck,
@@ -25,59 +24,67 @@ import {
   LuCrown,
   LuLayoutDashboard,
   LuLifeBuoy,
+  LuGauge,
   LuLogOut,
   LuMenu,
-  LuKeyRound,
-  LuKanban,
-  LuShieldAlert,
   LuPackage,
-  LuPhoneCall,
   LuPanelLeftClose,
   LuPanelLeftOpen,
   LuPlus,
-  LuSave,
-  LuSearch,
+  LuCheck,
   LuShoppingBag,
+  LuSparkles,
   LuSmartphone,
   LuStore,
   LuTrash2,
   LuUsers,
-  LuWallet,
-  LuMessagesSquare,
   LuImages,
-  LuHeartHandshake,
   LuWarehouse,
 } from "react-icons/lu";
-import type { AuthUser } from "../data/auth";
-import { demoTemplates, getZaloTemplateUrl } from "../data/site";
+import type { AccountInfo, AuthUser } from "../data/auth";
+import { ApiError } from "../data/platform-api";
+import { getZaloTemplateUrl } from "../data/site";
 import {
+  addStoreCustomer,
+  addStoreProduct,
+  deleteStoreCustomer,
+  deleteStoreProduct,
+  fetchStoreDetail,
   fetchStores,
-  saveAllLocalStores,
-  createStoreRemote,
   saveStoreConfig,
   StoreConfig,
   StoreCustomerItem,
   StoreProductItem,
+  StoreWithOwner,
+  updateStoreCustomer,
+  updateStoreProduct,
 } from "../data/store-api";
-import {
-  BuilderSchema,
-  createSchemaFromPreset,
-  guessPresetId,
-  MiniAppBuilder,
-} from "../miniapp-builder";
-import { ApiChannelsSection, CallbacksSection } from "./PlatformViews";
-import { AuditSection, CustomersPlatformSection } from "./CustomersAuditViews";
-import { DebtsSection } from "./DebtViews";
-import { CareSection, CustomerFilesSection, InboxSection } from "./InboxViews";
-import { fetchInboxSummary, InboxSummary } from "../data/inbox-api";
-import { AntiSpamSection, PortalSection } from "./PortalAdminViews";
+import { syncStoreChanges } from "../data/store-sync";
+import { fetchStoreUnread } from "../data/album-api";
+import CreateStoreWizard from "./CreateStoreWizard";
+import StoreSwitcher from "./StoreSwitcher";
+import UserMenu from "./UserMenu";
+import { LEGACY_PLATFORM_SECTIONS } from "./PlatformConsole";
+
+// Các mục nặng / ít dùng tải riêng khi mở tới (giảm dung lượng tải trang quản trị lần đầu)
+const named = <K extends string, M extends Record<K, React.ComponentType<never>>>(p: Promise<M>, k: K) =>
+  p.then((m) => ({ default: m[k] as M[K] }));
+const MiniAppStudio = lazy(() => import("./MiniAppStudio"));
+const AlbumsSection = lazy(() => named(import("./AlbumViews"), "AlbumsSection"));
+const CustomersSection = lazy(() => named(import("./StoreCustomerViews"), "CustomersSection"));
+const OrdersSection = lazy(() => named(import("./StoreOrderViews"), "OrdersSection"));
+
+const SectionLoading = () => (
+  <div className="flex min-h-[40vh] items-center justify-center">
+    <Spin />
+  </div>
+);
 import { LoyaltySection } from "./StoreLoyaltyViews";
 import {
   BookingsSection,
   DocumentsSection,
   EventsSection,
   InventorySection,
-  OrdersSection,
   OverviewSection,
   StoreNavKey,
   SupportSection,
@@ -89,43 +96,81 @@ const VALID_NAV_KEYS: StoreNavKey[] = [
   "events",
   "products",
   "customers",
+  "albums",
   "loyalty",
   "orders",
   "miniapp",
   "inventory",
   "documents",
   "support",
-  "callbacks",
-  "portal",
-  "platformCustomers",
-  "debts",
-  "inbox",
-  "files",
-  "care",
-  "audit",
-  "antispam",
-  "api",
 ];
+
+
+/** Các trường thông tin / thiết kế store được tự lưu (PATCH /stores/:id/config) khi thay đổi. */
+const configKey = (s: StoreConfig) =>
+  JSON.stringify([s.name, s.subtitle, s.templateId, s.zaloAppId, s.zaloOaId, s.phone, s.address, s.active, s.theme, s.sliders, s.builder ?? null]);
+
+/** Trạng thái tự lưu trên thanh trên cùng (thay cho nút "Lưu cấu hình"). */
+function SaveIndicator({ state, onRetry }: { state: "idle" | "pending" | "saving" | "saved" | "error"; onRetry: () => void }) {
+  if (state === "error")
+    return (
+      <Button size="small" danger onClick={onRetry}>
+        Chưa lưu được · Thử lại
+      </Button>
+    );
+  if (state === "idle") return null;
+  const busy = state === "pending" || state === "saving";
+  return (
+    <span className="hidden items-center gap-1.5 text-xs font-semibold text-slate-400 sm:flex">
+      {busy ? <Spin size="small" /> : <LuCheck size={14} className="text-emerald-500" />}
+      {busy ? "Đang lưu…" : "Đã lưu"}
+    </span>
+  );
+}
+
+const LAST_STORE_KEY = "recloud_last_store_v1";
+const errMsg = (e: unknown, fb = "Thao tác thất bại") => (e instanceof ApiError ? e.message : fb);
 
 export default function StoreConsole({
   user,
+  account,
   onLogout,
 }: {
   user: AuthUser;
+  account: AccountInfo;
   onLogout: () => void;
 }) {
   const navigate = useNavigate();
+  const isAdmin = account.isAdmin;
   const { section } = useParams<{ section?: string }>();
-  const activeNav: StoreNavKey = VALID_NAV_KEYS.includes(section as StoreNavKey)
-    ? (section as StoreNavKey)
-    : "overview";
+  const activeNav: StoreNavKey = VALID_NAV_KEYS.includes(section as StoreNavKey) ? (section as StoreNavKey) : "overview";
   const setActiveNav = (key: StoreNavKey) => navigate(`/admin/${key}`);
 
+  const [searchParams] = useSearchParams();
+  useEffect(() => {
+    // Các mục điều hành nền tảng đã chuyển sang /controller (đường dẫn cũ /admin/inbox, /admin/customers?tab=care…)
+    const tab = searchParams.get("tab");
+    const legacy = LEGACY_PLATFORM_SECTIONS[section === "customers" && tab ? tab : (section ?? "")];
+    if (legacy) navigate(isAdmin ? `/controller/${legacy}` : "/admin/overview", { replace: true });
+    else if (section && !VALID_NAV_KEYS.includes(section as StoreNavKey)) navigate("/admin/overview", { replace: true });
+  }, [section, searchParams, isAdmin, navigate]);
+
   const { message } = AntApp.useApp();
-  const [stores, setStores] = useState<StoreConfig[]>([]);
-  const [selectedId, setSelectedId] = useState<string>("");
-  const [dataSource, setDataSource] = useState<"api" | "local">("local");
+  const [stores, setStores] = useState<StoreWithOwner[]>([]);
+  const [selectedId, setSelectedIdState] = useState<string>("");
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [wizardOpen, setWizardOpen] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+
+  const setSelectedId = (id: string) => {
+    setSelectedIdState(id);
+    try {
+      localStorage.setItem(LAST_STORE_KEY, id);
+    } catch {
+      // bỏ qua
+    }
+  };
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => activeNav === "miniapp");
 
   useEffect(() => {
@@ -133,120 +178,249 @@ export default function StoreConsole({
   }, [activeNav]);
 
   // Modals
-  const [newStoreOpen, setNewStoreOpen] = useState(false);
   const [publishModalOpen, setPublishModalOpen] = useState(false);
   const [productModal, setProductModal] = useState<{ open: boolean; item?: StoreProductItem }>({ open: false });
   const [customerModal, setCustomerModal] = useState<{ open: boolean; item?: StoreCustomerItem }>({ open: false });
-  const [customerKeyword, setCustomerKeyword] = useState("");
 
-  const [newStoreForm] = Form.useForm();
   const [productForm] = Form.useForm();
   const [customerForm] = Form.useForm();
 
-  useEffect(() => {
-    fetchStores().then(({ stores: list, source }) => {
+  const loadStores = async () => {
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const list = await fetchStores();
       setStores(list);
-      setDataSource(source);
-      if (list.length > 0) setSelectedId(list[0].id);
-    });
+      let last = "";
+      try {
+        last = localStorage.getItem(LAST_STORE_KEY) ?? "";
+      } catch {
+        // bỏ qua
+      }
+      setSelectedIdState(list.some((s) => s.id === last) ? last : (list[0]?.id ?? ""));
+    } catch (e) {
+      setLoadError(errMsg(e, "Không tải được danh sách store"));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadStores();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const store = stores.find((s) => s.id === selectedId) ?? stores[0];
 
-  const updateCurrentStore = (updater: (s: StoreConfig) => StoreConfig) => {
-    if (!store) return;
-    const updated = updater(store);
-    const nextList = stores.map((s) => (s.id === store.id ? updated : s));
-    setStores(nextList);
-    saveAllLocalStores(nextList);
+  // Bản mới nhất của danh sách store — các thao tác bất đồng bộ đọc từ đây (tránh dùng bản cũ trong closure)
+  const storesRef = useRef(stores);
+  storesRef.current = stores;
+
+  /** Ghi một store theo id (an toàn khi người dùng đã chuyển sang store khác trong lúc chờ máy chủ). */
+  const patchStore = (id: string, updater: (s: StoreWithOwner) => Partial<StoreWithOwner>) => {
+    setStores((list) => {
+      const next = list.map((s) => (s.id === id ? { ...s, ...updater(s) } : s));
+      storesRef.current = next;
+      return next;
+    });
   };
 
-  const handlePersistStore = async () => {
+  /** Chỉ cập nhật giao diện của store đang chọn (dữ liệu đã được lưu lên máy chủ ở nơi gọi). */
+  const applyLocal = (updater: (s: StoreConfig) => StoreConfig) => {
+    if (store) patchStore(store.id, updater);
+  };
+
+  // Chi tiết store (sản phẩm, khách, lịch hẹn, thiết kế…) chỉ tải khi chọn tới store đó
+  const [detailError, setDetailError] = useState<string | null>(null);
+  const loadDetail = async (id: string) => {
+    setDetailError(null);
+    try {
+      const detail = await fetchStoreDetail(id);
+      savedKeys.current[id] = configKey(detail); // mốc so sánh cho tự lưu = bản trên máy chủ
+      setStores((list) => {
+        const next = list.map((s) => (s.id === id ? detail : s));
+        storesRef.current = next;
+        return next;
+      });
+    } catch (e) {
+      setDetailError(errMsg(e, "Không tải được dữ liệu store"));
+    }
+  };
+  const needDetail = store && !store.loaded ? store.id : null;
+  useEffect(() => {
+    if (needDetail) loadDetail(needDetail);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [needDetail]);
+
+  /**
+   * Cập nhật giao diện ngay, rồi đẩy thay đổi của Lịch hẹn / Sự kiện / Tài liệu / Hạng / Voucher /
+   * Đơn hàng / Kho lên máy chủ. Thông tin store & thiết kế tự lưu (xem configKey).
+   * Các lần đồng bộ chạy lần lượt (hàng đợi) để bản ghi vừa tạo được sửa đúng id thật.
+   * Lỗi thì báo và tải lại dữ liệu thật của store.
+   */
+  const syncQueue = useRef<Promise<unknown>>(Promise.resolve());
+  const tempIds = useRef<Record<string, string>>({});
+  const updateCurrentStore = (updater: (s: StoreConfig) => StoreConfig) => {
     if (!store) return;
-    const target = await saveStoreConfig(store);
-    if (target === "api") {
-      message.success(`Đã lưu cấu hình & thiết kế "${store.name}" lên máy chủ — Mini App sẽ dùng bản này.`);
-    } else {
-      message.warning(`Đã lưu "${store.name}" trên trình duyệt này. Chưa đồng bộ được máy chủ (chưa đăng nhập Google hoặc backend chưa chạy).`);
+    const id = store.id;
+    const prev = storesRef.current.find((s) => s.id === id);
+    if (!prev?.loaded) return;
+    const next = { ...prev, ...updater(prev) };
+    patchStore(id, () => next);
+    syncQueue.current = syncQueue.current
+      .then(() => syncStoreChanges(prev, next, tempIds.current))
+      .then((created) => {
+        if (!created.length) return;
+        patchStore(id, (s) => {
+          const patched = {} as Record<string, unknown>;
+          for (const { key, tempId, item } of created) {
+            patched[key] = (((patched[key] ?? s[key]) as { id: string }[] | undefined) ?? []).map((x) =>
+              x.id === tempId ? item : x,
+            );
+          }
+          return patched as Partial<StoreWithOwner>;
+        });
+      })
+      .catch(async (e) => {
+        message.error(errMsg(e, "Không lưu được thay đổi lên máy chủ"));
+        await loadDetail(id);
+      });
+  };
+
+  // ── Tự lưu thông tin store & thiết kế (không cần nút "Lưu cấu hình") ──
+  // Đổi tên, theme, thiết kế Mini App… → chờ 1,2 giây không sửa nữa thì lưu lên máy chủ.
+  const savedKeys = useRef<Record<string, string>>({});
+  const pendingSave = useRef<{ store: StoreConfig; timer: number } | null>(null);
+  const [saveState, setSaveState] = useState<"idle" | "pending" | "saving" | "saved" | "error">("idle");
+
+  // Lưu lần lượt: bản lưu chậm không ghi đè bản mới hơn
+  const saveChain = useRef<Promise<unknown>>(Promise.resolve());
+  const doSave = (s: StoreConfig) => {
+    setSaveState("saving");
+    saveChain.current = saveChain.current.then(async () => {
+      try {
+        await saveStoreConfig({ ...s, zaloAppSecret: undefined });
+        savedKeys.current[s.id] = configKey(s);
+        setSaveState(pendingSave.current ? "pending" : "saved");
+      } catch (e) {
+        setSaveState("error");
+        message.error(errMsg(e, "Chưa lưu được thay đổi"));
+      }
+    });
+    return saveChain.current;
+  };
+  const doSaveRef = useRef(doSave);
+  doSaveRef.current = doSave;
+
+  const flushSave = () => {
+    const p = pendingSave.current;
+    if (!p) return;
+    clearTimeout(p.timer);
+    pendingSave.current = null;
+    void doSaveRef.current(p.store);
+  };
+
+  const currentKey = store ? configKey(store) : "";
+  useEffect(() => {
+    if (!store?.loaded) return; // chưa có chi tiết thì chưa so sánh được
+    if (savedKeys.current[store.id] === undefined) {
+      savedKeys.current[store.id] = currentKey; // bản vừa tải từ máy chủ
+      return;
+    }
+    if (currentKey === savedKeys.current[store.id]) return;
+    if (pendingSave.current && pendingSave.current.store.id !== store.id) flushSave();
+    if (pendingSave.current) clearTimeout(pendingSave.current.timer);
+    pendingSave.current = { store, timer: window.setTimeout(flushSave, 1200) };
+    setSaveState("pending");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [store?.id, store?.loaded, currentKey]);
+
+  useEffect(() => {
+    // Đóng tab khi còn thay đổi chưa lưu → hỏi lại; rời trang quản trị → lưu ngay
+    const warn = (e: BeforeUnloadEvent) => {
+      if (pendingSave.current) {
+        flushSave();
+        e.preventDefault();
+      }
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => {
+      window.removeEventListener("beforeunload", warn);
+      flushSave();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /** App Secret chỉ lưu khi rời ô nhập (không tự lưu từng ký tự). */
+  const saveZaloSecret = async () => {
+    if (!store?.zaloAppSecret?.trim()) return;
+    const sid = store.id;
+    try {
+      await saveStoreConfig(store);
+      patchStore(sid, (s) => ({ ...s, zaloAppSecret: undefined, hasZaloAppSecret: true }));
+      message.success("Đã lưu App Secret (mã hoá)");
+    } catch (e) {
+      message.error(errMsg(e, "Lưu App Secret thất bại"));
     }
   };
 
-  const handleCreateStore = async (values: { name: string; slug: string; templateId: string; subtitle?: string }) => {
-    const tpl = demoTemplates.find((t) => t.id === values.templateId) ?? demoTemplates[0];
-    const created: StoreConfig = {
-      id: `store_${Date.now()}`,
-      slug: values.slug.trim().toLowerCase().replace(/[^a-z0-9-]/g, "-"),
-      name: values.name.trim(),
-      subtitle: values.subtitle?.trim() || tpl.description.slice(0, 60),
-      templateId: tpl.id,
-      zaloAppId: "3546317553033780315",
-      active: true,
-      theme: {
-        primary: tpl.color,
-        accent: "#f59e0b",
-        bg: "#f5f6f8",
-        headerVariant: "pastel",
-        bannerVariant: "editorial",
-        productCardVariant: "editorial",
-        memberCardVariant: "minimal",
-      },
-      sliders: [
-        {
-          id: `sl_${Date.now()}`,
-          eyebrow: "KHUYẾN MÃI MỚI",
-          title: `Chào mừng đến với ${values.name}`,
-          subtitle: "Ưu đãi dành riêng cho khách đặt qua Zalo Mini App",
-          from: tpl.color,
-          to: "#3b82f6",
-          cta: "Khám phá",
-        },
-      ],
-      products: [],
-      customers: [],
-    };
-    const remote = await createStoreRemote(created);
-    const finalStore = remote ?? created;
-    const next = [finalStore, ...stores];
-    setStores(next);
-    saveAllLocalStores(next);
-    setSelectedId(finalStore.id);
-    setNewStoreOpen(false);
-    newStoreForm.resetFields();
-    if (remote) message.success(`Đã tạo Store "${finalStore.name}" trên máy chủ!`);
-    else message.warning(`Đã tạo Store "${finalStore.name}" trên trình duyệt (chưa đồng bộ máy chủ).`);
+  const handleStoreCreated = (created: StoreWithOwner) => {
+    setStores((list) => [created, ...list]);
+    setSelectedId(created.id);
+    setWizardOpen(false);
+    navigate("/admin/miniapp");
   };
 
-  // --- CRUD Sản phẩm ---
+  // --- CRUD Sản phẩm (lưu thẳng lên máy chủ) ---
   const openProductModal = (item?: StoreProductItem) => {
     setProductModal({ open: true, item });
     productForm.setFieldsValue(
-      item ?? { name: "", category: "Chung", price: 199000, salePrice: undefined, unit: "", tag: "", active: true },
+      item ?? { name: "", category: "Chung", price: 0, salePrice: undefined, unit: "", tag: "", active: true },
     );
   };
 
-  const saveProduct = (values: Omit<StoreProductItem, "id">) => {
-    updateCurrentStore((s) => {
+  const saveProduct = async (values: Omit<StoreProductItem, "id">) => {
+    if (!store) return;
+    const sid = store.id;
+    try {
       if (productModal.item) {
-        return {
-          ...s,
-          products: s.products.map((p) => (p.id === productModal.item!.id ? { ...p, ...values } : p)),
-        };
+        const saved = await updateStoreProduct(store.id, productModal.item.id, values);
+        patchStore(sid, (s) => ({ ...s, products: s.products.map((p) => (p.id === saved.id ? saved : p)) }));
+      } else {
+        const saved = await addStoreProduct(store.id, values);
+        patchStore(sid, (s) => ({ ...s, products: [saved, ...s.products] }));
       }
-      return {
-        ...s,
-        products: [{ id: `sp_${Date.now()}`, ...values }, ...s.products],
-      };
-    });
-    setProductModal({ open: false });
-    message.success(productModal.item ? "Đã cập nhật sản phẩm" : "Đã thêm sản phẩm mới");
+      setProductModal({ open: false });
+      message.success(productModal.item ? "Đã cập nhật sản phẩm" : "Đã thêm sản phẩm mới");
+    } catch (e) {
+      message.error(errMsg(e));
+    }
   };
 
-  const deleteProduct = (id: string) => {
-    updateCurrentStore((s) => ({ ...s, products: s.products.filter((p) => p.id !== id) }));
-    message.success("Đã xoá sản phẩm");
+  const toggleProduct = async (id: string, active: boolean) => {
+    if (!store) return;
+    const sid = store.id;
+    try {
+      const saved = await updateStoreProduct(store.id, id, { active });
+      patchStore(sid, (s) => ({ ...s, products: s.products.map((p) => (p.id === id ? saved : p)) }));
+    } catch (e) {
+      message.error(errMsg(e));
+    }
   };
 
-  // --- CRUD Khách hàng ---
+  const deleteProduct = async (id: string) => {
+    if (!store) return;
+    const sid = store.id;
+    try {
+      await deleteStoreProduct(store.id, id);
+      patchStore(sid, (s) => ({ ...s, products: s.products.filter((p) => p.id !== id) }));
+      message.success("Đã xoá sản phẩm");
+    } catch (e) {
+      message.error(errMsg(e));
+    }
+  };
+
+  // --- CRUD Khách hàng (lưu thẳng lên máy chủ) ---
   const openCustomerModal = (item?: StoreCustomerItem) => {
     setCustomerModal({ open: true, item });
     customerForm.setFieldsValue(
@@ -254,89 +428,153 @@ export default function StoreConsole({
     );
   };
 
-  const saveCustomer = (values: Omit<StoreCustomerItem, "id" | "createdAt">) => {
-    updateCurrentStore((s) => {
+  const saveCustomer = async (values: Omit<StoreCustomerItem, "id" | "createdAt">) => {
+    if (!store) return;
+    const sid = store.id;
+    try {
       if (customerModal.item) {
-        return {
-          ...s,
-          customers: s.customers.map((c) => (c.id === customerModal.item!.id ? { ...c, ...values } : c)),
-        };
+        const saved = await updateStoreCustomer(store.id, customerModal.item.id, values);
+        patchStore(sid, (s) => ({ ...s, customers: s.customers.map((c) => (c.id === saved.id ? saved : c)) }));
+      } else {
+        const saved = await addStoreCustomer(store.id, values);
+        patchStore(sid, (s) => ({ ...s, customers: [saved, ...s.customers] }));
       }
-      return {
-        ...s,
-        customers: [
-          { id: `kh_${Date.now()}`, createdAt: new Date().toISOString(), ...values },
-          ...s.customers,
-        ],
-      };
-    });
-    setCustomerModal({ open: false });
-    message.success(customerModal.item ? "Đã cập nhật khách hàng" : "Đã thêm khách hàng mới");
+      setCustomerModal({ open: false });
+      message.success(customerModal.item ? "Đã cập nhật khách hàng" : "Đã thêm khách hàng mới");
+    } catch (e) {
+      message.error(errMsg(e));
+    }
   };
 
-  const deleteCustomer = (id: string) => {
-    updateCurrentStore((s) => ({ ...s, customers: s.customers.filter((c) => c.id !== id) }));
-    message.success("Đã xoá khách hàng");
+  const deleteCustomer = async (id: string) => {
+    if (!store) return false;
+    const sid = store.id;
+    try {
+      await deleteStoreCustomer(store.id, id);
+      patchStore(sid, (s) => ({ ...s, customers: s.customers.filter((c) => c.id !== id) }));
+      message.success("Đã xoá khách hàng");
+      return true;
+    } catch (e) {
+      message.error(errMsg(e));
+      return false;
+    }
   };
 
-  // Hook phải gọi trước mọi lệnh return sớm (nếu không React báo lỗi #310 khi store từ null → có dữ liệu)
-  const [inboxSummary, setInboxSummary] = useState<InboxSummary | null>(null);
-  const refreshInbox = () => fetchInboxSummary().then(setInboxSummary).catch(() => undefined);
+  // Tin khách gửi cửa hàng (qua Mini App của quán) chưa đọc, theo từng khách
+  const [unreadMap, setUnreadMap] = useState<Record<string, number>>({});
+  const storeUnread = Object.values(unreadMap).reduce((a, b) => a + b, 0);
+  const storeIdForUnread = store?.id;
+  useEffect(() => setUnreadMap({}), [storeIdForUnread]);
+  const loadUnread = () => {
+    if (storeIdForUnread) fetchStoreUnread(storeIdForUnread).then(setUnreadMap).catch(() => undefined);
+  };
   useEffect(() => {
-    refreshInbox();
-    const t = setInterval(refreshInbox, 30000);
-    return () => clearInterval(t);
-  }, []);
+    if (!storeIdForUnread) return;
+    loadUnread();
+    // Tab ẩn thì không hỏi máy chủ (đỡ tải); quay lại tab thì cập nhật ngay
+    const t = setInterval(() => !document.hidden && loadUnread(), 30000);
+    const onVisible = () => !document.hidden && loadUnread();
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      clearInterval(t);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storeIdForUnread, activeNav]);
 
-  if (!store) return null;
-
-  const builderSchema: BuilderSchema =
-    store.builder ??
-    createSchemaFromPreset(guessPresetId(store.templateId), store.name, {
-      primary: store.theme.primary,
-      accent: store.theme.accent,
-      bg: store.theme.bg,
-    });
-
-  const filteredCustomers = store.customers.filter((c) => {
-    const kw = customerKeyword.trim().toLowerCase();
-    return !kw || `${c.name} ${c.phone} ${c.tier} ${c.note ?? ""}`.toLowerCase().includes(kw);
-  });
+  if (!store) {
+    return (
+      <div className="flex min-h-screen flex-col bg-gradient-to-br from-slate-50 via-white to-brand-50">
+        <header className="flex h-14 items-center justify-between px-4 sm:px-8">
+          <div className="flex items-center gap-2 text-sm font-extrabold text-slate-900">
+            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-brand-600 text-white">
+              <LuStore size={16} />
+            </span>
+            Quản trị Store & Mini App
+          </div>
+          <Button type="text" icon={<LuLogOut size={15} />} onClick={onLogout}>
+            Đăng xuất
+          </Button>
+        </header>
+        <main className="flex flex-1 items-center justify-center px-4 py-10">
+          {loading ? (
+            <Spin size="large" />
+          ) : loadError ? (
+            <Result
+              status="warning"
+              title="Không tải được danh sách store"
+              subTitle={loadError}
+              extra={<Button type="primary" onClick={loadStores}>Thử lại</Button>}
+            />
+          ) : (
+            <div className="w-full max-w-xl text-center">
+              <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-3xl bg-brand-600 text-white shadow-lg shadow-brand-600/30">
+                <LuSparkles size={34} />
+              </div>
+              <h1 className="mt-6 text-2xl font-extrabold text-slate-900 sm:text-3xl">
+                Chào {account.customer?.companyName || user.name}, tạo store đầu tiên nhé!
+              </h1>
+              <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-slate-500">
+                Chọn mẫu giao diện theo ngành, điền tên cửa hàng — vài phút là có Mini App trên Zalo để bán hàng,
+                nhận đặt lịch và chăm sóc khách.
+              </p>
+              <div className="mx-auto mt-6 grid max-w-md grid-cols-3 gap-2 text-xs font-semibold text-slate-600">
+                {["Chọn mẫu theo ngành", "Thiết kế kéo-thả", "Xuất bản lên Zalo"].map((t, i) => (
+                  <div key={t} className="rounded-2xl border border-slate-200 bg-white px-2 py-3">
+                    <div className="mb-1 text-base font-black text-brand-600">{i + 1}</div>
+                    {t}
+                  </div>
+                ))}
+              </div>
+              <Button type="primary" size="large" icon={<LuPlus size={17} />} className="mt-7 h-12 px-8 font-bold" onClick={() => setWizardOpen(true)}>
+                Tạo store
+              </Button>
+            </div>
+          )}
+        </main>
+        <CreateStoreWizard open={wizardOpen} onClose={() => setWizardOpen(false)} onCreated={handleStoreCreated} />
+      </div>
+    );
+  }
 
   const zaloPreviewUrl = getZaloTemplateUrl(store.templateId);
 
-  const navItems: { key: StoreNavKey; label: string; icon: React.ReactNode; badge?: number }[] = [
+  const navItems: { key: StoreNavKey; label: string; icon: React.ReactNode; badge?: number; alert?: boolean }[] = [
     { key: "overview", label: "Tổng quan", icon: <LuLayoutDashboard size={17} /> },
     { key: "bookings", label: "Lịch hẹn", icon: <LuCalendarCheck size={17} />, badge: store.bookings?.length },
     { key: "events", label: "Sự kiện", icon: <LuCalendarDays size={17} /> },
     { key: "products", label: "Sản phẩm", icon: <LuPackage size={17} />, badge: store.products.length },
-    { key: "customers", label: "Khách hàng", icon: <LuUsers size={17} />, badge: store.customers.length },
+    {
+      key: "customers",
+      label: "Khách hàng",
+      icon: <LuUsers size={17} />,
+      badge: storeUnread || store.customers.length,
+      alert: storeUnread > 0,
+    },
+    { key: "albums", label: "Album ảnh", icon: <LuImages size={17} /> },
     { key: "loyalty", label: "Hạng & Voucher", icon: <LuCrown size={17} />, badge: store.vouchers?.length },
     { key: "orders", label: "Đơn hàng", icon: <LuShoppingBag size={17} /> },
     { key: "miniapp", label: "Miniapp", icon: <LuSmartphone size={17} /> },
     { key: "inventory", label: "Kho", icon: <LuWarehouse size={17} /> },
     { key: "documents", label: "Thư viện & Tài liệu", icon: <LuBookOpen size={17} />, badge: store.documents?.length },
     { key: "support", label: "Hỗ trợ", icon: <LuLifeBuoy size={17} /> },
-    { key: "callbacks", label: "Lịch gọi lại", icon: <LuPhoneCall size={17} /> },
-    { key: "portal", label: "Dự án & Ticket", icon: <LuKanban size={17} /> },
-    { key: "platformCustomers", label: "Khách hàng reMini", icon: <LuUsers size={17} /> },
-    { key: "debts", label: "Khách nợ tiền", icon: <LuWallet size={17} /> },
-    { key: "inbox", label: "Hộp thư khách", icon: <LuMessagesSquare size={17} />, badge: inboxSummary?.unread || undefined },
-    { key: "files", label: "Ảnh khách hàng", icon: <LuImages size={17} /> },
-    { key: "care", label: "Chăm sóc khách", icon: <LuHeartHandshake size={17} />, badge: inboxSummary?.careDue || undefined },
-    { key: "antispam", label: "Chống spam", icon: <LuShieldAlert size={17} /> },
-    { key: "audit", label: "Nhật ký thao tác", icon: <LuBookOpen size={17} /> },
-    { key: "api", label: "Kết nối API", icon: <LuKeyRound size={17} /> },
   ];
+
+  if (!store.loaded) for (const i of navItems) i.badge = i.alert ? i.badge : undefined;
+
+  const navGroups = [{ title: "Cửa hàng", items: navItems }];
 
   const renderSidebarMenu = (onSelect?: () => void, collapsed = false) => (
     <div className="space-y-1">
-      {!collapsed && (
-        <div className="px-3 pb-2 pt-1 text-[11px] font-bold uppercase tracking-wider text-slate-400">
-          Điều hướng cửa hàng
-        </div>
-      )}
-      {navItems.map((item) => {
+      {navGroups.map((group, gi) => (
+        <div key={group.title} className={gi > 0 ? "mt-3 border-t border-slate-100 pt-3" : ""}>
+          {!collapsed && (
+            <div className="px-3 pb-2 pt-1 text-[11px] font-bold uppercase tracking-wider text-slate-400">
+              {group.title}
+            </div>
+          )}
+          <div className="space-y-1">
+      {group.items.map((item) => {
         const active = activeNav === item.key;
         const btn = (
           <button
@@ -361,7 +599,7 @@ export default function StoreConsole({
             {!collapsed && typeof item.badge === "number" && (
               <span
                 className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${
-                  active ? "bg-white/20 text-white" : "bg-slate-100 text-slate-600"
+                  active ? "bg-white/20 text-white" : item.alert ? "bg-rose-500 text-white" : "bg-slate-100 text-slate-600"
                 }`}
               >
                 {item.badge}
@@ -377,6 +615,9 @@ export default function StoreConsole({
           btn
         );
       })}
+          </div>
+        </div>
+      ))}
     </div>
   );
 
@@ -404,84 +645,28 @@ export default function StoreConsole({
             </Tooltip>
             <div className="flex items-center gap-2">
               <LuStore size={18} className="text-brand-600" />
-              <span className="text-sm font-extrabold text-slate-900 sm:text-base">Quản trị Store & Mini App</span>
-              <Tag color={dataSource === "api" ? "green" : "blue"} className="m-0 hidden text-[10px] sm:inline-flex">
-                {dataSource === "api" ? "PostgreSQL Live" : "Local Studio"}
-              </Tag>
+              <span className="hidden text-sm font-extrabold text-slate-900 sm:inline sm:text-base">Quản trị Store & Mini App</span>
+
             </div>
           </div>
 
           <div className="flex items-center gap-2">
-            <Select
-              value={store.id}
-              onChange={setSelectedId}
-              className="w-40 sm:w-56"
-              options={stores.map((s) => ({
-                value: s.id,
-                label: `${s.name} (${s.templateId})`,
-              }))}
+            <StoreSwitcher
+              stores={stores}
+              current={store}
+              showOwner={isAdmin}
+              onSelect={setSelectedId}
+              onCreate={() => setWizardOpen(true)}
             />
-            <Button icon={<LuPlus size={15} />} onClick={() => setNewStoreOpen(true)}>
-              <span className="hidden sm:inline">Tạo Store</span>
-            </Button>
-            <Button type="primary" icon={<LuSave size={15} />} onClick={handlePersistStore}>
-              <span className="hidden sm:inline">Lưu cấu hình</span>
-            </Button>
-            <Dropdown
-              trigger={["click"]}
-              menu={{
-                items: [
-                  {
-                    key: "info",
-                    disabled: true,
-                    label: (
-                      <div className="text-xs">
-                        <div className="font-bold text-slate-900">{user.name}</div>
-                        <div className="text-[11px] text-slate-500">
-                          {user.provider === "zalo" ? "Tài khoản Zalo" : "Tài khoản Google"}
-                          {user.phone ? ` · ${user.phone}` : user.email ? ` · ${user.email}` : ""}
-                        </div>
-                      </div>
-                    ),
-                  },
-                  { type: "divider" },
-                  {
-                    key: "logout",
-                    danger: true,
-                    icon: <LuLogOut size={14} />,
-                    label: "Đăng xuất",
-                    onClick: onLogout,
-                  },
-                ],
-              }}
-            >
-              <button
-                type="button"
-                className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-2 py-1 text-left transition hover:bg-slate-100"
-              >
-                {user.avatarUrl ? (
-                  <img
-                    src={user.avatarUrl}
-                    alt={user.name}
-                    referrerPolicy="no-referrer"
-                    className="h-7 w-7 rounded-lg object-cover"
-                  />
-                ) : (
-                  <span
-                    className="flex h-7 w-7 items-center justify-center rounded-lg text-xs font-black text-white"
-                    style={{ background: user.provider === "zalo" ? "#0068FF" : "#1657f3" }}
-                  >
-                    {user.avatarText}
-                  </span>
-                )}
-                <div className="hidden leading-tight xl:block">
-                  <div className="max-w-[110px] truncate text-xs font-bold text-slate-900">{user.name}</div>
-                  <div className="text-[10px] font-semibold text-slate-500">
-                    {user.provider === "zalo" ? "Zalo" : "Google"}
-                  </div>
-                </div>
-              </button>
-            </Dropdown>
+            <SaveIndicator state={saveState} onRetry={() => store && void doSave(store)} />
+            {isAdmin && (
+              <Tooltip title="Trang điều hành nền tảng">
+                <Button icon={<LuGauge size={15} />} onClick={() => navigate("/controller")}>
+                  <span className="hidden lg:inline">Điều hành</span>
+                </Button>
+              </Tooltip>
+            )}
+            <UserMenu user={user} onLogout={onLogout} />
           </div>
         </div>
       </header>
@@ -521,6 +706,16 @@ export default function StoreConsole({
 
         {/* Nội dung chính theo Sidebar */}
         <main className="min-w-0 flex-1">
+          {!store.loaded ? (
+            <div className="flex min-h-[50vh] items-center justify-center rounded-2xl border border-slate-200 bg-white">
+              {detailError ? (
+                <Result status="warning" title="Không tải được dữ liệu store" subTitle={detailError} extra={<Button type="primary" onClick={() => loadDetail(store.id)}>Thử lại</Button>} />
+              ) : (
+                <Spin size="large" />
+              )}
+            </div>
+          ) : (
+          <Suspense fallback={<SectionLoading />}>
           {activeNav === "overview" && (
             <OverviewSection store={store} onNavigate={setActiveNav} updateCurrentStore={updateCurrentStore} />
           )}
@@ -534,11 +729,11 @@ export default function StoreConsole({
           )}
 
           {activeNav === "loyalty" && (
-            <LoyaltySection store={store} updateCurrentStore={updateCurrentStore} />
+            <LoyaltySection store={store} updateCurrentStore={updateCurrentStore} applyLocal={applyLocal} />
           )}
 
           {activeNav === "orders" && (
-            <OrdersSection store={store} updateCurrentStore={updateCurrentStore} />
+            <OrdersSection store={store} updateCurrentStore={updateCurrentStore} applyLocal={applyLocal} />
           )}
 
           {activeNav === "inventory" && (
@@ -548,26 +743,6 @@ export default function StoreConsole({
           {activeNav === "documents" && (
             <DocumentsSection store={store} updateCurrentStore={updateCurrentStore} />
           )}
-
-          {activeNav === "callbacks" && <CallbacksSection />}
-
-          {activeNav === "portal" && <PortalSection />}
-
-          {activeNav === "antispam" && <AntiSpamSection />}
-
-          {activeNav === "platformCustomers" && <CustomersPlatformSection />}
-
-          {activeNav === "debts" && <DebtsSection />}
-
-          {activeNav === "inbox" && <InboxSection onUnreadChange={refreshInbox} />}
-
-          {activeNav === "files" && <CustomerFilesSection />}
-
-          {activeNav === "care" && <CareSection onChanged={refreshInbox} />}
-
-          {activeNav === "audit" && <AuditSection />}
-
-          {activeNav === "api" && <ApiChannelsSection />}
 
           {activeNav === "support" && (
             <SupportSection store={store} updateCurrentStore={updateCurrentStore} />
@@ -623,7 +798,7 @@ export default function StoreConsole({
                   {
                     title: "Tồn kho",
                     dataIndex: "stock",
-                    render: (stock) => <span className="text-xs font-semibold">{stock ?? 25}</span>,
+                    render: (stock) => <span className="text-xs font-semibold">{stock ?? "—"}</span>,
                   },
                   {
                     title: "Hiển thị",
@@ -632,14 +807,7 @@ export default function StoreConsole({
                       <Switch
                         size="small"
                         checked={v}
-                        onChange={(checked) =>
-                          updateCurrentStore((s) => ({
-                            ...s,
-                            products: s.products.map((p) =>
-                              p.id === rec.id ? { ...p, active: checked } : p,
-                            ),
-                          }))
-                        }
+                        onChange={(checked) => toggleProduct(rec.id, checked)}
                       />
                     ),
                   },
@@ -663,95 +831,27 @@ export default function StoreConsole({
           )}
 
           {activeNav === "customers" && (
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <h3 className="text-base font-bold text-slate-900">
-                    Tệp khách hàng ({store.customers.length})
-                  </h3>
-                  <p className="text-xs text-slate-500">Quản lý thông tin, hạng thành viên, điểm tích lũy và chi tiêu.</p>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <Input
-                    allowClear
-                    value={customerKeyword}
-                    onChange={(e) => setCustomerKeyword(e.target.value)}
-                    prefix={<LuSearch size={14} className="text-slate-400" />}
-                    placeholder="Tìm tên, SĐT, hạng..."
-                    className="w-60"
-                  />
-                  <Button type="primary" icon={<LuPlus size={15} />} onClick={() => openCustomerModal()}>
-                    Thêm khách hàng
-                  </Button>
-                </div>
-              </div>
-              <Table
-                rowKey="id"
-                size="small"
-                pagination={{ pageSize: 8 }}
-                dataSource={filteredCustomers}
-                columns={[
-                  {
-                    title: "Khách hàng",
-                    dataIndex: "name",
-                    render: (v, rec) => (
-                      <div>
-                        <div className="font-semibold text-slate-900">{v}</div>
-                        <div className="text-[11px] text-slate-500">{rec.phone}</div>
-                      </div>
-                    ),
-                  },
-                  {
-                    title: "Hạng / Điểm",
-                    dataIndex: "tier",
-                    render: (tier, rec) => (
-                      <div>
-                        <Tag color="gold" className="m-0 font-semibold">
-                          {tier}
-                        </Tag>
-                        <div className="mt-0.5 text-[11px] text-slate-500">{rec.points} điểm</div>
-                      </div>
-                    ),
-                  },
-                  {
-                    title: "Chi tiêu / Đơn",
-                    dataIndex: "totalSpent",
-                    render: (spent, rec) => (
-                      <div className="text-xs">
-                        <div className="font-bold text-slate-800">{spent.toLocaleString("vi-VN")}đ</div>
-                        <div className="text-[11px] text-slate-400">
-                          {rec.totalOrders} đơn · {dayjs(rec.createdAt).format("DD/MM/YY")}
-                        </div>
-                      </div>
-                    ),
-                  },
-                  {
-                    title: "",
-                    align: "right",
-                    render: (_, rec) => (
-                      <div className="flex justify-end gap-1">
-                        <Button size="small" onClick={() => openCustomerModal(rec)}>
-                          Sửa
-                        </Button>
-                        <Popconfirm title="Xoá khách hàng?" onConfirm={() => deleteCustomer(rec.id)}>
-                          <Button size="small" danger icon={<LuTrash2 size={13} />} />
-                        </Popconfirm>
-                      </div>
-                    ),
-                  },
-                ]}
-              />
-            </div>
+            <CustomersSection
+              key={store.id}
+              store={store}
+              unreadMap={unreadMap}
+              onUnreadChange={loadUnread}
+              onAdd={() => openCustomerModal()}
+              onEdit={(c) => openCustomerModal(c)}
+              onDelete={deleteCustomer}
+              onCreateBooking={(b) => updateCurrentStore((s) => ({ ...s, bookings: [b, ...(s.bookings ?? [])] }))}
+            />
+          )}
+
+
+          {activeNav === "albums" && (
+            <AlbumsSection key={store.id} store={store} initialCustomerId={searchParams.get("customer") ?? undefined} />
           )}
 
           {activeNav === "miniapp" && (
-            <MiniAppBuilder
+            <MiniAppStudio
               key={store.id}
-              brand={store.name}
-              initialSchema={builderSchema}
-              products={store.products}
-              documents={store.documents}
-              vouchers={store.vouchers}
+              store={store}
               previewUrl={zaloPreviewUrl}
               onPublish={() => setPublishModalOpen(true)}
               onChange={(nextSchema) =>
@@ -767,6 +867,8 @@ export default function StoreConsole({
                 }))
               }
             />
+          )}
+          </Suspense>
           )}
         </main>
       </div>
@@ -784,13 +886,12 @@ export default function StoreConsole({
           <Button
             key="save"
             type="primary"
-            icon={<LuSave size={14} />}
-            onClick={async () => {
-              await handlePersistStore();
+            onClick={() => {
+              flushSave();
               setPublishModalOpen(false);
             }}
           >
-            Lưu &amp; Xuất bản
+            Xong
           </Button>,
         ]}
       >
@@ -821,6 +922,20 @@ export default function StoreConsole({
                   onChange={(e) => updateCurrentStore((s) => ({ ...s, zaloOaId: e.target.value }))}
                 />
               </Form.Item>
+              <Form.Item
+                label="App Secret của Mini App"
+                className="sm:col-span-2"
+                extra="Để lấy số điện thoại khi khách đăng nhập Zalo trong Mini App của store. Lưu mã hoá, không hiển thị lại."
+              >
+                <Input.Password
+                  autoComplete="new-password"
+                  placeholder={store.hasZaloAppSecret ? "•••••••• (đã lưu — nhập để thay)" : "mini.zalo.me → Cài đặt → App Secret"}
+                  value={store.zaloAppSecret ?? ""}
+                  onChange={(e) => applyLocal((s) => ({ ...s, zaloAppSecret: e.target.value }))}
+                  onBlur={saveZaloSecret}
+                  onPressEnter={saveZaloSecret}
+                />
+              </Form.Item>
               <Form.Item label="Hotline">
                 <Input
                   value={store.phone}
@@ -843,50 +958,8 @@ export default function StoreConsole({
         </div>
       </Modal>
 
-      {/* Modal tạo Store mới */}
-      <Modal
-        title="Tạo Store Mini App mới"
-        open={newStoreOpen}
-        onCancel={() => setNewStoreOpen(false)}
-        footer={null}
-      >
-        <Form form={newStoreForm} layout="vertical" onFinish={handleCreateStore}>
-          <Form.Item
-            label="Tên Store / Thương hiệu"
-            name="name"
-            rules={[{ required: true, message: "Nhập tên Store" }]}
-          >
-            <Input placeholder="VD: Cà phê Nhà Gỗ" />
-          </Form.Item>
-          <Form.Item
-            label="Đường dẫn định danh (Slug)"
-            name="slug"
-            rules={[{ required: true, message: "Nhập slug (không dấu)" }]}
-          >
-            <Input placeholder="VD: ca-phe-nha-go" />
-          </Form.Item>
-          <Form.Item
-            label="Chọn mẫu giao diện nền"
-            name="templateId"
-            rules={[{ required: true, message: "Chọn mẫu giao diện" }]}
-          >
-            <Select
-              showSearch
-              optionFilterProp="label"
-              options={demoTemplates.map((t) => ({
-                value: t.id,
-                label: `[${t.code}] ${t.name}`,
-              }))}
-            />
-          </Form.Item>
-          <Form.Item label="Slogan ngắn" name="subtitle">
-            <Input placeholder="VD: Cà phê rang xay nguyên chất" />
-          </Form.Item>
-          <Button type="primary" htmlType="submit" block className="font-bold">
-            Khởi tạo Store
-          </Button>
-        </Form>
-      </Modal>
+
+      <CreateStoreWizard open={wizardOpen} onClose={() => setWizardOpen(false)} onCreated={handleStoreCreated} />
 
       {/* Modal thêm / sửa Sản phẩm */}
       <Modal

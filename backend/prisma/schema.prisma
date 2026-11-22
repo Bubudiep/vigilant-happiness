@@ -197,38 +197,44 @@ model CustomerStaff {
 
 /// Gian hàng / Mini App đã đăng ký và cấu hình trên recloud.vn
 model Store {
-  id             String            @id @default(cuid())
-  customerId     String?
-  customer       PlatformCustomer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  subscriptionId String?
-  subscription   Subscription?     @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
-  slug           String            @unique
-  name           String
-  subtitle       String?
-  logoUrl        String?
-  coverUrl       String?
-  templateId     String
-  zaloAppId      String?
-  zaloOaId       String?
-  phone          String?
-  address        String?
-  theme          Json
-  sliders        Json
-  builderSchema  Json?
-  active         Boolean           @default(true)
-  createdAt      DateTime          @default(now())
-  updatedAt      DateTime          @updatedAt
-  products       StoreProduct[]
-  customers      StoreCustomer[]
-  staff          CustomerStaff[]
-  media          StoreMedia[]
-  banners        StoreBanner[]
-  orders         StoreOrder[]
-  bookings       StoreBooking[]
-  events         StoreEvent[]
-  documents      StoreDocument[]
-  memberTiers    StoreMemberTier[]
-  vouchers       StoreVoucher[]
+  id               String             @id @default(cuid())
+  customerId       String?
+  customer         PlatformCustomer?  @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  subscriptionId   String?
+  subscription     Subscription?      @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+  slug             String             @unique
+  name             String
+  subtitle         String?
+  logoUrl          String?
+  coverUrl         String?
+  templateId       String
+  zaloAppId        String?
+  /// App Secret của Mini App riêng của store (mã hoá AES-GCM) — để lấy SĐT khách khi đăng nhập Zalo
+  zaloAppSecretEnc String?
+  zaloOaId         String?
+  phone            String?
+  address          String?
+  theme            Json
+  sliders          Json
+  builderSchema    Json?
+  active           Boolean            @default(true)
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  products         StoreProduct[]
+  customers        StoreCustomer[]
+  staff            CustomerStaff[]
+  media            StoreMedia[]
+  banners          StoreBanner[]
+  orders           StoreOrder[]
+  bookings         StoreBooking[]
+  events           StoreEvent[]
+  documents        StoreDocument[]
+  memberTiers      StoreMemberTier[]
+  vouchers         StoreVoucher[]
+  voucherCodes     StoreVoucherCode[]
+  albums           StoreAlbum[]
+  albumPhotos      StoreAlbumPhoto[]
+  messages         StoreMessage[]
 
   @@index([templateId])
   @@index([customerId])
@@ -299,7 +305,8 @@ model StoreProduct {
   @@index([storeId, sku])
 }
 
-/// Tệp khách hàng của từng Store
+/// Tệp khách hàng của từng Store — cũng là tài khoản của khách trong Mini App của store đó.
+/// Mỗi store giữ dữ liệu khách riêng: cùng một người Zalo mua ở 2 store là 2 bản ghi khác nhau.
 model StoreCustomer {
   id          String         @id @default(cuid())
   storeId     String
@@ -307,6 +314,9 @@ model StoreCustomer {
   name        String
   phone       String
   zaloUserId  String?
+  avatarUrl   String?
+  address     String?
+  lastLoginAt DateTime?
   tier        String         @default("Thành viên")
   points      Int            @default(0)
   totalOrders Int            @default(0)
@@ -316,28 +326,38 @@ model StoreCustomer {
   updatedAt   DateTime       @updatedAt
   orders      StoreOrder[]
   bookings    StoreBooking[]
+  albums      StoreAlbum[]
+  messages    StoreMessage[]
 
+  @@unique([storeId, zaloUserId])
   @@index([storeId, phone])
 }
 
 /// Đơn hàng phát sinh từ Zalo Mini App hoặc tại quầy của Store
 model StoreOrder {
-  id            String           @id @default(cuid())
-  storeId       String
-  store         Store            @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  customerId    String?
-  customer      StoreCustomer?   @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  code          String           @unique
-  customerName  String
-  phone         String
-  address       String?
-  totalAmount   Int
-  status        String           @default("pending")
-  paymentMethod String           @default("cod")
-  note          String?
-  createdAt     DateTime         @default(now())
-  updatedAt     DateTime         @updatedAt
-  items         StoreOrderItem[]
+  id             String           @id @default(cuid())
+  storeId        String
+  store          Store            @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  customerId     String?
+  customer       StoreCustomer?   @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  code           String           @unique
+  customerName   String
+  phone          String
+  address        String?
+  totalAmount    Int
+  /// Tạm tính trước giảm giá / phí ship
+  subtotal       Int              @default(0)
+  shippingFee    Int              @default(0)
+  discountAmount Int              @default(0)
+  voucherCode    String?
+  /// miniapp = khách đặt trong Mini App, admin = chủ shop tạo tại quầy
+  source         String           @default("miniapp")
+  status         String           @default("pending")
+  paymentMethod  String           @default("cod")
+  note           String?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  items          StoreOrderItem[]
 
   @@index([storeId, status, createdAt])
 }
@@ -417,6 +437,72 @@ model StoreDocument {
   @@index([storeId, category, published])
 }
 
+/// Album ảnh của khách tại gian hàng (Album hôm nay, Ảnh cưới, Ảnh đám hỏi...).
+/// Ảnh xem trước lưu riêng tư (uploads-private, URL ký có hạn); ảnh gốc để ở link ngoài (Google Drive...).
+model StoreAlbum {
+  id           String            @id @default(cuid())
+  storeId      String
+  store        Store             @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  customerId   String
+  customer     StoreCustomer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  title        String
+  /// today | wedding | engagement | other
+  kind         String            @default("other")
+  eventDate    DateTime?
+  note         String?
+  /// [{ label, url }] — link ảnh gốc (Google Drive, Google Photos, OneDrive, Dropbox...)
+  links        Json              @default("[]")
+  coverPhotoId String?
+  /// draft | published
+  status       String            @default("draft")
+  publishedAt  DateTime?
+  viewedAt     DateTime?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  photos       StoreAlbumPhoto[]
+  messages     StoreMessage[]
+
+  @@index([storeId, customerId, createdAt])
+  @@index([storeId, status])
+}
+
+model StoreAlbumPhoto {
+  id         String     @id @default(cuid())
+  albumId    String
+  album      StoreAlbum @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  storeId    String
+  store      Store      @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  filename   String
+  mime       String
+  size       Int
+  width      Int?
+  height     Int?
+  storageKey String     @unique
+  sortOrder  Int        @default(0)
+  createdAt  DateTime   @default(now())
+
+  @@index([albumId, sortOrder])
+}
+
+/// Hộp thư giữa gian hàng và khách của gian hàng (VD báo album đã sẵn sàng).
+model StoreMessage {
+  id         String        @id @default(cuid())
+  storeId    String
+  store      Store         @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  customerId String
+  customer   StoreCustomer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  /// store → khách: "out" · khách → store: "in"
+  direction  String
+  body       String
+  albumId    String?
+  album      StoreAlbum?   @relation(fields: [albumId], references: [id], onDelete: SetNull)
+  readAt     DateTime?
+  createdAt  DateTime      @default(now())
+
+  @@index([storeId, customerId, createdAt])
+  @@index([storeId, direction, readAt])
+}
+
 /// Phân hạng thành viên của Store (Thành viên, Bạc, Vàng, Kim Cương...)
 model StoreMemberTier {
   id              String   @id @default(cuid())
@@ -440,26 +526,44 @@ model StoreMemberTier {
 
 /// Voucher / Mã ưu đãi của Store
 model StoreVoucher {
-  id            String   @id @default(cuid())
+  id            String             @id @default(cuid())
   storeId       String
-  store         Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  store         Store              @relation(fields: [storeId], references: [id], onDelete: Cascade)
   code          String
   title         String
-  discountType  String   @default("percent")
-  discountValue Int      @default(0)
-  minOrderValue Int      @default(0)
+  discountType  String             @default("percent")
+  discountValue Int                @default(0)
+  minOrderValue Int                @default(0)
   maxDiscount   Int?
   tierCode      String?
-  quantity      Int      @default(100)
-  usedCount     Int      @default(0)
+  quantity      Int                @default(100)
+  usedCount     Int                @default(0)
   startDate     DateTime
   endDate       DateTime
-  active        Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  active        Boolean            @default(true)
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+  codes         StoreVoucherCode[]
 
   @@unique([storeId, code])
   @@index([storeId, active, endDate])
+}
+
+/// Mã voucher dùng 1 lần (sinh hàng loạt để in thẻ). Dùng xong ghi usedAt + mã đơn.
+model StoreVoucherCode {
+  id        String       @id @default(cuid())
+  storeId   String
+  store     Store        @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  voucherId String
+  voucher   StoreVoucher @relation(fields: [voucherId], references: [id], onDelete: Cascade)
+  code      String
+  usedAt    DateTime?
+  orderId   String?
+  orderCode String?
+  createdAt DateTime     @default(now())
+
+  @@unique([storeId, code])
+  @@index([voucherId, usedAt])
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -10,6 +10,7 @@ import {
   UpsertCustomerDto,
   UpsertProductDto,
 } from "./dto/store.dto";
+import { StoreDataService } from "./store-data.service";
 import { StoresService } from "./stores.service";
 
 @ApiTags("stores")
@@ -18,6 +19,7 @@ export class StoresController {
   constructor(
     private readonly storesService: StoresService,
     private readonly audit: AuditService,
+    private readonly storeData: StoreDataService,
   ) {}
 
   @Get("public/:slug")
@@ -40,8 +42,9 @@ export class StoresController {
   @UseGuards(AppAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: "Chi tiết cấu hình Store, sản phẩm và tệp khách hàng" })
-  findOne(@Req() req: AppRequest, @Param("id") id: string) {
-    return this.storesService.findOne(req.auth!, id);
+  async findOne(@Req() req: AppRequest, @Param("id") id: string) {
+    const store = await this.storesService.findOne(req.auth!, id);
+    return { ...store, ...(await this.storeData.loadAll(id)) };
   }
 
   @Post()

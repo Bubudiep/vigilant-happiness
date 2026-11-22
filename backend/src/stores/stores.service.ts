@@ -1,7 +1,10 @@
 import { ConflictException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import type { AuthContext } from "../common/guards/app-auth.guard";
+import { AuthService } from "../auth/auth.service";
+import { openSecret, sealSecret } from "../common/secret-box";
 import { PrismaService } from "../prisma/prisma.service";
+import { DEFAULT_TIERS } from "./store-data";
 import {
   CreateStoreDto,
   UpdateProductDto,
@@ -22,7 +25,22 @@ const defaultTheme = {
 
 @Injectable()
 export class StoresService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly auth: AuthService,
+  ) {}
+
+  /** Không bao giờ trả App Secret (dù đã mã hoá) ra ngoài — chỉ báo đã cấu hình hay chưa. */
+  private redact<T extends { zaloAppSecretEnc?: string | null }>(store: T) {
+    const { zaloAppSecretEnc, ...rest } = store;
+    return { ...rest, hasZaloAppSecret: !!zaloAppSecretEnc };
+  }
+
+  /** App Secret Mini App riêng của store (giải mã), dùng khi khách đăng nhập Zalo để lấy SĐT. */
+  async getZaloAppSecret(storeId: string): Promise<string | null> {
+    const s = await this.prisma.store.findUnique({ where: { id: storeId }, select: { zaloAppSecretEnc: true } });
+    return openSecret(s?.zaloAppSecretEnc, this.auth.getServerSecret());
+  }
 
   /** Điều kiện lọc store theo quyền: admin thấy tất cả, chủ shop chỉ thấy store của mình. */
   private scope(auth: AuthContext): Prisma.StoreWhereInput {
@@ -42,23 +60,43 @@ export class StoresService {
     return this.assertAccess(auth, storeId);
   }
 
-  findAll(auth: AuthContext) {
-    return this.prisma.store.findMany({
+  async findAll(auth: AuthContext) {
+    // Danh sách tóm tắt (không kèm thiết kế / slider — có thể rất lớn); chi tiết lấy ở GET /stores/:id
+    const list = await this.prisma.store.findMany({
       where: this.scope(auth),
-      include: { _count: { select: { products: true, customers: true } } },
+      select: {
+        id: true,
+        slug: true,
+        name: true,
+        subtitle: true,
+        logoUrl: true,
+        templateId: true,
+        zaloAppId: true,
+        zaloAppSecretEnc: true,
+        active: true,
+        theme: true,
+        customerId: true,
+        createdAt: true,
+        updatedAt: true,
+        _count: { select: { products: true, customers: true } },
+        customer: { select: { id: true, name: true, companyName: true } },
+      },
       orderBy: { createdAt: "desc" },
     });
+    return list.map((s) => this.redact(s));
   }
 
   async findOne(auth: AuthContext, id: string) {
     await this.assertAccess(auth, id);
-    return this.prisma.store.findUniqueOrThrow({
+    const store = await this.prisma.store.findUniqueOrThrow({
       where: { id },
       include: {
         products: { orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }] },
         customers: { orderBy: { createdAt: "desc" } },
+        customer: { select: { id: true, name: true, companyName: true } },
       },
     });
+    return this.redact(store);
   }
 
   /** Cấu hình công khai cho Mini App: chỉ store đang hoạt động, không lộ khách hàng / gói cước. */
@@ -104,8 +142,8 @@ export class StoresService {
   }
 
   /**
-   * Tạo store. Chủ shop tự tạo thì store tự gắn vào PlatformCustomer của họ
-   * (tạo mới nếu tài khoản chưa có) — không được chỉ định customerId / subscriptionId khác.
+   * Tạo store. Chủ shop tự tạo thì store gắn vào PlatformCustomer của họ (tài khoản người bán
+   * phải đã được kích hoạt) — không được chỉ định customerId / subscriptionId khác.
    */
   async create(auth: AuthContext, dto: CreateStoreDto) {
     let customerId = dto.customerId || null;
@@ -114,21 +152,13 @@ export class StoresService {
     if (!auth.isAdmin) {
       subscriptionId = null;
       customerId = auth.customerId ?? null;
-      if (!customerId && auth.userId) {
-        const user = await this.prisma.user.findUniqueOrThrow({ where: { id: auth.userId } });
-        const customer = await this.prisma.platformCustomer.create({
-          data: { name: user.name, phone: user.phone ?? dto.phone ?? "", email: user.email },
-        });
-        await this.prisma.user.update({ where: { id: user.id }, data: { customerId: customer.id } });
-        customerId = customer.id;
-      }
-      if (!customerId) throw new ForbiddenException("Tài khoản chưa gắn với khách hàng nào");
+      if (!customerId) throw new ForbiddenException("Tài khoản người bán chưa được kích hoạt");
     }
 
     const exists = await this.prisma.store.findUnique({ where: { slug: dto.slug }, select: { id: true } });
     if (exists) throw new ConflictException(`Slug "${dto.slug}" đã được dùng`);
 
-    return this.prisma.store.create({
+    const created = await this.prisma.store.create({
       data: {
         customerId,
         subscriptionId,
@@ -145,16 +175,22 @@ export class StoresService {
         theme: (dto.theme ?? defaultTheme) as Prisma.InputJsonValue,
         sliders: (dto.sliders ?? []) as Prisma.InputJsonValue,
         ...(dto.builderSchema ? { builderSchema: dto.builderSchema as Prisma.InputJsonValue } : {}),
+        memberTiers: { create: DEFAULT_TIERS },
       },
       include: { products: true, customers: true },
     });
+    return this.redact(created);
   }
 
   async updateConfig(auth: AuthContext, id: string, dto: UpdateStoreConfigDto) {
     await this.assertAccess(auth, id);
-    return this.prisma.store.update({
+    const secret = dto.zaloAppSecret?.trim();
+    const updated = await this.prisma.store.update({
       where: { id },
       data: {
+        ...(dto.zaloAppSecret !== undefined
+          ? { zaloAppSecretEnc: secret ? sealSecret(secret, this.auth.getServerSecret()) : null }
+          : {}),
         ...(dto.name !== undefined ? { name: dto.name } : {}),
         ...(dto.subtitle !== undefined ? { subtitle: dto.subtitle } : {}),
         ...(dto.logoUrl !== undefined ? { logoUrl: dto.logoUrl } : {}),
@@ -170,6 +206,7 @@ export class StoresService {
         ...(dto.builderSchema !== undefined ? { builderSchema: dto.builderSchema as Prisma.InputJsonValue } : {}),
       },
     });
+    return this.redact(updated);
   }
 
   async addProduct(auth: AuthContext, storeId: string, dto: UpsertProductDto) {

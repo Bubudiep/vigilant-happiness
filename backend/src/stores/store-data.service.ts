@@ -1,0 +1,423 @@
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from "@nestjs/common";
+import { Prisma } from "@prisma/client";
+import type { AuthContext } from "../common/guards/app-auth.guard";
+import { normalizeVnPhone } from "../oauth/zalo.service";
+import { PrismaService } from "../prisma/prisma.service";
+import {
+  makeCode,
+  pickFields,
+  randomVoucherCode,
+  serializeBooking,
+  serializeDocument,
+  serializeEvent,
+  serializeOrder,
+  serializeTier,
+  serializeVoucher,
+  SPECS,
+} from "./store-data";
+import { markVoucherUsed, quoteVoucher, reclaimVoucher, releaseVoucher } from "./voucher-redeem";
+import { StoresService } from "./stores.service";
+
+export const COLLECTIONS = ["bookings", "events", "documents", "member-tiers", "vouchers", "orders"] as const;
+export type Collection = (typeof COLLECTIONS)[number];
+
+/**
+ * Dữ liệu vận hành của từng gian hàng (lịch hẹn, sự kiện, tài liệu, hạng, voucher, đơn hàng).
+ * Mọi truy vấn đều lọc theo storeId sau khi đã kiểm tra quyền trên store.
+ */
+@Injectable()
+export class StoreDataService {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly stores: StoresService,
+  ) {}
+
+  /** Toàn bộ dữ liệu vận hành của store, đúng dạng web quản trị. */
+  async loadAll(storeId: string) {
+    const [bookings, events, documents, memberTiers, vouchers, orders] = await Promise.all([
+      this.prisma.storeBooking.findMany({ where: { storeId }, orderBy: [{ bookingDate: "desc" }, { createdAt: "desc" }], take: 500 }),
+      this.prisma.storeEvent.findMany({ where: { storeId }, orderBy: { startDate: "desc" } }),
+      this.prisma.storeDocument.findMany({ where: { storeId }, orderBy: [{ sortOrder: "asc" }, { updatedAt: "desc" }] }),
+      this.prisma.storeMemberTier.findMany({ where: { storeId }, orderBy: [{ sortOrder: "asc" }, { minSpent: "asc" }] }),
+      this.prisma.storeVoucher.findMany({ where: { storeId }, orderBy: { createdAt: "desc" } }),
+      this.prisma.storeOrder.findMany({ where: { storeId }, include: { items: true }, orderBy: { createdAt: "desc" }, take: 500 }),
+    ]);
+    const codeStats = await this.codeStats(storeId);
+    return {
+      bookings: bookings.map(serializeBooking),
+      events: events.map(serializeEvent),
+      documents: documents.map(serializeDocument),
+      memberTiers: memberTiers.map(serializeTier),
+      vouchers: vouchers.map((v) => ({ ...serializeVoucher(v), ...(codeStats.get(v.id) ?? { codeCount: 0, codeUsed: 0 }) })),
+      orders: orders.map(serializeOrder),
+    };
+  }
+
+  async create(auth: AuthContext, storeId: string, col: Collection, body: unknown) {
+    await this.stores.ensureAccess(auth, storeId);
+    try {
+      switch (col) {
+        case "bookings": {
+          const d = pickFields(body, SPECS.bookings, ["customerName", "phone", "serviceName", "date", "timeSlot"]);
+          const phone = normalizeVnPhone(String(d.phone)) ?? String(d.phone);
+          const customer = await this.prisma.storeCustomer.findFirst({ where: { storeId, phone }, select: { id: true } });
+          const { date, ...rest } = d;
+          const b = await this.prisma.storeBooking.create({
+            data: {
+              ...(rest as Omit<Prisma.StoreBookingUncheckedCreateInput, "storeId" | "code" | "bookingDate">),
+              phone,
+              storeId,
+              code: makeCode("LH"),
+              bookingDate: date as Date,
+              customerId: customer?.id ?? null,
+            },
+          });
+          return serializeBooking(b);
+        }
+        case "events": {
+          const d = pickFields(body, SPECS.events, ["title", "startDate", "endDate"]);
+          return serializeEvent(await this.prisma.storeEvent.create({ data: { ...(d as Prisma.StoreEventUncheckedCreateInput), storeId } }));
+        }
+        case "documents": {
+          const d = pickFields(body, SPECS.documents, ["slug", "title", "content"]);
+          return serializeDocument(
+            await this.prisma.storeDocument.create({ data: { ...(d as Prisma.StoreDocumentUncheckedCreateInput), storeId } }),
+          );
+        }
+        case "member-tiers": {
+          const d = pickFields(body, SPECS.memberTiers, ["code", "name"]);
+          return serializeTier(
+            await this.prisma.storeMemberTier.create({ data: { ...(d as Prisma.StoreMemberTierUncheckedCreateInput), storeId } }),
+          );
+        }
+        case "vouchers": {
+          const d = pickFields(body, SPECS.vouchers, ["code", "title", "startDate", "endDate"]);
+          d.code = String(d.code).toUpperCase();
+          await this.ensureCodeFree(storeId, String(d.code));
+          return serializeVoucher(
+            await this.prisma.storeVoucher.create({ data: { ...(d as Prisma.StoreVoucherUncheckedCreateInput), storeId } }),
+          );
+        }
+        case "orders":
+          return this.createOrder(storeId, body as AdminOrderInput);
+      }
+    } catch (e) {
+      throw this.mapError(e);
+    }
+  }
+
+  async update(auth: AuthContext, storeId: string, col: Collection, id: string, body: unknown) {
+    await this.stores.ensureAccess(auth, storeId);
+    try {
+      switch (col) {
+        case "bookings": {
+          const { date, ...rest } = pickFields(body, SPECS.bookings);
+          await this.mustUpdate(
+            this.prisma.storeBooking.updateMany({
+              where: { id, storeId },
+              data: { ...(rest as Prisma.StoreBookingUpdateManyMutationInput), ...(date ? { bookingDate: date as Date } : {}) },
+            }),
+          );
+          return serializeBooking(await this.prisma.storeBooking.findUniqueOrThrow({ where: { id } }));
+        }
+        case "events":
+          await this.mustUpdate(this.prisma.storeEvent.updateMany({ where: { id, storeId }, data: pickFields(body, SPECS.events) }));
+          return serializeEvent(await this.prisma.storeEvent.findUniqueOrThrow({ where: { id } }));
+        case "documents":
+          await this.mustUpdate(this.prisma.storeDocument.updateMany({ where: { id, storeId }, data: pickFields(body, SPECS.documents) }));
+          return serializeDocument(await this.prisma.storeDocument.findUniqueOrThrow({ where: { id } }));
+        case "member-tiers":
+          await this.mustUpdate(this.prisma.storeMemberTier.updateMany({ where: { id, storeId }, data: pickFields(body, SPECS.memberTiers) }));
+          return serializeTier(await this.prisma.storeMemberTier.findUniqueOrThrow({ where: { id } }));
+        case "vouchers": {
+          const d = pickFields(body, SPECS.vouchers);
+          if (d.code) d.code = String(d.code).toUpperCase();
+          await this.mustUpdate(this.prisma.storeVoucher.updateMany({ where: { id, storeId }, data: d }));
+          return serializeVoucher(await this.prisma.storeVoucher.findUniqueOrThrow({ where: { id } }));
+        }
+        case "orders":
+          return this.updateOrder(storeId, id, pickFields(body, SPECS.orders));
+      }
+    } catch (e) {
+      throw this.mapError(e);
+    }
+  }
+
+  async remove(auth: AuthContext, storeId: string, col: Collection, id: string) {
+    await this.stores.ensureAccess(auth, storeId);
+    const where = { id, storeId };
+    const res =
+      col === "bookings"
+        ? await this.prisma.storeBooking.deleteMany({ where })
+        : col === "events"
+          ? await this.prisma.storeEvent.deleteMany({ where })
+          : col === "documents"
+            ? await this.prisma.storeDocument.deleteMany({ where })
+            : col === "member-tiers"
+              ? await this.prisma.storeMemberTier.deleteMany({ where })
+              : col === "vouchers"
+                ? await this.prisma.storeVoucher.deleteMany({ where })
+                : await this.prisma.storeOrder.deleteMany({ where });
+    if (!res.count) throw new NotFoundException("Không tìm thấy dữ liệu");
+    return { id, deleted: true };
+  }
+
+  // ───────────── Mã voucher dùng 1 lần (in thẻ) ─────────────
+
+  private async voucherOf(auth: AuthContext, storeId: string, voucherId: string) {
+    await this.stores.ensureAccess(auth, storeId);
+    const v = await this.prisma.storeVoucher.findFirst({ where: { id: voucherId, storeId } });
+    if (!v) throw new NotFoundException("Không tìm thấy voucher");
+    return v;
+  }
+
+  /** Mã chung của chương trình không được trùng mã thẻ và ngược lại */
+  private async ensureCodeFree(storeId: string, code: string) {
+    const hit = await this.prisma.storeVoucherCode.findUnique({ where: { storeId_code: { storeId, code } }, select: { id: true } });
+    if (hit) throw new ConflictException(`Mã "${code}" đã là mã thẻ của một voucher khác`);
+  }
+
+  async listCodes(auth: AuthContext, storeId: string, voucherId: string) {
+    await this.voucherOf(auth, storeId, voucherId);
+    const list = await this.prisma.storeVoucherCode.findMany({
+      where: { voucherId },
+      orderBy: [{ createdAt: "asc" }, { code: "asc" }],
+      take: 20000,
+    });
+    return list.map((c) => ({
+      id: c.id,
+      code: c.code,
+      usedAt: c.usedAt?.toISOString() ?? null,
+      orderCode: c.orderCode,
+      createdAt: c.createdAt.toISOString(),
+    }));
+  }
+
+  /**
+   * Sinh hàng loạt mã ngẫu nhiên không trùng (tối đa 5.000 / lần, 20.000 / voucher).
+   * Số lượt của voucher được nâng lên nếu nhỏ hơn tổng số mã.
+   */
+  async generateCodes(auth: AuthContext, storeId: string, voucherId: string, body: { count?: number; prefix?: string; length?: number }) {
+    const v = await this.voucherOf(auth, storeId, voucherId);
+    const count = Math.round(Number(body.count));
+    if (!Number.isFinite(count) || count < 1 || count > 5000) throw new BadRequestException("Số lượng mã từ 1 đến 5.000 mỗi lần");
+    const length = Math.min(16, Math.max(4, Math.round(Number(body.length) || 8)));
+    const prefix = String(body.prefix ?? "").toUpperCase().replace(/[^A-Z0-9-]/g, "").slice(0, 12);
+    const existing = await this.prisma.storeVoucherCode.count({ where: { voucherId } });
+    if (existing + count > 20000) throw new BadRequestException("Mỗi voucher tối đa 20.000 mã");
+    if (length < 6 && count > 1000) throw new BadRequestException("Sinh nhiều mã cần độ dài từ 6 ký tự trở lên");
+
+    const taken = new Set(
+      (await this.prisma.storeVoucherCode.findMany({ where: { storeId, code: { startsWith: prefix } }, select: { code: true } })).map((c) => c.code),
+    );
+    for (const x of await this.prisma.storeVoucher.findMany({ where: { storeId }, select: { code: true } })) taken.add(x.code);
+    const fresh: string[] = [];
+    let guard = 0;
+    while (fresh.length < count) {
+      if (++guard > count * 50) throw new BadRequestException("Không đủ tổ hợp mã — hãy tăng độ dài mã");
+      const c = randomVoucherCode(prefix, length);
+      if (taken.has(c)) continue;
+      taken.add(c);
+      fresh.push(c);
+    }
+    await this.prisma.$transaction(async (tx) => {
+      for (let i = 0; i < fresh.length; i += 1000) {
+        await tx.storeVoucherCode.createMany({ data: fresh.slice(i, i + 1000).map((code) => ({ storeId, voucherId, code })) });
+      }
+      const total = existing + count;
+      if (v.quantity < total) await tx.storeVoucher.update({ where: { id: v.id }, data: { quantity: total } });
+    });
+    return { created: count, total: existing + count, quantity: Math.max(v.quantity, existing + count) };
+  }
+
+  /** Xoá mã chưa dùng (tất cả hoặc theo danh sách id). Mã đã dùng giữ lại làm lịch sử. */
+  async deleteCodes(auth: AuthContext, storeId: string, voucherId: string, ids?: string[]) {
+    await this.voucherOf(auth, storeId, voucherId);
+    const r = await this.prisma.storeVoucherCode.deleteMany({
+      where: { voucherId, usedAt: null, ...(ids?.length ? { id: { in: ids } } : {}) },
+    });
+    return { deleted: r.count };
+  }
+
+  /** Số mã thẻ đã sinh / đã dùng của từng voucher */
+  async codeStats(storeId: string) {
+    const [all, used] = await Promise.all([
+      this.prisma.storeVoucherCode.groupBy({ by: ["voucherId"], where: { storeId }, _count: { _all: true } }),
+      this.prisma.storeVoucherCode.groupBy({ by: ["voucherId"], where: { storeId, usedAt: { not: null } }, _count: { _all: true } }),
+    ]);
+    const map = new Map<string, { codeCount: number; codeUsed: number }>();
+    for (const r of all) map.set(r.voucherId, { codeCount: r._count._all, codeUsed: 0 });
+    for (const r of used) map.get(r.voucherId)!.codeUsed = r._count._all;
+    return map;
+  }
+
+  /**
+   * Chủ shop tạo đơn tại quầy / qua điện thoại. Dòng có productId lấy tên & giá từ DB
+   * (cho phép sửa đơn giá), dòng tự nhập cần tên + giá. Có thể áp mã voucher, phí ship, giảm thêm.
+   * Khách tìm theo customerId hoặc SĐT; chưa có thì tạo mới (saveCustomer).
+   */
+  private async createOrder(storeId: string, body: AdminOrderInput) {
+    if (!body || typeof body !== "object") throw new BadRequestException("Dữ liệu không hợp lệ");
+    const head = pickFields(body, { ...SPECS.orders, customerName: "string", phone: "string" }, ["customerName"]);
+    const rawItems = Array.isArray(body.items) ? body.items : [];
+    if (!rawItems.length || rawItems.length > 100) throw new BadRequestException("Đơn cần ít nhất 1 sản phẩm");
+
+    const productIds = rawItems.map((i) => i?.productId).filter((x): x is string => typeof x === "string" && !!x);
+    const products = productIds.length
+      ? await this.prisma.storeProduct.findMany({ where: { storeId, id: { in: productIds } } })
+      : [];
+    const lines = rawItems.map((i) => {
+      const quantity = Math.min(9999, Math.max(1, Math.round(Number(i?.quantity) || 1)));
+      const p = i?.productId ? products.find((x) => x.id === i.productId) : undefined;
+      if (i?.productId && !p) throw new BadRequestException("Có sản phẩm không thuộc cửa hàng");
+      const name = (p?.name ?? String(i?.productName ?? "")).trim().slice(0, 200);
+      const priceIn = i?.unitPrice === undefined || i?.unitPrice === null ? undefined : Number(i.unitPrice);
+      const unitPrice = Math.round(priceIn ?? p?.salePrice ?? p?.price ?? NaN);
+      if (!name) throw new BadRequestException("Dòng sản phẩm thiếu tên");
+      if (!Number.isFinite(unitPrice) || unitPrice < 0) throw new BadRequestException(`Đơn giá của "${name}" không hợp lệ`);
+      return { productId: p?.id ?? null, productName: name, imageUrl: p?.imageUrl ?? null, unitPrice, quantity, lineTotal: unitPrice * quantity };
+    });
+    const subtotal = lines.reduce((sum, l) => sum + l.lineTotal, 0);
+    const shippingFee = Math.max(0, Math.round(Number(body.shippingFee) || 0));
+    const extraDiscount = Math.max(0, Math.round(Number(body.extraDiscount) || 0));
+
+    const phone = head.phone ? (normalizeVnPhone(String(head.phone)) ?? String(head.phone)) : "";
+    return this.prisma.$transaction(async (tx) => {
+      let customer = body.customerId
+        ? await tx.storeCustomer.findFirst({ where: { id: String(body.customerId), storeId } })
+        : phone
+          ? await tx.storeCustomer.findFirst({ where: { storeId, phone } })
+          : null;
+      if (body.customerId && !customer) throw new BadRequestException("Không tìm thấy khách hàng");
+      let customerCreated = false;
+      if (!customer && phone && body.saveCustomer !== false) {
+        customer = await tx.storeCustomer.create({
+          data: { storeId, name: String(head.customerName), phone, address: (head.address as string) || null },
+        });
+        customerCreated = true;
+      }
+
+      const quote = body.voucherCode?.trim()
+        ? await quoteVoucher(tx, storeId, body.voucherCode, { subtotal, shippingFee, tierName: customer?.tier })
+        : null;
+      const discountAmount = Math.min(subtotal + shippingFee, (quote?.discount ?? 0) + extraDiscount);
+      const status = (head.status as string) ?? "confirmed";
+
+      const order = await tx.storeOrder.create({
+        data: {
+          storeId,
+          customerId: customer?.id ?? null,
+          code: makeCode("DH"),
+          customerName: String(head.customerName),
+          phone: phone || customer?.phone || "",
+          address: (head.address as string) || customer?.address || null,
+          subtotal,
+          shippingFee,
+          discountAmount,
+          voucherCode: quote?.code ?? null,
+          totalAmount: subtotal + shippingFee - discountAmount,
+          source: "admin",
+          status: "pending",
+          paymentMethod: (head.paymentMethod as string) ?? "cash",
+          note: (head.note as string) || null,
+          items: { create: lines },
+        },
+        include: { items: true },
+      });
+      if (quote) await markVoucherUsed(tx, quote, order);
+      const final = status === "pending" ? order : await this.applyStatus(tx, storeId, order, status);
+      const savedCustomer = customer ? await tx.storeCustomer.findUnique({ where: { id: customer.id } }) : null;
+      return { ...serializeOrder(final), customer: savedCustomer, customerCreated };
+    });
+  }
+
+  /** Xem trước mã voucher cho màn hình tạo đơn (không ghi gì). */
+  async previewVoucher(auth: AuthContext, storeId: string, body: { code?: string; subtotal?: number; shippingFee?: number; customerId?: string }) {
+    await this.stores.ensureAccess(auth, storeId);
+    const customer = body.customerId
+      ? await this.prisma.storeCustomer.findFirst({ where: { id: body.customerId, storeId }, select: { tier: true } })
+      : null;
+    const q = await this.prisma.$transaction((tx) =>
+      quoteVoucher(tx, storeId, String(body.code ?? ""), {
+        subtotal: Math.max(0, Number(body.subtotal) || 0),
+        shippingFee: Math.max(0, Number(body.shippingFee) || 0),
+        tierName: customer?.tier,
+      }),
+    );
+    return { voucherId: q.voucherId, code: q.code, title: q.title, discount: q.discount, singleUse: !!q.codeId };
+  }
+
+  /**
+   * Đổi trạng thái đơn. Khi đơn chuyển sang "completed" thì cộng chi tiêu, số đơn và điểm cho khách
+   * (1 điểm / 1.000đ × hệ số hạng) rồi xét lại hạng; rời "completed" thì trừ lại.
+   */
+  private async updateOrder(storeId: string, id: string, data: Record<string, unknown>) {
+    return this.prisma.$transaction(async (tx) => {
+      const before = await tx.storeOrder.findFirst({ where: { id, storeId }, include: { items: true } });
+      if (!before) throw new NotFoundException("Không tìm thấy đơn hàng");
+      const { status, ...rest } = data;
+      const order = Object.keys(rest).length
+        ? await tx.storeOrder.update({ where: { id }, data: rest, include: { items: true } })
+        : before;
+      return serializeOrder(status ? await this.applyStatus(tx, storeId, order, String(status)) : order);
+    });
+  }
+
+  /** Đổi trạng thái + cộng/trừ điểm khách + trả / giữ lượt voucher khi huỷ / mở lại đơn. */
+  private async applyStatus(
+    tx: Prisma.TransactionClient,
+    storeId: string,
+    before: Prisma.StoreOrderGetPayload<{ include: { items: true } }>,
+    status: string,
+  ) {
+    if (before.status === status) return before;
+    const order = await tx.storeOrder.update({ where: { id: before.id }, data: { status }, include: { items: true } });
+    if (status === "cancelled") await releaseVoucher(tx, storeId, order);
+    else if (before.status === "cancelled") await reclaimVoucher(tx, storeId, order);
+    const wasDone = before.status === "completed";
+    const isDone = order.status === "completed";
+    if (order.customerId && wasDone !== isDone) {
+      const sign = isDone ? 1 : -1;
+      const customer = await tx.storeCustomer.findUnique({ where: { id: order.customerId } });
+      const tiers = await tx.storeMemberTier.findMany({ where: { storeId }, orderBy: { minSpent: "asc" } });
+      if (customer) {
+        const multiplier = tiers.find((t) => t.name === customer.tier)?.pointMultiplier ?? 1;
+        const totalSpent = Math.max(0, customer.totalSpent + sign * order.totalAmount);
+        const points = Math.max(0, customer.points + sign * Math.floor((order.totalAmount / 1000) * multiplier));
+        const totalOrders = Math.max(0, customer.totalOrders + sign);
+        const tier = tiers.filter((t) => totalSpent >= t.minSpent || (t.minPoints > 0 && points >= t.minPoints)).pop();
+        await tx.storeCustomer.update({
+          where: { id: customer.id },
+          data: { totalSpent, points, totalOrders, ...(tier ? { tier: tier.name } : {}) },
+        });
+      }
+    }
+    return order;
+  }
+
+  private async mustUpdate(p: Promise<{ count: number }>) {
+    if (!(await p).count) throw new NotFoundException("Không tìm thấy dữ liệu");
+  }
+
+  private mapError(e: unknown) {
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+      return new ConflictException("Mã / đường dẫn này đã tồn tại trong store");
+    }
+    return e;
+  }
+}
+
+type AdminOrderInput = {
+  customerId?: string;
+  customerName?: string;
+  phone?: string;
+  address?: string;
+  note?: string;
+  status?: string;
+  paymentMethod?: string;
+  saveCustomer?: boolean;
+  voucherCode?: string;
+  shippingFee?: number;
+  extraDiscount?: number;
+  items?: { productId?: string | null; productName?: string; unitPrice?: number | null; quantity?: number }[];
+};

@@ -1,7 +1,7 @@
 /**
  * Cấu hình chạy app, đọc từ biến môi trường Vite (file `.env`, tiền tố `VITE_`).
  *
- *   VITE_API_URL      URL backend, VD https://api.remini.vn/api  (để trống = không gửi về máy chủ)
+ *   VITE_API_URL      URL backend, VD https://api.ipays.vn/api  (để trống = không gửi về máy chủ)
  *   VITE_ZALO_APP_ID  App ID Mini App, dùng khi chạy ngoài Zalo (trong Zalo lấy từ window.APP_ID)
  *   VITE_OAUTH_CLIENT_ID  client_id (public) của kênh Mini App trên backend, mặc định remini-zalo-miniapp
  */

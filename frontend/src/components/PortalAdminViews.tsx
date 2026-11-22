@@ -369,7 +369,7 @@ function TicketsPanel() {
         ]}
       />
 
-      <Drawer open={!!openId} onClose={() => setOpenId(null)} width={520} title={ticket ? `${ticket.code} · ${ticket.subject}` : "Ticket"}>
+      <Drawer open={!!openId} onClose={() => setOpenId(null)} size={520} title={ticket ? `${ticket.code} · ${ticket.subject}` : "Ticket"}>
         {ticket && (
           <div className="flex h-full flex-col">
             <div className="mb-3 flex flex-wrap items-center gap-2 text-xs text-slate-500">

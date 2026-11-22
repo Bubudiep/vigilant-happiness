@@ -1,7 +1,34 @@
 import { Body, Controller, Get, Post, Query, Req, Res, UseGuards } from "@nestjs/common";
 import { Response } from "express";
+import { IsOptional, IsString, MaxLength, MinLength } from "class-validator";
 import { AuthService } from "./auth.service";
 import { AuthenticatedRequest, JwtAuthGuard } from "./jwt-auth.guard";
+
+class RegisterSellerDto {
+  @IsString()
+  @MinLength(2)
+  @MaxLength(100)
+  name!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(150)
+  companyName?: string;
+
+  @IsString()
+  @MaxLength(30)
+  phone!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(250)
+  address?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  note?: string;
+}
 
 @Controller("auth")
 export class AuthController {
@@ -27,7 +54,7 @@ export class AuthController {
     @Res() res: Response,
   ) {
     try {
-      const url = this.authService.getGoogleAuthUrl(redirect || "/admin/overview", loginHint);
+      const url = this.authService.getGoogleAuthUrl(redirect || "/admin", loginHint);
       return res.redirect(url);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Lỗi cấu hình Google OAuth";
@@ -70,5 +97,12 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   me(@Req() req: AuthenticatedRequest) {
     return this.authService.getMe(req.user!.sub);
+  }
+
+  /** Chủ shop gửi đăng ký người bán (chờ quản trị viên kích hoạt) */
+  @Post("register-seller")
+  @UseGuards(JwtAuthGuard)
+  registerSeller(@Req() req: AuthenticatedRequest, @Body() dto: RegisterSellerDto) {
+    return this.authService.registerSeller(req.user!.sub, dto);
   }
 }

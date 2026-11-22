@@ -308,7 +308,7 @@ export function DebtsSection() {
         )}
       </Modal>
 
-      <Drawer open={!!opened} onClose={() => setOpenId(null)} width={460} title={opened ? customerLabel(opened.customer) : "Khoản nợ"}>
+      <Drawer open={!!opened} onClose={() => setOpenId(null)} size={460} title={opened ? customerLabel(opened.customer) : "Khoản nợ"}>
         {opened && (
           <div className="space-y-5 text-sm">
             <div>

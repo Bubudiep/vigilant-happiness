@@ -15,9 +15,12 @@ import {
   Tag,
 } from "antd";
 import dayjs from "dayjs";
-import { useState } from "react";
-import { LuCrown, LuPlus, LuTicket, LuTrash2, LuUsers } from "react-icons/lu";
+import { lazy, Suspense, useState } from "react";
+import { LuCrown, LuPlus, LuPrinter, LuTicket, LuTrash2, LuUsers } from "react-icons/lu";
 import { StoreConfig, StoreMemberTierItem, StoreVoucherItem } from "../data/store-api";
+
+// Mã thẻ / in thẻ / xuất Excel — tải khi mở (kèm thư viện QR & Excel)
+const VoucherCodesDrawer = lazy(() => import("./VoucherCards").then((m) => ({ default: m.VoucherCodesDrawer })));
 
 export const DEFAULT_MEMBER_TIERS: StoreMemberTierItem[] = [
   {
@@ -66,62 +69,20 @@ export const DEFAULT_MEMBER_TIERS: StoreMemberTierItem[] = [
   },
 ];
 
-export const DEFAULT_VOUCHERS: StoreVoucherItem[] = [
-  {
-    id: "vc_1",
-    code: "WELCOME50K",
-    title: "Giảm 50.000đ cho khách hàng mới",
-    discountType: "fixed",
-    discountValue: 50000,
-    minOrderValue: 299000,
-    tierCode: "all",
-    quantity: 200,
-    usedCount: 64,
-    startDate: dayjs().format("YYYY-MM-DD"),
-    endDate: dayjs().add(30, "day").format("YYYY-MM-DD"),
-    active: true,
-  },
-  {
-    id: "vc_2",
-    code: "VIPGOLD15",
-    title: "Giảm 15% đặc quyền hạng Vàng & Kim Cương",
-    discountType: "percent",
-    discountValue: 15,
-    minOrderValue: 500000,
-    maxDiscount: 200000,
-    tierCode: "gold",
-    quantity: 100,
-    usedCount: 28,
-    startDate: dayjs().format("YYYY-MM-DD"),
-    endDate: dayjs().add(45, "day").format("YYYY-MM-DD"),
-    active: true,
-  },
-  {
-    id: "vc_3",
-    code: "FREESHIP",
-    title: "Miễn phí vận chuyển toàn quốc",
-    discountType: "freeship",
-    discountValue: 30000,
-    minOrderValue: 199000,
-    tierCode: "all",
-    quantity: 500,
-    usedCount: 185,
-    startDate: dayjs().format("YYYY-MM-DD"),
-    endDate: dayjs().add(60, "day").format("YYYY-MM-DD"),
-    active: true,
-  },
-];
-
 export function LoyaltySection({
   store,
   updateCurrentStore,
+  applyLocal,
 }: {
   store: StoreConfig;
   updateCurrentStore: (updater: (s: StoreConfig) => StoreConfig) => void;
+  /** Ghi vào giao diện (dữ liệu đã lưu trên máy chủ) */
+  applyLocal: (updater: (s: StoreConfig) => StoreConfig) => void;
 }) {
+  const [codesFor, setCodesFor] = useState<string | null>(null);
   const { message } = AntApp.useApp();
   const tiers = store.memberTiers ?? DEFAULT_MEMBER_TIERS;
-  const vouchers = store.vouchers ?? DEFAULT_VOUCHERS;
+  const vouchers = store.vouchers ?? [];
 
   const [tierModal, setTierModal] = useState<{ open: boolean; item?: StoreMemberTierItem }>({ open: false });
   const [voucherModal, setVoucherModal] = useState<{ open: boolean; item?: StoreVoucherItem }>({ open: false });
@@ -195,7 +156,7 @@ export function LoyaltySection({
   const saveVoucher = (values: Omit<StoreVoucherItem, "id" | "usedCount">) => {
     const cleanCode = values.code.trim().toUpperCase().replace(/\s+/g, "");
     updateCurrentStore((s) => {
-      const list = s.vouchers ?? DEFAULT_VOUCHERS;
+      const list = s.vouchers ?? [];
       if (voucherModal.item) {
         return {
           ...s,
@@ -216,7 +177,7 @@ export function LoyaltySection({
   const deleteVoucher = (id: string) => {
     updateCurrentStore((s) => ({
       ...s,
-      vouchers: (s.vouchers ?? DEFAULT_VOUCHERS).filter((v) => v.id !== id),
+      vouchers: (s.vouchers ?? []).filter((v) => v.id !== id),
     }));
     message.success("Đã xoá voucher");
   };
@@ -224,7 +185,7 @@ export function LoyaltySection({
   const toggleVoucherActive = (id: string, active: boolean) => {
     updateCurrentStore((s) => ({
       ...s,
-      vouchers: (s.vouchers ?? DEFAULT_VOUCHERS).map((v) => (v.id === id ? { ...v, active } : v)),
+      vouchers: (s.vouchers ?? []).map((v) => (v.id === id ? { ...v, active } : v)),
     }));
   };
 
@@ -397,6 +358,19 @@ export function LoyaltySection({
                       },
                     },
                     {
+                      title: "Mã thẻ",
+                      width: 120,
+                      render: (_, r) =>
+                        r.codeCount ? (
+                          <div className="text-[11px]">
+                            <div className="font-bold text-slate-800">{r.codeCount.toLocaleString("vi-VN")} mã</div>
+                            <div className="text-slate-400">đã dùng {(r.codeUsed ?? 0).toLocaleString("vi-VN")}</div>
+                          </div>
+                        ) : (
+                          <span className="text-[11px] text-slate-400">Mã chung</span>
+                        ),
+                    },
+                    {
                       title: "Hạn sử dụng",
                       render: (_, r) => (
                         <span className="text-xs text-slate-600">
@@ -416,6 +390,14 @@ export function LoyaltySection({
                       align: "right",
                       render: (_, r) => (
                         <div className="flex justify-end gap-1">
+                          <Button
+                            size="small"
+                            icon={<LuPrinter size={13} />}
+                            disabled={r.id.startsWith("vc_")}
+                            onClick={() => setCodesFor(r.id)}
+                          >
+                            Mã & in thẻ
+                          </Button>
                           <Button size="small" onClick={() => openVoucherModal(r)}>
                             Sửa
                           </Button>
@@ -432,6 +414,29 @@ export function LoyaltySection({
           },
         ]}
       />
+
+      {codesFor && (
+        <Suspense fallback={null}>
+          <VoucherCodesDrawer
+            open
+            store={store}
+            voucher={vouchers.find((v) => v.id === codesFor) ?? null}
+            tierName={(() => {
+              const code = vouchers.find((v) => v.id === codesFor)?.tierCode;
+              return code && code !== "all" ? tiers.find((t) => t.code === code)?.name : undefined;
+            })()}
+            onClose={() => setCodesFor(null)}
+            onStats={(id, st) =>
+              applyLocal((s) => ({
+                ...s,
+                vouchers: (s.vouchers ?? []).map((v) =>
+                  v.id === id ? { ...v, codeCount: st.codeCount, codeUsed: st.codeUsed, ...(st.quantity ? { quantity: st.quantity } : {}) } : v,
+                ),
+              }))
+            }
+          />
+        </Suspense>
+      )}
 
       {/* Modal thêm / sửa Hạng thành viên */}
       <Modal

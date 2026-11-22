@@ -19,7 +19,7 @@ Quota Zalo: Development 11/300, Testing 19/60.
 - [ ] **B5** `backend/.env` production: `NODE_ENV=production`, `JWT_SECRET` mới, `PUBLIC_API_ORIGIN`, `FRONTEND_URL`, `CORS_ORIGINS`, `TRUST_PROXY=1`
 - [ ] **B6** Trên VPS: `npx prisma migrate deploy && npm run prisma:seed && npm run build && pm2 start dist/main.js --name remini-api`
 - [ ] **B7** Khai báo domain backend trong danh sách domain của Mini App (mini.zalo.me → Cấu hình)
-- [ ] **B8** `demo-mini-app-store/.env`: `VITE_API_URL=https://api.<domain>/api` → build + deploy Mini App
+- [ ] **B8** `demo-mini-app-store/.env`: `VITE_API_URL=https://api.ipays.vn/api` (đã đặt 22/11/2026, build OK) → còn deploy Mini App
 - [ ] **B9** Thông tin thật trong `demo-mini-app-store/src/data/company.ts` (hotline, địa chỉ, `zaloOaId`)
 - [ ] **B10** Nhập khách hàng + SĐT Zalo vào web quản trị (Dự án & Ticket) để khách đăng nhập thấy dự án
 - [ ] **B12** Thông báo nhân viên: tạo Telegram bot (@BotFather), thêm vào nhóm, điền `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` (hoặc `NOTIFY_WEBHOOK_URL`) vào `backend/.env`, khởi động lại backend
@@ -131,6 +131,61 @@ Mỗi việc ghi rõ file liên quan và tiêu chí xong. Sau mỗi việc: type
 ### [x] T14. Khách nợ tiền (công nợ)
 - **Đã làm:** bảng `Debt` + `DebtPayment` (migration `20261120110000_debts`), module `backend/src/debts/` (`/api/debts`, chỉ admin, ghi audit `debt.*`), trang **Khách nợ tiền** trong web quản trị (`frontend/src/components/DebtViews.tsx`): thẻ tổng hợp (tổng nợ, quá hạn, số khách nợ, đã thu), lọc trạng thái, thêm/sửa/xoá khoản nợ, thu từng phần (không cho thu vượt, kiểm tra trong transaction Serializable), huỷ lần thu, xuất CSV. Trạng thái `unpaid/partial/paid/overdue` tính khi đọc. Có test (unit + API).
 - **Chưa làm:** nhắc nợ tự động qua Telegram/Zalo (cần T3), cho khách xem công nợ trong tab Tài khoản của Mini App, nhập khoản nợ từ gói cước/hợp đồng.
+
+### [x] T16. Người bán phải được kích hoạt + bỏ dữ liệu demo (22/11/2026)
+- Đăng ký người bán → chờ kích hoạt → admin kích hoạt (trang Khách hàng reMini, lọc "Chờ kích hoạt") → tạo store.
+- Bỏ `initialStores`/localStorage và mọi dữ liệu mẫu (`DEFAULT_*`) — store, sản phẩm, khách hàng đọc/ghi thẳng API.
+- Chọn store mới (`StoreSwitcher`), trình tạo store 2 bước (`CreateStoreWizard`), menu quản trị nền tảng ẩn với chủ shop.
+- Lịch hẹn, Sự kiện, Đơn hàng, Kho, Hạng & Voucher, Tài liệu đã lưu DB theo từng store (T17). **Còn lại:** mục "Hỗ trợ" trong store vẫn chỉ giữ trong phiên.
+
+### [x] T17. Tài khoản quản trị + tài khoản khách theo từng gian hàng (22/11/2026)
+- Trang **Tài khoản quản trị**: đánh dấu / gỡ quản trị nền tảng (`User.role`).
+- Khách của store đăng nhập Zalo (`/api/shop/:slug/*`): hồ sơ, điểm, hạng, voucher, đặt hàng, đặt lịch — dữ liệu riêng từng store.
+- Migration `20261122100000_store_customer_accounts` (StoreCustomer: avatarUrl, address, lastLoginAt, unique storeId+zaloUserId; Store.zaloAppSecretEnc).
+- **Còn lại:** Mini App của store chưa gọi các API `/shop/*` (cần giao diện đăng nhập / giỏ hàng / đặt lịch trong Mini App runtime); áp voucher khi đặt hàng.
+
+### [x] T18. Gom trang Khách hàng + Lịch nhóm (22/11/2026)
+- `/admin/customers` có tab: Tệp khách hàng · Tin nhắn · Album ảnh khách · Chăm sóc (3 tab sau chỉ quản trị viên). Link cũ `/admin/inbox|files|care` tự chuyển sang tab.
+- Lịch hẹn: giao diện **Lịch nhóm** (hàng = nhân viên, cột = hôm qua → +5 ngày), bấm lịch để đổi trạng thái / người phụ trách / xoá, bấm ô trống để đặt lịch điền sẵn ngày + nhân viên; tab "Danh sách" giữ bảng cũ.
+
+### [x] T19. Album ảnh khách theo từng gian hàng (22/11/2026)
+- Mục **Album ảnh** của store: Album hôm nay / Ảnh cưới / Ảnh đám hỏi / Khác, ảnh xem trước (tự thu nhỏ ≤2048px, URL ký 2h) + link ảnh gốc (Drive, Google Photos, Dropbox…), ảnh bìa, ghi chú.
+- **Gửi cho khách** → tin nhắn vào hộp thư store ↔ khách (`StoreMessage`), khách có chấm đỏ tới khi mở xem; chủ shop thấy "Khách đã xem". Thu hồi album.
+- API khách: `/api/shop/:slug/me/albums`, `/me/albums/:id`, `/me/messages`, `/me/unread`. Migration `20261122120000_store_albums`.
+- Nginx `api.<domain>`: `client_max_body_size 50m` (tải 8 ảnh / request).
+- **Còn lại:** Mini App của store chưa có màn hình Album / Tin nhắn; báo qua Zalo OA / ZNS của store.
+
+### [x] T20. Hồ sơ khách + nhắn tin + tự lưu (22/11/2026)
+- Bấm một khách ở Khách hàng → hồ sơ: hạng/điểm/chi tiêu, liên hệ, tài khoản Mini App, lịch sắp tới; tab Nhắn tin · Đơn hàng · Lịch hẹn · Album.
+- Nút **Nhắn tin** từng khách (badge tin chưa đọc; mục Khách hàng đỏ khi có tin mới) — tin vào hộp thư khách trong Mini App của quán (`StoreMessage`).
+- Bỏ nút "Lưu cấu hình": thông tin store & thiết kế **tự lưu** sau 1,2s (chỉ báo "Đang lưu… / Đã lưu"); App Secret lưu khi rời ô nhập.
+
+### [x] T21. Rà soát & tối ưu trang quản trị (22/11/2026)
+- Danh sách store chỉ tải tóm tắt (`GET /stores` không kèm thiết kế); chi tiết tải khi chọn store — trước đây tải chi tiết MỌI store lúc mở trang.
+- Ghi dữ liệu theo id store (không ghi nhầm sang store khác khi đổi store lúc đang chờ máy chủ); đọc state mới nhất qua ref.
+- Đồng bộ Lịch hẹn/Sự kiện/… chạy theo hàng đợi + ánh xạ id tạm → id thật (tạo rồi sửa ngay không còn 404); tự lưu cấu hình cũng chạy lần lượt.
+- Tự lưu chỉ so sánh sau khi đã tải chi tiết (tránh ghi đè slider/thiết kế bằng bản tóm tắt).
+- Phiên hết hạn (401) → tự đăng xuất về trang đăng nhập.
+- Tách code: trang quản trị, trình thiết kế, album, các mục quản trị nền tảng tải riêng (trang chủ không tải code quản trị).
+- Ngừng hỏi tin mới khi tab ẩn; Drawer dùng `size` (antd v6).
+
+### [x] T22. Tách trang điều hành `/controller` (22/11/2026)
+- `/admin/*` = quản trị cửa hàng (chủ shop; quản trị viên xem mọi shop, có nút "Điều hành").
+- `/controller/*` = trang điều hành nền tảng, chỉ quản trị viên: Khách hàng reMini, Tin nhắn, Album ảnh khách, Chăm sóc, Lịch gọi lại, Dự án & Ticket, Khách nợ tiền, Tài khoản quản trị, Chống spam, Kết nối API, Nhật ký.
+- Sau đăng nhập vào `/admin`: quản trị viên → `/controller`, chủ shop → `/admin/overview`. Link cũ (`/admin/inbox`, `/admin/customers?tab=care`…) tự chuyển.
+
+### [x] T23. Tạo đơn tại quầy + mã voucher in thẻ (22/11/2026)
+- Migration `20261122150000_orders_voucher_codes`: `StoreOrder` thêm `subtotal`, `shippingFee`, `discountAmount`, `voucherCode`, `source`; model mới `StoreVoucherCode` (mã dùng 1 lần).
+- `POST /stores/:id/data/orders`: chủ shop tạo đơn (sản phẩm có sẵn / dòng tự nhập, sửa đơn giá, phí ship, giảm thêm, mã voucher); tự tạo khách theo SĐT; đơn "Hoàn thành" cộng điểm ngay. `POST .../orders/preview-voucher` kiểm tra mã.
+- Áp voucher dùng chung `stores/voucher-redeem.ts` (cả đơn Mini App `/shop/:slug/me/orders` nhận `voucherCode`): kiểm tra hạn, bật/tắt, đơn tối thiểu, hạng, số lượt; huỷ đơn trả lượt, mở lại đơn giữ lại mã.
+- Mã thẻ: `GET/POST /stores/:id/data/vouchers/:vid/codes` (sinh tối đa 5.000 / lần, bỏ ký tự dễ nhầm), `POST .../codes/delete` (chỉ xoá mã chưa dùng).
+- Web: `StoreOrderViews.tsx` (lọc theo trạng thái, tìm, xem chi tiết đơn, ngăn "Tạo đơn"); `VoucherCards.tsx` (quản lý mã, xuất Excel bằng `write-excel-file`, in thẻ 5 mẫu × 6 cỡ + tuỳ chỉnh, giấy A4 / A3 / máy in thẻ, QR bằng `qrcode`).
+- **Còn lại:** Mini App của store chưa có ô nhập voucher ở giỏ hàng; tạo đơn chưa trừ tồn kho.
+
+### [x] T24. Tệp khách hàng: xem nhanh + thao tác ngay tại chỗ (22/11/2026)
+- `/admin/customers` (`StoreCustomerViews.tsx` `CustomersSection`): bảng xem nhanh (hạng, chi tiêu, lịch hẹn tới, tin nhắn cuối + chưa đọc) với nút **Đặt lịch**, **Nhắn tin** (modal chat), **Gửi ảnh**.
+- Kéo thả 1 / nhiều ảnh hoặc link (Drive, Google Photos…) vào dòng khách → modal đặt tên → tạo album + gửi tin báo khách. Bấm dòng mở hồ sơ (drawer), album mở ngay tại chỗ (`AlbumDrawer`), không chuyển trang.
+- API mới `GET /stores/:id/messages/conversations` (tin cuối + số chưa đọc theo từng khách).
 
 ### [/] T11. Trang quản trị: hoàn thiện
 - **Đã làm:** xuất CSV (Lịch gọi lại / Nhận tư vấn); trang **Khách hàng reMini** (CRUD + SĐT nhân sự, SĐT tự chuẩn hoá về `0xxxxxxxxx` để khớp số Zalo). **Còn lại:** gán `storeId` cho dự án, sửa ngày bắt đầu/hạn dự án trong giao diện.

@@ -9,7 +9,7 @@
 | Thành phần | Vai trò |
 |---|---|
 | **Mini App reMini** (`demo-mini-app-store/`) | Chỉ để **demo & tiếp thị**: 20 mẫu Mini App theo ngành, bảng giá, quy trình, form tư vấn / đặt lịch gọi lại. Khách đã ký hợp đồng **đăng nhập Zalo** ở tab "Tài khoản" để xem Mini App đã đăng, tiến độ dự án, ticket hỗ trợ. **Không có trình thiết kế** trong Mini App. |
-| **Web quản trị** (`frontend/`) | Landing `recloud.vn` + trang quản trị: store/CRM/trình thiết kế (Store Studio), lịch gọi lại, dự án & ticket, chống spam, kênh kết nối API. |
+| **Web quản trị** (`frontend/`) | Landing + `/admin/*` quản trị cửa hàng (store/CRM/lịch hẹn/album/trình thiết kế — chủ shop) + `/controller/*` trang điều hành nền tảng (khách reMini, hộp thư, lịch gọi lại, dự án & ticket, công nợ, tài khoản quản trị, chống spam, API — chỉ quản trị viên). |
 | **Backend** (`backend/`) | NestJS + Prisma + PostgreSQL. API cho cả hai bên trên. |
 
 ## 2. Cấu trúc thư mục (`c:\Dev\zalo-mini-app\demo\`)
@@ -54,10 +54,26 @@ backend/               NestJS 10 + Prisma 5 + PostgreSQL (chạy native, không 
 | `Authorization: Bearer rma_...` | Token OAuth (opaque, DB lưu SHA-256) | người dùng Zalo (Mini App) hoặc kênh `client_credentials` |
 | `Authorization: Bearer <JWT>` | Đăng nhập Google ở web quản trị | JWT ký bằng `JWT_SECRET` |
 
-- **Admin** = x-admin-key, `User.role = "admin"`, hoặc email trong `ADMIN_EMAILS`. Decorator `@AdminOnly()`.
-- **Chủ shop** chỉ thấy store có `customerId` = `User.customerId`. Tạo store lần đầu → tự tạo `PlatformCustomer`.
+- **Admin (quản trị nền tảng)** = tài khoản có `User.role = "admin"` — đánh dấu ở trang **Tài khoản quản trị**
+  (`GET/PATCH /api/admin/accounts`). `ADMIN_EMAILS` chỉ để tạo quản trị viên đầu tiên; `x-admin-key` cho script. Decorator `@AdminOnly()`.
+- **Chủ shop** chỉ thấy store có `customerId` = `User.customerId`, và chỉ khi `PlatformCustomer.status = "active"`.
+  Luồng: đăng nhập Google → `POST /api/auth/register-seller` tạo `PlatformCustomer` ở `pending` → admin bấm **Kích hoạt**
+  ở trang Khách hàng reMini → người bán mới tạo được store. `GET /api/auth/me` trả `accountStatus`
+  (`admin | unregistered | pending | active | suspended`), web quản trị chặn bằng `AccountGate`.
 - **Người dùng Zalo** (`role = "member"`) gắn với `PlatformCustomer` khi SĐT Zalo đã xác minh trùng
   `PlatformCustomer.phone` hoặc `CustomerStaff.phone` (xem `PortalService.resolveCustomerId`).
+
+### Khách của từng gian hàng (`/api/shop/:slug/*`, `src/shop/`)
+- Tài khoản khách = `StoreCustomer` của **đúng store đó** (unique `storeId + zaloUserId`): cùng một người Zalo ở 2 store là 2 tài khoản, dữ liệu tách riêng.
+- `POST /shop/:slug/auth/zalo { accessToken, phoneToken? }` → token JWT phạm vi `shop` (ký bằng `JWT_SECRET:shop`, 30 ngày; không dùng thay token quản trị được).
+  Lấy SĐT bằng App Secret riêng của store (`Store.zaloAppSecretEnc`, mã hoá AES-GCM, nhập ở modal Xuất bản) hoặc `ZALO_APP_SECRET`.
+  Có SĐT trùng khách tạo tại quầy (chưa có Zalo) → gắn vào bản ghi đó.
+- `GET/PATCH /me`, `GET/POST /me/orders` (giá tính lại từ DB), `GET/POST /me/bookings`.
+- Chủ shop quản lý dữ liệu vận hành: `/api/stores/:id/data/<bookings|events|documents|member-tiers|vouchers|orders>` (POST/PATCH/DELETE),
+  danh sách trả kèm `GET /api/stores/:id`. Đơn chuyển sang `completed` → cộng chi tiêu/số đơn/điểm (1 điểm/1.000đ × hệ số hạng) và xét lại hạng.
+  Web quản trị đồng bộ tự động (`frontend/src/data/store-sync.ts`).
+- Album ảnh (`src/albums/`): `StoreAlbum` + `StoreAlbumPhoto` (file ở `uploads-private/albums/`, xem qua `/api/album-photos/:id?exp&sig`),
+  link ảnh gốc ở `StoreAlbum.links`. Gửi album → `StoreMessage` (hộp thư store ↔ khách). Chủ shop: `/api/stores/:id/albums*`, `/api/stores/:id/messages*`.
 
 ### OAuth 2.0 (mô hình django-oauth-toolkit)
 - Bảng `OAuthApplication` (mỗi **kênh** của khách: `zalo_mini_app | web | pos | api | webhook`) có `clientId` + `clientSecretHash`.

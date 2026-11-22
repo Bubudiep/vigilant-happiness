@@ -143,7 +143,7 @@ export default function LandingPage() {
           <div className="flex items-center gap-2">
             <Button
               icon={<LuStore size={15} className="text-brand-600" />}
-              onClick={() => navigate("/admin/overview")}
+              onClick={() => navigate("/admin")}
               className="font-bold"
             >
               Quản lý Store
