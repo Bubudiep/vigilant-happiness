@@ -279,6 +279,15 @@ export default function StoreConsole({
     message.success("Đã xoá khách hàng");
   };
 
+  // Hook phải gọi trước mọi lệnh return sớm (nếu không React báo lỗi #310 khi store từ null → có dữ liệu)
+  const [inboxSummary, setInboxSummary] = useState<InboxSummary | null>(null);
+  const refreshInbox = () => fetchInboxSummary().then(setInboxSummary).catch(() => undefined);
+  useEffect(() => {
+    refreshInbox();
+    const t = setInterval(refreshInbox, 30000);
+    return () => clearInterval(t);
+  }, []);
+
   if (!store) return null;
 
   const builderSchema: BuilderSchema =
@@ -295,14 +304,6 @@ export default function StoreConsole({
   });
 
   const zaloPreviewUrl = getZaloTemplateUrl(store.templateId);
-
-  const [inboxSummary, setInboxSummary] = useState<InboxSummary | null>(null);
-  const refreshInbox = () => fetchInboxSummary().then(setInboxSummary).catch(() => undefined);
-  useEffect(() => {
-    refreshInbox();
-    const t = setInterval(refreshInbox, 30000);
-    return () => clearInterval(t);
-  }, []);
 
   const navItems: { key: StoreNavKey; label: string; icon: React.ReactNode; badge?: number }[] = [
     { key: "overview", label: "Tổng quan", icon: <LuLayoutDashboard size={17} /> },
