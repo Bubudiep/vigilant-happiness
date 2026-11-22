@@ -1,0 +1,161 @@
+# TASKS — reMini / recloud.vn
+
+> Cập nhật: 2026-11-19 · Bối cảnh & kiến trúc: [PROJECT.md](./PROJECT.md)
+> Trạng thái: `[x]` xong · `[/]` đang làm · `[ ]` chưa làm · **(B)** = việc của chủ dự án (không code được)
+
+Từ 20/11/2026 deploy bản **Development** (không dùng `-t`): `zmp-cli deploy -p`. Bản mới nhất: `zdev-943c98c6`
+(link: `https://zalo.me/s/3546317553033780315/?env=DEVELOPMENT&version=zdev-943c98c6`).
+Chưa có `VITE_API_URL` nên Mini App chưa nối backend, xem B4–B8. Bản Testing cuối cùng: v17.
+Quota Zalo: Development 11/300, Testing 19/60.
+
+---
+
+## 0. Việc chủ dự án cần làm để chạy thật (B)
+
+- [ ] **B1** Điền email Google của mình vào `ADMIN_EMAILS` (`backend/.env`), đăng nhập lại web quản trị
+- [ ] **B2** Điền `ZALO_APP_SECRET` (mini.zalo.me → ứng dụng → Thông tin) vào `backend/.env`
+- [ ] **B3** Xin quyền `scope.userInfo` + `scope.userPhonenumber` cho Mini App trên mini.zalo.me
+- [ ] **B4** VPS: Node LTS, PostgreSQL, Nginx, PM2, SSL; domain `api.<domain>` → `localhost:4000`, `recloud.vn` → `frontend/dist`
+- [ ] **B5** `backend/.env` production: `NODE_ENV=production`, `JWT_SECRET` mới, `PUBLIC_API_ORIGIN`, `FRONTEND_URL`, `CORS_ORIGINS`, `TRUST_PROXY=1`
+- [ ] **B6** Trên VPS: `npx prisma migrate deploy && npm run prisma:seed && npm run build && pm2 start dist/main.js --name remini-api`
+- [ ] **B7** Khai báo domain backend trong danh sách domain của Mini App (mini.zalo.me → Cấu hình)
+- [ ] **B8** `demo-mini-app-store/.env`: `VITE_API_URL=https://api.<domain>/api` → build + deploy Mini App
+- [ ] **B9** Thông tin thật trong `demo-mini-app-store/src/data/company.ts` (hotline, địa chỉ, `zaloOaId`)
+- [ ] **B10** Nhập khách hàng + SĐT Zalo vào web quản trị (Dự án & Ticket) để khách đăng nhập thấy dự án
+- [ ] **B12** Thông báo nhân viên: tạo Telegram bot (@BotFather), thêm vào nhóm, điền `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` (hoặc `NOTIFY_WEBHOOK_URL`) vào `backend/.env`, khởi động lại backend
+- [ ] **B13** Zalo OA: có OA chính thức → điền `ZALO_APP_ID`, `ZALO_APP_SECRET`, `ZALO_OA_SECRET` vào `backend/.env`; ở Zalo for Developers đặt Webhook `https://<domain>/api/oa/webhook` (bật user_send_text, user_send_image, follow); dán access/refresh token OA ở Hộp thư khách → Kết nối OA. Cần backend https công khai (B4–B8)
+- [ ] **B11** Xin phép Mixue trước khi công khai mẫu T20 (hoặc đổi tên thương hiệu giả lập)
+
+---
+
+## 1. Đã hoàn thành
+
+### Mini App (`demo-mini-app-store`)
+- [x] 20 mẫu demo theo ngành (T01–T20), mẫu T20 Mixue (kem & trà sữa)
+- [x] Ảnh sản phẩm/banner đúng từng món (`src/assets/items/<templateId>/`), ảnh thu nhỏ mockup iPhone (`src/assets/thumbs/*.jpg`)
+- [x] Bảng chia sẻ (`components/share/share-sheet.tsx`): thẻ xem trước, gửi qua Zalo (`openShareSheet` zmp_deep_link có thumbnail), sao chép link
+- [x] Nút chia sẻ ở thẻ mẫu + đầu trang chủ; ảnh bìa chia sẻ `src/assets/share-cover.jpg`
+- [x] Module "Mời bạn bè" (`_shared/kit/referral.tsx`) ở trang Tài khoản của 18 mẫu, ưu đãi theo ngành (tắt ở KCN, trường học)
+- [x] Form tư vấn (`components/showcase/consultation-form.tsx`): đăng nhập Zalo tự điền tên + SĐT, tab **Đặt lịch gọi lại** (ngày + khung giờ), honeypot + form token
+- [x] Tab **Tài khoản** (`pages/account.tsx`): Mini App đã đăng, tiến độ dự án + mốc, ticket (tạo / trả lời / đóng)
+- [x] Session Zalo + refresh token tự động (`utils/auth.ts`)
+
+### Backend
+- [x] Vá bảo mật: mọi API quản trị cần xác thực; chủ shop chỉ thấy store của mình; chặn sửa chéo product/customer
+- [x] JWT secret bắt buộc (dev tự sinh), chặn open redirect, upload chỉ nhận ảnh thật (kiểm tra magic bytes)
+- [x] OAuth 2.0 kiểu django-oauth-toolkit (`src/oauth/`): kênh có client_id/secret, token/revoke/introspect, rotation + phát hiện dùng lại refresh token
+- [x] Grant `zalo_mini_app`: lấy hồ sơ + SĐT Zalo bằng phone token (`src/oauth/zalo.service.ts`)
+- [x] CORS chấp nhận domain Zalo (`*.zdn.vn`, `*.zadn.vn`, `*.zalo.me`, `*.zaloapp.com`, `*.zalo.vn`)
+- [x] Lead đặt lịch gọi lại (`callbackDate`, `callbackSlot`), gắn tài khoản Zalo, `phoneVerified`, ghi chú cuộc gọi
+- [x] Cổng khách hàng `/api/me/*`, quản trị `/api/admin/projects|milestones|tickets` (`src/portal/`)
+- [x] Bộ chống spam (`src/antispam/`) + rate limit (`common/guards/rate-limit.guard.ts`)
+- [x] Bổ sung migration còn thiếu; migration mới: `oauth_and_callback_leads`, `projects_tickets_antispam`
+
+### Web quản trị (`frontend`)
+- [x] Bỏ đăng nhập giả qua tham số URL; đăng nhập Zalo giả lập chỉ còn ở dev
+- [x] Lưu thiết kế (`builderSchema`) + tạo store lên máy chủ, gửi kèm JWT
+- [x] Thay ảnh kho của trình thiết kế bằng ảnh đúng sản phẩm; ảnh thu nhỏ mới; thêm mẫu Mixue
+- [x] Mục **Lịch gọi lại**, **Dự án & Ticket**, **Chống spam**, **Kết nối API** (sidebar `StoreConsole.tsx`)
+
+---
+
+## 2. Việc tiếp theo (theo thứ tự ưu tiên)
+
+Mỗi việc ghi rõ file liên quan và tiêu chí xong. Sau mỗi việc: typecheck cả 3 project
+(`npx tsc --noEmit -p .` ở backend & mini app, `npx tsc --noEmit` ở frontend) và build.
+
+### [x] T1. Thông báo cho nhân viên khi có lead / lịch gọi lại / ticket mới
+- **Đã làm:** `backend/src/notify/` (Telegram + webhook chung, bật bằng `TELEGRAM_BOT_TOKEN`/`TELEGRAM_CHAT_ID`/`NOTIFY_WEBHOOK_URL`); gọi từ `LeadsController.create` (bỏ qua nghi spam, bỏ qua lead trùng) và `PortalService` (ticket mới, khách trả lời). Có test. **Chưa thử gửi Telegram thật** (cần bạn tạo bot, điền env — B12).
+- **Mục tiêu:** nhân viên biết ngay, không phải mở trang quản trị liên tục.
+- **Làm:** module `backend/src/notify/` với `NotifyService.send(event, payload)`; kênh đầu tiên **Telegram Bot**
+  (`TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`) vì dễ nhất; sau đó Zalo OA / email.
+  Gọi từ `LeadsService.create` (bỏ qua nếu `spamScore >= 40`), `PortalService.createTicket`, `customerReply`.
+  Không chặn request nếu gửi lỗi (bắt lỗi, log).
+- **Xong khi:** tạo lead/ticket thử → nhận tin nhắn có tên, SĐT, giờ hẹn, link trang quản trị.
+
+### [x] T2. Nhắc lịch gọi lại
+- **Đã làm:** `backend/src/jobs/jobs.service.ts` — mỗi phút nhắc lịch `NEW` trong 15 phút trước giờ hẹn đến hết khung; đánh dấu `remindedAt` có điều kiện (an toàn khi chạy nhiều instance). Đã thử thật: chỉ lịch đủ điều kiện được đánh dấu.
+- **Làm:** job chạy mỗi 5 phút (`@nestjs/schedule`) tìm lead `requestType=callback`, `status=NEW`,
+  khung giờ bắt đầu trong 15 phút tới → gửi qua `NotifyService`; đánh dấu đã nhắc (thêm cột `remindedAt`).
+- **Xong khi:** không nhắc trùng; lead đã `CONTACTED` không bị nhắc.
+
+### T3. Báo cho khách khi ticket được trả lời / dự án đổi trạng thái
+- **Làm:** gửi tin Zalo OA (cần OA + user đã quan tâm OA, `User.providerId` là Zalo user id theo app — kiểm tra
+  có map sang OA user id không) hoặc ZNS (cần template được duyệt). Gọi trong `PortalService.staffReply`,
+  `updateProject` khi `status` đổi. Có cờ tắt bật qua env.
+- **Xong khi:** khách nhận tin có tiêu đề ticket / trạng thái mới và mở được Mini App vào đúng tab Tài khoản.
+
+### T4. Đính kèm ảnh vào ticket
+- **Làm:** bảng `TicketAttachment` (ticketId, messageId, url, mimeType, size) hoặc trường JSON trong `TicketMessage`;
+  endpoint `POST /me/tickets/:id/attachments` dùng lại kiểm tra magic bytes của `MediaService`
+  (giới hạn 5 MB, tối đa 5 ảnh/tin); Mini App dùng `chooseImage` của zmp-sdk; admin hiển thị ảnh trong Drawer ticket.
+- **Xong khi:** chỉ khách sở hữu ticket và admin xem được ảnh (đặt link có chữ ký hoặc route có kiểm tra quyền, không để public trong `/uploads`).
+
+### [x] T5. Bắt buộc scope theo route khi gọi bằng token của kênh
+- **Đã làm:** `@RequireScopes(...)` trong `app-auth.guard.ts` (chỉ áp cho token OAuth). Stores: `stores:read` / `stores:write`; media: `stores:write`; `/me/*`: `profile`, tạo/trả lời/đóng ticket: `tickets:write`. Seed cấp `profile leads:write tickets:write` cho kênh Mini App. Admin Google/x-admin-key không bị ràng buộc.
+- **Hiện trạng:** `AppAuthGuard` gắn `auth.scopes` nhưng chưa route nào kiểm tra.
+- **Làm:** decorator `@RequireScopes("stores:write")` + kiểm tra trong guard **chỉ khi** `auth.clientId` có giá trị
+  (token OAuth). Danh sách scope: `profile`, `stores:read`, `stores:write`, `orders:write`, `leads:write`, `tickets:write`.
+- **Xong khi:** token `client_credentials` chỉ có `stores:read` gọi `PATCH /stores/:id/config` → 403.
+
+### T6. Chuyển rate limit + nonce form token sang Redis
+- **Hiện trạng:** lưu RAM (`RateLimitGuard.hits`, `AntiSpamService.usedNonces`) → mất khi restart, không dùng chung khi chạy nhiều instance.
+- **Làm:** `REDIS_URL` tuỳ chọn; có thì dùng Redis (`INCR` + `EXPIRE`, `SET NX EX`), không có thì giữ RAM.
+
+### [x] T7. Job dọn dữ liệu
+- **Đã làm:** cron 3:15 sáng (giờ VN) trong `jobs.service.ts`: token hết hạn/thu hồi > 30 ngày, `SpamEvent` > 90 ngày, `SpamBlock` hết hạn > 30 ngày.
+- Xoá `OAuthAccessToken`/`OAuthRefreshToken` hết hạn hoặc thu hồi > 30 ngày; `SpamEvent` > 90 ngày; `SpamBlock` hết hạn > 30 ngày.
+
+### [x] T8. Nhật ký thao tác quản trị (audit log)
+- **Đã làm:** bảng `AuditLog`, `AuditService.record(req, action, target, meta)` (tự ẩn trường có `secret|token|password|key`), `GET /api/admin/audit`, trang "Nhật ký thao tác" trong web quản trị. Đã gắn: kênh OAuth (tạo/sửa/tắt/đổi secret/thu hồi/xoá), sửa store, chặn/bỏ chặn spam, dự án, ticket. **Chưa gắn:** CRUD khách hàng/nhân sự, gói cước, sản phẩm/khách của store.
+- Bảng `AuditLog` (actorId, action, targetType, targetId, meta JSON, ip, createdAt). Ghi khi: tạo/xoá kênh OAuth,
+  đổi secret, thu hồi token, sửa store, chặn/bỏ chặn spam, đổi trạng thái dự án/ticket. Trang xem trong web quản trị.
+
+### T9. Gom dữ liệu trùng giữa frontend và Mini App
+- **Hiện trạng:** danh sách mẫu (`frontend/src/data/site.ts` ↔ `demo-mini-app-store/src/templates/*/index.ts` ↔
+  `backend/prisma/seed.ts`), ảnh thu nhỏ, ảnh kho đang copy tay.
+- **Làm:** một nguồn duy nhất (VD `backend` phục vụ `GET /api/templates` + ảnh tĩnh, hoặc thư mục `shared/` + script sync).
+
+### [x] T10. Kiểm thử tự động (backend)
+- **Đã làm:** `backend/test/unit.test.ts` (12 test: nhắc lịch, SĐT, notify, chống spam) → `npm test`; `backend/test/api.test.ts` (16 test tích hợp: phân quyền, cách ly dữ liệu khách, OAuth + rotation, lead/spam, lịch gọi lại) → chạy `npm run start:test` (cổng 4010, tắt rate limit) rồi `API_URL=http://localhost:4010/api npm run test:api`. Test tự dọn dữ liệu (tiền tố `t_`, SĐT `0966…`).
+- e2e (Jest + supertest, DB test riêng): `/oauth/token` (sai secret, scope, rotation, reuse), phân quyền store
+  (chủ shop A không đọc được store B), `/leads` (honeypot, từ khoá, trùng 10 phút), `/me/*` (không xem ticket khách khác).
+
+### [x] T15. Hộp thư chăm sóc khách + ảnh khách + OA + nhắc chăm sóc
+- **Đã làm (backend `src/inbox/`):** bảng `Conversation`, `Message`, `Attachment`, `CareTask`, `OaCredential` (migration `20261120130000_inbox_oa_care`). Kênh `miniapp` (khách nhắn trong tab Tài khoản) và `oa` (webhook `POST /api/oa/webhook`, kiểm tra chữ ký `X-ZEvent-Signature`, chống xử lý trùng theo `msg_id`). Nhân viên trả lời từ web (`/api/inbox/conversations/:id/messages`), có ghi chú nội bộ; gửi OA lỗi vẫn lưu tin với `delivery=failed` + lý do. Ảnh lưu **riêng tư** ở `backend/uploads-private/` (không phục vụ tĩnh), tải qua URL ký HMAC có hạn `/api/files/:id?exp&sig`; kiểm tra ảnh theo nội dung (không tin đuôi/MIME), tối đa 8MB, 30 ảnh/ngày/hội thoại. Gắn khách hàng cho hội thoại → ảnh thuộc khách đó. Việc chăm sóc (`CareTask`) có cron mỗi phút nhắc qua Telegram/webhook khi đến hạn. Token OA lưu DB, tự làm mới (`oa.service.ts`).
+- **Đã làm (web quản trị):** 3 mục mới — **Hộp thư khách** (danh sách, chat, gửi ảnh, ghi chú nội bộ, gắn khách, hẹn chăm sóc, khung kết nối OA), **Ảnh khách hàng** (lưới ảnh, lọc theo khách/nguồn/thẻ, thẻ + ghi chú, tải lên, xoá), **Chăm sóc khách** (việc hẹn, hoàn thành). Badge số tin chưa đọc / việc đến hạn (cập nhật 30s).
+- **Đã làm (Mini App):** nút "Nhắn tin với reMini" ở tab Tài khoản (cả khách chưa có hợp đồng), gửi chữ + ảnh (thu nhỏ ≤1600px), hỏi tin mới mỗi 6s khi mở, chấm đỏ tab Tài khoản gồm tin chưa đọc.
+- **Test:** unit (chữ ký, nhận diện ảnh, tên file), API (nhắn, ảnh, URL ký giả/hết hạn, file giả mạo, phân quyền, webhook OA ký đúng/sai/lặp, chăm sóc).
+- **Chưa thử thật / còn lại:** (1) gửi + nhận qua Zalo OA thật (cần B13), (2) chọn ảnh bằng `<input type=file>` trong WebView Zalo trên điện thoại thật, (3) thông báo "khách có tin mới" qua Zalo ZNS cho khách khi nhân viên trả lời (T3), (4) polling 6s → nên đổi WebSocket/SSE khi đông khách, (5) tự gắn hội thoại OA với khách theo SĐT khi khách chia sẻ số, (6) dọn ảnh/hội thoại cũ theo chính sách lưu trữ.
+
+### [x] T14. Khách nợ tiền (công nợ)
+- **Đã làm:** bảng `Debt` + `DebtPayment` (migration `20261120110000_debts`), module `backend/src/debts/` (`/api/debts`, chỉ admin, ghi audit `debt.*`), trang **Khách nợ tiền** trong web quản trị (`frontend/src/components/DebtViews.tsx`): thẻ tổng hợp (tổng nợ, quá hạn, số khách nợ, đã thu), lọc trạng thái, thêm/sửa/xoá khoản nợ, thu từng phần (không cho thu vượt, kiểm tra trong transaction Serializable), huỷ lần thu, xuất CSV. Trạng thái `unpaid/partial/paid/overdue` tính khi đọc. Có test (unit + API).
+- **Chưa làm:** nhắc nợ tự động qua Telegram/Zalo (cần T3), cho khách xem công nợ trong tab Tài khoản của Mini App, nhập khoản nợ từ gói cước/hợp đồng.
+
+### [/] T11. Trang quản trị: hoàn thiện
+- **Đã làm:** xuất CSV (Lịch gọi lại / Nhận tư vấn); trang **Khách hàng reMini** (CRUD + SĐT nhân sự, SĐT tự chuẩn hoá về `0xxxxxxxxx` để khớp số Zalo). **Còn lại:** gán `storeId` cho dự án, sửa ngày bắt đầu/hạn dự án trong giao diện.
+- Lead tab "Nhận tư vấn" + "Đặt lịch" thêm xuất Excel/CSV.
+- Dự án: gán `storeId` để khách thấy Mini App tương ứng; sửa ngày bắt đầu/hạn.
+- Khách hàng nền tảng: trang danh sách/sửa `PlatformCustomer` + `CustomerStaff` (SĐT Zalo của nhân sự khách).
+
+### [/] T12. Mini App: hoàn thiện nhỏ
+- **Đã làm:** chấm đỏ số ticket "Chờ bạn phản hồi" trên tab Tài khoản (`pendingTicketsAtom`). **Còn lại:** kéo để làm mới, hướng dẫn khi từ chối quyền SĐT, kiểm tra trên điện thoại thật (B3 trước).
+- Tab Tài khoản: kéo để làm mới; huy hiệu số ticket "Chờ bạn phản hồi" trên thanh tab.
+- Thông báo rõ khi `authorize` bị từ chối quyền SĐT (hướng dẫn mở lại quyền trong cài đặt Zalo).
+- Kiểm tra trên **điện thoại thật**: đăng nhập Zalo, lấy SĐT, chia sẻ thẻ Mini App, link `mode=Template`.
+
+### T13. Giao diện / nội dung
+- Ảnh từ Wikimedia Commons có giấy phép CC BY-SA → thay bằng ảnh Pexels hoặc thêm trang ghi nguồn.
+- Mẫu T20: thay logo/màu chính thức nếu Mixue đồng ý.
+
+---
+
+## 3. Lưu ý kỹ thuật đã biết
+
+- `prisma generate` lỗi `EPERM ... query_engine-windows.dll.node` khi backend đang chạy → dừng server rồi chạy lại.
+- Máy dev có proxy công ty: dùng `NODE_OPTIONS=--use-system-ca` cho `zmp-cli deploy` và khi backend gọi Zalo Graph API.
+- `zmp-cli deploy -e` (deploy thư mục có sẵn) lỗi "No asset defined" → dùng `deploy -p -t` (CLI tự build).
+- Chrome headless cửa sổ tối thiểu rộng 500px; bản build cần phục vụ dưới `/zapps/undefined/` (xem PROJECT.md §7).
+- `prisma generate` lỗi EPERM khi backend dev đang chạy: type vẫn được cập nhật nên `tsc` chạy được; muốn cập nhật cả engine thì dừng server (`nest start --watch`) rồi chạy lại.
+- Deploy Development in ra version dạng `zdev-xxxxxxxx` (không phải số); link xem thử dùng `env=DEVELOPMENT`.
+- `trust proxy` chỉ bật khi có `TRUST_PROXY` — không bật khi không có Nginx phía trước (client giả IP được).

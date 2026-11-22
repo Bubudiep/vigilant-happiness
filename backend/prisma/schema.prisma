@@ -1,0 +1,803 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  CONVERTED
+  ARCHIVED
+}
+
+/// Yêu cầu tư vấn từ trang Showcase reMini / recloud.vn
+model ConsultationLead {
+  id            String     @id @default(cuid())
+  name          String
+  phone         String
+  industry      String?
+  templateId    String?
+  note          String?
+  status        LeadStatus @default(NEW)
+  source        String     @default("zalo_mini_app")
+  /// "consultation" (nhận tư vấn) | "callback" (đặt lịch để gọi lại)
+  requestType   String     @default("consultation")
+  /// Ngày + khung giờ khách muốn được gọi lại
+  callbackDate  DateTime?
+  callbackSlot  String?
+  /// Người gửi đã đăng nhập (Zalo) thì gắn tài khoản để biết chắc SĐT thật
+  userId        String?
+  user          User?      @relation(fields: [userId], references: [id], onDelete: SetNull)
+  phoneVerified Boolean    @default(false)
+  /// Ghi chú nội bộ của người gọi lại
+  staffNote     String?
+  /// Điểm nghi spam (0 = sạch). >= ngưỡng thì bị ẩn khỏi danh sách mặc định
+  spamScore     Int        @default(0)
+  ipAddress     String?
+  /// Đã gửi nhắc "sắp đến giờ gọi lại" cho nhân viên
+  remindedAt    DateTime?
+  contactedAt   DateTime?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  @@index([status, createdAt])
+  @@index([phone])
+  @@index([requestType, callbackDate])
+}
+
+/// Danh mục các mẫu Mini App trên hệ thống
+model Template {
+  id          String   @id
+  code        String   @unique
+  name        String
+  brand       String?
+  description String
+  categories  String[]
+  color       String
+  features    String[]
+  status      String   @default("live")
+  featured    Boolean  @default(false)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([status, sortOrder])
+}
+
+/// Lưu dữ liệu tương tác thử từ các mẫu (đặt lịch, đơn hàng, đơn từ KCN...) bằng JSONB
+model DemoSubmission {
+  id         String   @id @default(cuid())
+  templateId String
+  type       String
+  payload    Json
+  createdAt  DateTime @default(now())
+
+  @@index([templateId, type, createdAt])
+}
+
+/// Tài khoản đăng nhập quản trị (Google / Zalo OAuth)
+model User {
+  id            String              @id @default(cuid())
+  provider      String
+  providerId    String
+  email         String?
+  phone         String?
+  name          String
+  avatarUrl     String?
+  role          String              @default("owner")
+  customerId    String?
+  customer      PlatformCustomer?   @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  lastLoginAt   DateTime            @default(now())
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+  leads         ConsultationLead[]
+  accessTokens  OAuthAccessToken[]
+  refreshTokens OAuthRefreshToken[]
+
+  @@unique([provider, providerId])
+  @@index([email])
+}
+
+/// Khách hàng doanh nghiệp / chủ shop đăng ký sử dụng nền tảng recloud.vn
+model PlatformCustomer {
+  id            String             @id @default(cuid())
+  name          String
+  companyName   String?
+  phone         String
+  email         String?
+  zaloUserId    String?
+  taxCode       String?
+  address       String?
+  status        String             @default("active")
+  note          String?
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+  users         User[]
+  subscriptions Subscription[]
+  stores        Store[]
+  staff         CustomerStaff[]
+  oauthApps     OAuthApplication[]
+  projects      Project[]
+  tickets       SupportTicket[]
+  debts         Debt[]
+  conversations Conversation[]
+  attachments   Attachment[]
+  careTasks     CareTask[]
+
+  @@index([phone, status])
+}
+
+/// Danh mục gói đăng ký dịch vụ (Starter, Pro, Enterprise...)
+model SubscriptionPlan {
+  id            String         @id @default(cuid())
+  code          String         @unique
+  name          String
+  description   String?
+  priceMonthly  Int
+  priceYearly   Int
+  maxStores     Int            @default(1)
+  maxProducts   Int            @default(100)
+  maxStaff      Int            @default(5)
+  features      Json
+  isActive      Boolean        @default(true)
+  sortOrder     Int            @default(0)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  subscriptions Subscription[]
+
+  @@index([isActive, sortOrder])
+}
+
+/// Gói đăng ký đã kích hoạt cho từng khách hàng (PlatformCustomer)
+model Subscription {
+  id           String           @id @default(cuid())
+  customerId   String
+  customer     PlatformCustomer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  planId       String
+  plan         SubscriptionPlan @relation(fields: [planId], references: [id], onDelete: Restrict)
+  billingCycle String           @default("monthly")
+  pricePaid    Int              @default(0)
+  status       String           @default("active")
+  startedAt    DateTime         @default(now())
+  expiresAt    DateTime
+  autoRenew    Boolean          @default(false)
+  note         String?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  stores       Store[]
+
+  @@index([customerId, status])
+  @@index([expiresAt])
+}
+
+/// Nhân viên thuộc quản lý của khách hàng (PlatformCustomer)
+model CustomerStaff {
+  id          String           @id @default(cuid())
+  customerId  String
+  customer    PlatformCustomer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  storeId     String?
+  store       Store?           @relation(fields: [storeId], references: [id], onDelete: SetNull)
+  name        String
+  phone       String
+  email       String?
+  zaloUserId  String?
+  role        String           @default("staff")
+  permissions Json?
+  active      Boolean          @default(true)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@index([customerId, active])
+  @@index([storeId])
+}
+
+/// Gian hàng / Mini App đã đăng ký và cấu hình trên recloud.vn
+model Store {
+  id             String            @id @default(cuid())
+  customerId     String?
+  customer       PlatformCustomer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  subscriptionId String?
+  subscription   Subscription?     @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+  slug           String            @unique
+  name           String
+  subtitle       String?
+  logoUrl        String?
+  coverUrl       String?
+  templateId     String
+  zaloAppId      String?
+  zaloOaId       String?
+  phone          String?
+  address        String?
+  theme          Json
+  sliders        Json
+  builderSchema  Json?
+  active         Boolean           @default(true)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  products       StoreProduct[]
+  customers      StoreCustomer[]
+  staff          CustomerStaff[]
+  media          StoreMedia[]
+  banners        StoreBanner[]
+  orders         StoreOrder[]
+  bookings       StoreBooking[]
+  events         StoreEvent[]
+  documents      StoreDocument[]
+  memberTiers    StoreMemberTier[]
+  vouchers       StoreVoucher[]
+
+  @@index([templateId])
+  @@index([customerId])
+  @@index([subscriptionId])
+}
+
+/// Thư viện ảnh & media của từng Store (logo, banner, ảnh sản phẩm...)
+model StoreMedia {
+  id         String   @id @default(cuid())
+  storeId    String
+  store      Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  type       String   @default("general")
+  fileName   String
+  mimeType   String
+  sizeBytes  Int
+  url        String
+  storageKey String
+  alt        String?
+  createdAt  DateTime @default(now())
+
+  @@index([storeId, type, createdAt])
+}
+
+/// Banner / Slider hiển thị trên trang chủ Mini App của Store
+model StoreBanner {
+  id        String   @id @default(cuid())
+  storeId   String
+  store     Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  eyebrow   String?
+  title     String?
+  subtitle  String?
+  imageUrl  String?
+  fromColor String?
+  toColor   String?
+  ctaLabel  String?
+  linkUrl   String?
+  sortOrder Int      @default(0)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([storeId, active, sortOrder])
+}
+
+/// Sản phẩm / Dịch vụ của từng Store
+model StoreProduct {
+  id          String           @id @default(cuid())
+  storeId     String
+  store       Store            @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  sku         String?
+  name        String
+  category    String           @default("Chung")
+  description String?
+  price       Int
+  salePrice   Int?
+  unit        String?
+  tag         String?
+  stock       Int              @default(0)
+  imageUrl    String?
+  gallery     Json?
+  active      Boolean          @default(true)
+  sortOrder   Int              @default(0)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  orderItems  StoreOrderItem[]
+
+  @@index([storeId, active, sortOrder])
+  @@index([storeId, sku])
+}
+
+/// Tệp khách hàng của từng Store
+model StoreCustomer {
+  id          String         @id @default(cuid())
+  storeId     String
+  store       Store          @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  name        String
+  phone       String
+  zaloUserId  String?
+  tier        String         @default("Thành viên")
+  points      Int            @default(0)
+  totalOrders Int            @default(0)
+  totalSpent  Int            @default(0)
+  note        String?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  orders      StoreOrder[]
+  bookings    StoreBooking[]
+
+  @@index([storeId, phone])
+}
+
+/// Đơn hàng phát sinh từ Zalo Mini App hoặc tại quầy của Store
+model StoreOrder {
+  id            String           @id @default(cuid())
+  storeId       String
+  store         Store            @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  customerId    String?
+  customer      StoreCustomer?   @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  code          String           @unique
+  customerName  String
+  phone         String
+  address       String?
+  totalAmount   Int
+  status        String           @default("pending")
+  paymentMethod String           @default("cod")
+  note          String?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  items         StoreOrderItem[]
+
+  @@index([storeId, status, createdAt])
+}
+
+/// Chi tiết từng sản phẩm trong đơn hàng của Store
+model StoreOrderItem {
+  id          String        @id @default(cuid())
+  orderId     String
+  order       StoreOrder    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId   String?
+  product     StoreProduct? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  productName String
+  imageUrl    String?
+  unitPrice   Int
+  quantity    Int           @default(1)
+  lineTotal   Int
+
+  @@index([orderId])
+}
+
+/// Lịch hẹn / Đặt lịch dịch vụ của khách tại Store
+model StoreBooking {
+  id           String         @id @default(cuid())
+  storeId      String
+  store        Store          @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  customerId   String?
+  customer     StoreCustomer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  code         String         @unique
+  customerName String
+  phone        String
+  serviceName  String
+  bookingDate  DateTime
+  timeSlot     String
+  staffName    String?
+  status       String         @default("pending")
+  note         String?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  @@index([storeId, bookingDate, status])
+}
+
+/// Sự kiện & Chiến dịch khuyến mãi của Store
+model StoreEvent {
+  id           String   @id @default(cuid())
+  storeId      String
+  store        Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  title        String
+  type         String   @default("promotion")
+  bannerUrl    String?
+  startDate    DateTime
+  endDate      DateTime
+  status       String   @default("upcoming")
+  participants Int      @default(0)
+  description  String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([storeId, status])
+}
+
+/// Thư viện tài liệu & chính sách của Store (bảo hành, đổi trả, thanh toán, điều khoản...)
+model StoreDocument {
+  id        String   @id @default(cuid())
+  storeId   String
+  store     Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  slug      String
+  title     String
+  category  String   @default("terms")
+  content   String   @db.Text
+  published Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([storeId, slug])
+  @@index([storeId, category, published])
+}
+
+/// Phân hạng thành viên của Store (Thành viên, Bạc, Vàng, Kim Cương...)
+model StoreMemberTier {
+  id              String   @id @default(cuid())
+  storeId         String
+  store           Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  code            String
+  name            String
+  minSpent        Int      @default(0)
+  minPoints       Int      @default(0)
+  discountPercent Int      @default(0)
+  pointMultiplier Float    @default(1)
+  color           String   @default("#1657f3")
+  benefits        String?
+  sortOrder       Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([storeId, code])
+  @@index([storeId, sortOrder])
+}
+
+/// Voucher / Mã ưu đãi của Store
+model StoreVoucher {
+  id            String   @id @default(cuid())
+  storeId       String
+  store         Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  code          String
+  title         String
+  discountType  String   @default("percent")
+  discountValue Int      @default(0)
+  minOrderValue Int      @default(0)
+  maxDiscount   Int?
+  tierCode      String?
+  quantity      Int      @default(100)
+  usedCount     Int      @default(0)
+  startDate     DateTime
+  endDate       DateTime
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([storeId, code])
+  @@index([storeId, active, endDate])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// OAuth 2.0 (theo mô hình django-oauth-toolkit)
+//  - Mỗi "kênh" của khách (Mini App, website, POS, webhook...) là 1 OAuthApplication
+//    có client_id + client_secret riêng.
+//  - Token là chuỗi ngẫu nhiên (opaque). DB chỉ lưu SHA-256 của token / secret.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model OAuthApplication {
+  id               String              @id @default(cuid())
+  name             String
+  /// Kênh: zalo_mini_app | web | pos | api | webhook
+  channel          String              @default("api")
+  clientId         String              @unique
+  /// SHA-256 của client_secret. Null với public client (Mini App không giữ được secret)
+  clientSecretHash String?
+  /// 4 ký tự cuối của secret để nhận diện trên giao diện
+  secretHint       String?
+  /// confidential | public
+  clientType       String              @default("confidential")
+  /// client_credentials | refresh_token | zalo_mini_app
+  grantTypes       String[]
+  scopes           String[]            @default([])
+  redirectUris     String[]            @default([])
+  customerId       String?
+  customer         PlatformCustomer?   @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  storeId          String?
+  /// Giây
+  accessTokenTtl   Int                 @default(3600)
+  refreshTokenTtl  Int                 @default(2592000)
+  active           Boolean             @default(true)
+  lastUsedAt       DateTime?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  accessTokens     OAuthAccessToken[]
+  refreshTokens    OAuthRefreshToken[]
+
+  @@index([customerId, active])
+}
+
+model OAuthAccessToken {
+  id            String             @id @default(cuid())
+  tokenHash     String             @unique
+  applicationId String
+  application   OAuthApplication   @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  /// Null với client_credentials (token đại diện cho chính kênh)
+  userId        String?
+  user          User?              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  scope         String             @default("")
+  expiresAt     DateTime
+  revokedAt     DateTime?
+  createdAt     DateTime           @default(now())
+  refreshToken  OAuthRefreshToken?
+
+  @@index([applicationId, expiresAt])
+  @@index([userId])
+}
+
+model OAuthRefreshToken {
+  id            String            @id @default(cuid())
+  tokenHash     String            @unique
+  applicationId String
+  application   OAuthApplication  @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  userId        String?
+  user          User?             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessTokenId String?           @unique
+  accessToken   OAuthAccessToken? @relation(fields: [accessTokenId], references: [id], onDelete: SetNull)
+  scope         String            @default("")
+  expiresAt     DateTime
+  revokedAt     DateTime?
+  createdAt     DateTime          @default(now())
+
+  @@index([applicationId, userId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Dự án triển khai & ticket hỗ trợ — khách xem trong Mini App sau khi đăng nhập Zalo
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Project {
+  id         String             @id @default(cuid())
+  customerId String
+  customer   PlatformCustomer   @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  storeId    String?
+  name       String
+  templateId String?
+  /// consulting | designing | developing | testing | zalo_review | live | maintenance | paused
+  status     String             @default("consulting")
+  /// 0–100
+  progress   Int                @default(0)
+  startDate  DateTime?
+  dueDate    DateTime?
+  /// Ghi chú hiển thị cho khách
+  note       String?
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
+  milestones ProjectMilestone[]
+  tickets    SupportTicket[]
+
+  @@index([customerId, status])
+}
+
+model ProjectMilestone {
+  id        String    @id @default(cuid())
+  projectId String
+  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title     String
+  /// todo | doing | done
+  status    String    @default("todo")
+  dueDate   DateTime?
+  doneAt    DateTime?
+  sortOrder Int       @default(0)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([projectId, sortOrder])
+}
+
+model SupportTicket {
+  id          String           @id @default(cuid())
+  /// Mã hiển thị: TK-000123
+  code        String           @unique
+  customerId  String
+  customer    PlatformCustomer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  projectId   String?
+  project     Project?         @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  storeId     String?
+  subject     String
+  /// technical | zalo_review | billing | feature | content
+  category    String           @default("technical")
+  /// low | normal | high | urgent
+  priority    String           @default("normal")
+  /// open | in_progress | waiting_customer | resolved | closed
+  status      String           @default("open")
+  createdById String?
+  lastReplyAt DateTime         @default(now())
+  resolvedAt  DateTime?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  messages    TicketMessage[]
+
+  @@index([customerId, status])
+  @@index([status, lastReplyAt])
+}
+
+model TicketMessage {
+  id         String        @id @default(cuid())
+  ticketId   String
+  ticket     SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  /// customer | staff | system
+  authorType String
+  authorId   String?
+  authorName String
+  body       String
+  createdAt  DateTime      @default(now())
+
+  @@index([ticketId, createdAt])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Chống spam
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Danh sách chặn: ip | phone | user. Hết hạn thì tự hết tác dụng.
+model SpamBlock {
+  id        String    @id @default(cuid())
+  kind      String
+  value     String
+  reason    String
+  /// manual | auto
+  source    String    @default("manual")
+  hits      Int       @default(0)
+  expiresAt DateTime?
+  createdAt DateTime  @default(now())
+
+  @@unique([kind, value])
+}
+
+/// Nhật ký các request bị chặn / nghi ngờ để xem lại và điều chỉnh luật.
+model SpamEvent {
+  id        String   @id @default(cuid())
+  route     String
+  ip        String?
+  phone     String?
+  userId    String?
+  /// blocked | flagged
+  action    String
+  score     Int
+  reasons   String[]
+  sample    String?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([ip, createdAt])
+}
+
+/// Nhật ký thao tác quản trị: ai làm gì, lúc nào, từ đâu.
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  actorLabel String
+  action     String
+  targetType String?
+  targetId   String?
+  meta       Json?
+  ip         String?
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([action, createdAt])
+  @@index([targetType, targetId])
+}
+
+/// Khoản khách hàng nền tảng còn nợ (VND). Số đã trả = tổng DebtPayment; trạng thái tính khi đọc.
+model Debt {
+  id         String           @id @default(cuid())
+  customerId String
+  customer   PlatformCustomer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  title      String
+  amount     Int
+  dueDate    DateTime?
+  note       String?
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+  payments   DebtPayment[]
+
+  @@index([customerId])
+  @@index([dueDate])
+}
+
+model DebtPayment {
+  id        String   @id @default(cuid())
+  debtId    String
+  debt      Debt     @relation(fields: [debtId], references: [id], onDelete: Cascade)
+  amount    Int
+  paidAt    DateTime @default(now())
+  method    String?
+  note      String?
+  createdAt DateTime @default(now())
+
+  @@index([debtId])
+}
+
+/// Hộp thư chăm sóc khách: mỗi (kênh, người dùng) một hội thoại. channel = miniapp | oa.
+model Conversation {
+  id             String            @id @default(cuid())
+  channel        String
+  /// userId (Mini App) hoặc OA user id — duy nhất theo kênh
+  externalKey    String
+  customerId     String?
+  customer       PlatformCustomer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  displayName    String
+  avatarUrl      String?
+  phone          String?
+  status         String            @default("open")
+  unreadStaff    Int               @default(0)
+  unreadCustomer Int               @default(0)
+  lastMessageAt  DateTime          @default(now())
+  lastPreview    String?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  messages       Message[]
+  attachments    Attachment[]
+  careTasks      CareTask[]
+
+  @@unique([channel, externalKey])
+  @@index([status, lastMessageAt])
+  @@index([customerId])
+}
+
+/// direction: in (khách gửi) | out (nhân viên gửi) | note (ghi chú nội bộ, khách không thấy)
+model Message {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  direction      String
+  kind           String       @default("text")
+  body           String?
+  attachmentId   String?      @unique
+  attachment     Attachment?  @relation(fields: [attachmentId], references: [id], onDelete: SetNull)
+  staffLabel     String?
+  /// id tin của kênh ngoài (OA msg_id) để chống xử lý trùng webhook
+  externalId     String?
+  delivery       String       @default("sent")
+  error          String?
+  createdAt      DateTime     @default(now())
+
+  @@unique([conversationId, externalId])
+  @@index([conversationId, createdAt])
+}
+
+/// File ảnh của khách (lưu riêng tư, tải qua URL ký có hạn).
+model Attachment {
+  id             String            @id @default(cuid())
+  customerId     String?
+  customer       PlatformCustomer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  conversationId String?
+  conversation   Conversation?     @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  filename       String
+  mime           String
+  size           Int
+  storageKey     String            @unique
+  tag            String?
+  note           String?
+  source         String            @default("customer")
+  createdAt      DateTime          @default(now())
+  message        Message?
+
+  @@index([customerId, createdAt])
+  @@index([conversationId])
+}
+
+/// Việc chăm sóc khách có hẹn: nhắc nhân viên khi đến hạn.
+model CareTask {
+  id             String            @id @default(cuid())
+  customerId     String?
+  customer       PlatformCustomer? @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  conversationId String?
+  conversation   Conversation?     @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  title          String
+  note           String?
+  dueAt          DateTime
+  doneAt         DateTime?
+  remindedAt     DateTime?
+  createdBy      String?
+  createdAt      DateTime          @default(now())
+
+  @@index([doneAt, dueAt])
+  @@index([customerId])
+}
+
+/// Token Zalo OA (một dòng id="default"). access_token ~25h, refresh_token dùng một lần — phải lưu lại mỗi lần làm mới.
+model OaCredential {
+  id           String   @id @default("default")
+  accessToken  String
+  refreshToken String
+  expiresAt    DateTime
+  oaName       String?
+  updatedAt    DateTime @updatedAt
+}
