@@ -637,7 +637,7 @@ export default function StoreConsole({
     <div className="min-h-screen bg-slate-50 text-slate-900">
       {/* Top Bar */}
       <header className="sticky top-0 z-40 border-b border-slate-200 bg-white">
-        <div className={`mx-auto flex h-14 items-center justify-between gap-2 px-3 sm:px-4 ${isStudioView ? "max-w-none" : "max-w-[1440px]"}`}>
+        <div className={"flex h-14 w-full items-center justify-between gap-2 px-3 sm:px-4 lg:px-6"}>
           <div className="flex items-center gap-2">
             <Button
               type="text"
@@ -669,14 +669,15 @@ export default function StoreConsole({
               onCreate={() => setWizardOpen(true)}
             />
             <SaveIndicator state={saveState} onRetry={() => store && void doSave(store)} />
-            {isAdmin && (
-              <Tooltip title="Trang điều hành nền tảng">
-                <Button icon={<LuGauge size={15} />} onClick={() => navigate("/controller")}>
-                  <span className="hidden lg:inline">Điều hành</span>
-                </Button>
-              </Tooltip>
-            )}
-            <UserMenu user={user} onLogout={onLogout} />
+            <UserMenu
+              user={user}
+              onLogout={onLogout}
+              extraItems={
+                isAdmin
+                  ? [{ key: "controller", icon: <LuGauge size={14} />, label: "Trang điều hành", onClick: () => navigate("/controller") }]
+                  : []
+              }
+            />
           </div>
         </div>
       </header>
@@ -691,7 +692,7 @@ export default function StoreConsole({
         {renderSidebarMenu(() => setMobileSidebarOpen(false))}
       </Drawer>
 
-      <div className={`mx-auto flex ${isStudioView ? "max-w-none gap-3 px-3 py-3" : "max-w-[1440px] gap-5 px-4 py-5"}`}>
+      <div className={`flex w-full ${isStudioView ? "gap-3 px-3 py-3" : "gap-5 px-3 py-4 sm:px-4 lg:px-6 lg:py-5"}`}>
         {/* Sidebar Desktop */}
         <aside className={`hidden shrink-0 transition-all lg:block ${sidebarCollapsed ? "w-[62px]" : "w-56"}`}>
           <div className={`sticky top-[68px] rounded-2xl border border-slate-200/80 bg-white shadow-sm ${sidebarCollapsed ? "p-2" : "p-3"}`}>

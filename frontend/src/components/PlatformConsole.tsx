@@ -181,7 +181,7 @@ export default function PlatformConsole({
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900">
       <header className="sticky top-0 z-40 border-b border-slate-800 bg-slate-900 text-white">
-        <div className="mx-auto flex h-14 max-w-[1440px] items-center justify-between gap-2 px-3 sm:px-4">
+        <div className="flex h-14 w-full items-center justify-between gap-2 px-3 sm:px-4 lg:px-6">
           <div className="flex items-center gap-2">
             <Button type="text" icon={<LuMenu size={18} className="text-white" />} onClick={() => setMobileOpen(true)} className="lg:hidden" />
             <Button
@@ -209,7 +209,7 @@ export default function PlatformConsole({
         {menu(() => setMobileOpen(false))}
       </Drawer>
 
-      <div className="mx-auto flex max-w-[1440px] gap-5 px-4 py-5">
+      <div className="flex w-full gap-5 px-3 py-4 sm:px-4 lg:px-6 lg:py-5">
         <aside className={`hidden shrink-0 transition-all lg:block ${collapsed ? "w-[62px]" : "w-60"}`}>
           <div className={`sticky top-[72px] rounded-2xl bg-slate-900 shadow-sm ${collapsed ? "p-2" : "p-3"}`}>{menu(undefined, collapsed)}</div>
         </aside>
