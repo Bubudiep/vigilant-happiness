@@ -19,6 +19,10 @@ import t16 from "./cong_chung_01.jpg";
 import t17 from "./van_phong_luat_01.jpg";
 import t18 from "./kcn_doanh_nghiep_01.jpg";
 import t19 from "./mixue_01.jpg";
+import t20 from "./cat_toc_01.jpg";
+import t21 from "./nail_01.jpg";
+import t22 from "./spa_02.jpg";
+import t23 from "./tiem_net_01.jpg";
 
 export const templateThumbnails: Record<string, string> = {
   thoi_trang_01: t0,
@@ -41,4 +45,8 @@ export const templateThumbnails: Record<string, string> = {
   van_phong_luat_01: t17,
   kcn_doanh_nghiep_01: t18,
   mixue_01: t19,
+  cat_toc_01: t20,
+  nail_01: t21,
+  spa_02: t22,
+  tiem_net_01: t23,
 };

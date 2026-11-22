@@ -79,6 +79,7 @@ import {
   LuMegaphone,
   LuMessageCircle,
   LuMilk,
+  LuMonitor,
   LuMoon,
   LuNewspaper,
   LuPackage,
@@ -112,6 +113,7 @@ import {
   LuStore,
   LuSun,
   LuSyringe,
+  LuTarget,
   LuTag,
   LuTestTube,
   LuThermometer,
@@ -211,6 +213,8 @@ export {
 /** Bản đồ ánh xạ tên icon ZaUI (`zi-*`) sang `react-icons` (hỗ trợ trạng thái active/filled). */
 const ZMP_ICON_MAP: Record<string, { outline: IconType; filled: IconType }> = {
   "zi-home": { outline: RiHome5Line, filled: RiHome5Fill },
+  "zi-list-1": { outline: RiFileList3Line, filled: RiFileList3Fill },
+  "zi-grid-solid": { outline: LuLayoutGrid, filled: LuLayoutGrid },
   "zi-more-grid": { outline: RiGridLine, filled: RiGridFill },
   "zi-inbox": { outline: RiShoppingBag3Line, filled: RiShoppingBag3Fill },
   "zi-user": { outline: RiUser3Line, filled: RiUser3Fill },
@@ -235,6 +239,29 @@ const ZMP_ICON_MAP: Record<string, { outline: IconType; filled: IconType }> = {
 
 /** Bản đồ ánh xạ các emoji trong dữ liệu mẫu sang vector icon `react-icons/lu`. */
 const EMOJI_ICON_MAP: Record<string, IconType> = {
+  // Tiệm tóc, nail, spa, tiệm net (T21–T24)
+  "💈": LuScissors,
+  "✂️": LuScissors,
+  "🪒": LuScissors,
+  "💇‍♂️": LuScissors,
+  "🧔": LuUser,
+  "🧑‍🦱": LuUser,
+  "👨‍🎤": LuUser,
+  "👩‍🎨": LuPalette,
+  "🎨": LuPalette,
+  "🎩": LuCrown,
+  "🧖‍♂️": LuDroplets,
+  "🌀": LuWaves,
+  "🤲": LuHeartHandshake,
+  "💑": LuHeart,
+  "🖥️": LuMonitor,
+  "🕹️": LuGamepad2,
+  "🎯": LuTarget,
+  "👬": LuUsers,
+  "🌭": LuUtensils,
+  "🍟": LuUtensils,
+  "🍛": LuSoup,
+  "🌶️": LuFlame,
   // Thời trang & Thuê đồ & Thêu
   "👗": LuShirt,
   "👚": LuShirt,

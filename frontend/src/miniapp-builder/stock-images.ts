@@ -194,6 +194,21 @@ export const FREEPIK_STOCK = {
     banner2: billiardsBanner2,
     products: [billiardsProd1, billiardsProd2, billiardsProd3, billiardsProd4],
   },
+  barber: {
+    banner1: "/stock/barber/banner-1.jpg",
+    banner2: "/stock/barber/banner-2.jpg",
+    products: [1, 2, 3, 4, 5, 6].map((i) => `/stock/barber/prod-${i}.jpg`),
+  },
+  nail: {
+    banner1: "/stock/nail/banner-1.jpg",
+    banner2: "/stock/nail/banner-2.jpg",
+    products: [1, 2, 3, 4, 5, 6].map((i) => `/stock/nail/prod-${i}.jpg`),
+  },
+  netcafe: {
+    banner1: "/stock/netcafe/banner-1.jpg",
+    banner2: "/stock/netcafe/banner-2.jpg",
+    products: [1, 2, 3, 4, 5, 6].map((i) => `/stock/netcafe/prod-${i}.jpg`),
+  },
   kcn: {
     banner1: kcnBanner1,
     banner2: kcnBanner2,

@@ -689,6 +689,124 @@ export const PRESETS: PresetMeta[] = [
     ],
   },
   {
+    id: "barber",
+    code: "T21",
+    name: "Tiệm cắt tóc / Barber",
+    category: "Y tế & Làm đẹp",
+    industry: "Barber · Cắt tóc nam",
+    description: "Bảng giá cắt – cạo – uốn – nhuộm, đặt lịch chọn thợ, ưu đãi thẻ tích lần cắt",
+    theme: { primary: "#1f2937", accent: "#c08a3e", bg: "#f5f4f1", radius: 16, font: "Inter", tabbarStyle: "classic", appBarStyle: "transparent" },
+    build: (brand) => [
+      page("Trang chủ", "/", "home", [
+        block("header", { title: brand, subtitle: "Cắt tóc nam · Cạo râu khăn nóng", verified: true, variant: "solid" }),
+        block("banner", {
+          items: items([
+            { label: "Cắt + gội chỉ 120K", sub: "Thứ 2 – Thứ 5, trước 17h", badge: "ƯU ĐÃI", image: FREEPIK_STOCK.barber.banner1, color: "#111827", colorTo: "#4b5563" },
+            { label: "Cạo mặt khăn nóng", sub: "Thư giãn kiểu quý ông", badge: "MỚI", image: FREEPIK_STOCK.barber.banner2, color: "#7c2d12", colorTo: "#c08a3e" },
+          ]),
+        }),
+        block("booking", { title: "Đặt lịch cắt tóc", subtitle: "Chọn giờ – không phải chờ", ctaLabel: "Giữ chỗ" }),
+        block("productList", {
+          title: "Bảng giá dịch vụ",
+          ctaLabel: "Đặt",
+          source: "manual",
+          limit: 6,
+          items: items([
+            { label: "Cắt tóc nam tạo kiểu", sub: "30 phút · tư vấn kiểu theo khuôn mặt", price: 80000, badge: "HOT", image: FREEPIK_STOCK.barber.products[0] },
+            { label: "Combo cắt + gội + ráy tai", sub: "50 phút · đắp khăn nóng", price: 120000, oldPrice: 150000, image: FREEPIK_STOCK.barber.products[1] },
+            { label: "Cạo mặt khăn nóng", sub: "25 phút · dao cạo thẳng", price: 60000, image: FREEPIK_STOCK.barber.products[2] },
+            { label: "Cắt kéo Undercut / Side part", sub: "40 phút · fade sắc nét", price: 100000, image: FREEPIK_STOCK.barber.products[3] },
+            { label: "Nhuộm thời trang", sub: "75 phút · nâu khói, xám khói", price: 300000, image: FREEPIK_STOCK.barber.products[4] },
+            { label: "Tỉa & tạo kiểu râu", sub: "20 phút · dưỡng dầu râu", price: 50000, image: FREEPIK_STOCK.barber.products[5] },
+          ]),
+        }),
+      ]),
+      page("Đặt lịch", "/booking", "calendar", [
+        block("booking", { title: "Chọn khung giờ", subtitle: "Tiệm xác nhận qua Zalo trong 5 phút" }),
+        block("form", { title: "Thông tin đặt lịch", ctaLabel: "Xác nhận đặt lịch" }),
+      ]),
+      page("Ưu đãi", "/deals", "ticket", [block("voucherList"), block("contact")]),
+      accountPage(brand),
+    ],
+  },
+  {
+    id: "nail",
+    code: "T22",
+    name: "Tiệm Nail",
+    category: "Y tế & Làm đẹp",
+    industry: "Nail · Mi · Chăm sóc tay chân",
+    description: "Bảng giá sơn gel, vẽ, đắp móng; đặt lịch theo giờ, mẫu nail hot & tích điểm",
+    theme: { primary: "#db2777", accent: "#f9a8d4", bg: "#fdf4f8", radius: 22, font: "Be Vietnam Pro", tabbarStyle: "minimal", appBarStyle: "transparent" },
+    build: (brand) => [
+      page("Trang chủ", "/", "home", [
+        block("header", { title: brand, subtitle: "Nail · Mi · Chăm sóc da tay chân", verified: true, variant: "solid" }),
+        block("banner", {
+          variant: "split",
+          items: items([
+            { label: "Sơn gel chỉ 120K", sub: "Tặng dưỡng móng cho khách mới", badge: "-20%", image: FREEPIK_STOCK.nail.banner1, color: "#db2777", colorTo: "#f9a8d4" },
+            { label: "Mẫu nail mới đã có", sub: "Vẽ tay, đính đá theo yêu cầu", badge: "NEW", image: FREEPIK_STOCK.nail.banner2, color: "#a21caf", colorTo: "#f0abfc" },
+          ]),
+        }),
+        block("booking", { title: "Đặt lịch làm nail", ctaLabel: "Giữ chỗ" }),
+        block("productGrid", {
+          title: "Dịch vụ nổi bật",
+          source: "manual",
+          limit: 6,
+          items: items([
+            { label: "Sơn gel trơn Hàn Quốc", sub: "Bền màu 3–4 tuần", price: 120000, oldPrice: 150000, badge: "HOT", image: FREEPIK_STOCK.nail.products[1] },
+            { label: "Vẽ nail art theo mẫu", sub: "Ombre, mắt mèo, tráng gương", price: 250000, image: FREEPIK_STOCK.nail.products[0] },
+            { label: "Đắp gel / úp móng", sub: "Form vuông, oval, nhọn", price: 350000, image: FREEPIK_STOCK.nail.products[2] },
+            { label: "Sơn gel chân + cắt da", sub: "Ngâm chân thảo dược", price: 160000, image: FREEPIK_STOCK.nail.products[3] },
+            { label: "Chăm sóc da tay paraffin", sub: "Ủ sáp, massage tay", price: 180000, image: FREEPIK_STOCK.nail.products[4] },
+            { label: "Tháo gel + dưỡng móng", sub: "Không hại móng thật", price: 60000, image: FREEPIK_STOCK.nail.products[5] },
+          ]),
+        }),
+      ]),
+      page("Đặt lịch", "/booking", "calendar", [
+        block("booking", { title: "Chọn khung giờ", subtitle: "Gửi ảnh mẫu qua Zalo để thợ chuẩn bị" }),
+        block("form", { title: "Thông tin đặt lịch", ctaLabel: "Xác nhận đặt lịch" }),
+      ]),
+      page("Liên hệ", "/contact", "map", [block("contact"), block("policyList", { title: "Chính sách bảo hành nail" })]),
+      accountPage(brand),
+    ],
+  },
+  {
+    id: "netcafe",
+    code: "T24",
+    name: "Tiệm net / Cyber Game",
+    category: "Dịch vụ & Du lịch",
+    industry: "Cyber game · Esports",
+    description: "Giá giờ chơi theo khu máy, đặt máy trước, nạp ví, combo đồ ăn & giải đấu",
+    theme: { primary: "#7c3aed", accent: "#22d3ee", bg: "#f3f1fa", radius: 16, font: "Inter", tabbarStyle: "floating", tabbarBg: "#1e1b4b" },
+    build: (brand) => [
+      page("Trang chủ", "/", "home", [
+        block("header", { title: brand, subtitle: "Cyber game 24/7 · RTX 40 series", verified: true, variant: "solid" }),
+        block("banner", {
+          items: items([
+            { label: "Nạp 200K tặng 30K", sub: "Áp dụng mọi khu máy", badge: "KHUYẾN MÃI", image: FREEPIK_STOCK.netcafe.banner1, color: "#4c1d95", colorTo: "#7c3aed" },
+            { label: "Giải LMHT 5v5 cuối tuần", sub: "Giải thưởng 10 triệu · đăng ký theo đội", badge: "GIẢI ĐẤU", image: FREEPIK_STOCK.netcafe.banner2, color: "#0e7490", colorTo: "#22d3ee" },
+          ]),
+        }),
+        block("booking", { title: "Đặt máy trước", subtitle: "Giữ máy 15 phút sau giờ hẹn", ctaLabel: "Giữ máy" }),
+        block("productGrid", {
+          title: "Khu máy & combo",
+          source: "manual",
+          limit: 6,
+          items: items([
+            { label: "Khu thường · 10K/giờ", sub: "RTX 3060 · 144Hz", price: 10000, image: FREEPIK_STOCK.netcafe.products[0] },
+            { label: "Khu VIP · 15K/giờ", sub: "RTX 4070 · 240Hz · ghế DXRacer", price: 15000, badge: "VIP", image: FREEPIK_STOCK.netcafe.products[1] },
+            { label: "Phòng thi đấu 5v5", sub: "Phòng kín 5 máy · 360Hz", price: 90000, badge: "TEAM", image: FREEPIK_STOCK.netcafe.products[2] },
+            { label: "Phòng stream / đôi", sub: "2 máy RTX 4080 · mic, cam", price: 25000, image: FREEPIK_STOCK.netcafe.products[3] },
+            { label: "Combo 5 giờ + mì xào", sub: "Khu thường", price: 79000, oldPrice: 85000, badge: "COMBO", image: FREEPIK_STOCK.netcafe.products[4] },
+            { label: "Thuê gear thi đấu", sub: "Tai nghe, chuột, bàn phím cơ", price: 20000, image: FREEPIK_STOCK.netcafe.products[5] },
+          ]),
+        }),
+      ]),
+      page("Ưu đãi", "/deals", "ticket", [block("voucherList"), block("contact")]),
+      accountPage(brand),
+    ],
+  },
+  {
     id: "kcn",
     code: "T19",
     name: "Doanh nghiệp & Nhà máy KCN",
@@ -778,6 +896,9 @@ export function guessPresetId(templateId: string): string {
   if (t.includes("nha_hang")) return "restaurant";
   if (t.includes("fnb") || t.includes("cafe")) return "fnb";
   if (t.includes("sieu_am") || t.includes("phong_kham")) return "clinic";
+  if (t.includes("cat_toc") || t.includes("barber")) return "barber";
+  if (t.includes("nail")) return "nail";
+  if (t.includes("tiem_net") || t.includes("cyber")) return "netcafe";
   if (t.includes("spa")) return "spa";
   if (t.includes("sieu_thi")) return "supermarket";
   if (t.includes("me_va_be")) return "mombaby";

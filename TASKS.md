@@ -31,7 +31,7 @@ Quota Zalo: Development 11/300, Testing 19/60.
 ## 1. Đã hoàn thành
 
 ### Mini App (`demo-mini-app-store`)
-- [x] 20 mẫu demo theo ngành (T01–T20), mẫu T20 Mixue (kem & trà sữa)
+- [x] 24 mẫu demo theo ngành (T01–T24), mẫu T20 Mixue (kem & trà sữa); T21 Tiệm cắt tóc `cat_toc_01`, T22 Nail `nail_01`, T23 Spa dưỡng sinh & liệu trình `spa_02`, T24 Tiệm net `tiem_net_01` (23/11/2026)
 - [x] Ảnh sản phẩm/banner đúng từng món (`src/assets/items/<templateId>/`), ảnh thu nhỏ mockup iPhone (`src/assets/thumbs/*.jpg`)
 - [x] Bảng chia sẻ (`components/share/share-sheet.tsx`): thẻ xem trước, gửi qua Zalo (`openShareSheet` zmp_deep_link có thumbnail), sao chép link
 - [x] Nút chia sẻ ở thẻ mẫu + đầu trang chủ; ảnh bìa chia sẻ `src/assets/share-cover.jpg`
@@ -191,6 +191,11 @@ Mỗi việc ghi rõ file liên quan và tiêu chí xong. Sau mỗi việc: type
 - `Store.albumKinds` (Json, null = mặc định Hôm nay / Ảnh cưới / Đám hỏi / Khác), migration `20261122180000_store_album_kinds`.
 - API `GET|PUT /stores/:id/album-kinds` — `{ kinds: [{ key?, label, color, icon, hint? }] }`, tối đa 20, key bỏ trống = loại mới (`k_xxxxxx`); album thuộc loại bị xoá chuyển sang "Khác" (hoặc loại cuối). Tạo/sửa album kiểm tra `kind` theo danh sách của shop.
 - Frontend: `AlbumKindsModal` (tên, mô tả, 17 biểu tượng, màu, sắp xếp, xoá) + hook `useAlbumKinds` dùng chung; mở từ nút "Loại album" / "+ Thêm loại" ở mục Album ảnh, ô "Thêm / sửa loại" khi tạo album, nút "+" cạnh chọn loại trong modal Gửi ảnh. Đổi loại album trong `AlbumDrawer`.
+
+### [x] T29. Mẫu Tiệm cắt tóc, Nail, Spa liệu trình, Tiệm net (23/11/2026)
+- Mini App: `src/templates/{cat_toc_01,nail_01,spa_02,tiem_net_01}` — barber (hàng chờ trực tiếp + lấy số, chọn thợ, kiểu tóc), nail (chọn mẫu & màu sơn), spa (gói liệu trình nhiều buổi, trừ buổi khi đặt, chọn phòng), net (sơ đồ máy theo khu, đặt máy theo giờ, đếm ngược giờ chơi, nạp ví, gọi đồ tới máy).
+  Ảnh Pexels ở `src/assets/items/<id>/`, ảnh thu nhỏ mockup `src/assets/thumbs/<id>.jpg`; thêm map icon emoji / `zi-list-1`, `zi-grid-solid` (trước hiện ngôi sao).
+- Frontend: `site.ts` (demoTemplates), `assets/thumbs`, preset Miniapp Studio `barber`, `nail`, `netcafe` (ảnh `public/stock/{barber,nail,netcafe}`), `guessPresetId`; số mẫu 19 → 24 trên trang chủ. Backend `prisma/seed.ts` (24 mẫu).
 
 ### [x] T28. Trang điều hành: cấu hình app khách, gói dịch vụ, voucher gói (23/11/2026)
 - **Cấu hình app khách** (`/controller/apps`, `CustomerAppsViews.tsx`): mọi store kèm chủ, gói (hạn còn lại), App ID / OA, số sản phẩm / khách; lọc (App riêng, chưa gắn gói, sắp hết hạn, đang tắt); bật/tắt app; QR xem trước;

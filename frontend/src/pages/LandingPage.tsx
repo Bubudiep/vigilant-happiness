@@ -282,7 +282,7 @@ export default function LandingPage() {
               {
                 icon: LuZap,
                 title: "Triển khai thần tốc",
-                text: "Có sẵn 19 mẫu khung chuẩn ngành, tuỳ biến thương hiệu xong trong 5–14 ngày.",
+                text: "Có sẵn 24 mẫu khung chuẩn ngành, tuỳ biến thương hiệu xong trong 5–14 ngày.",
               },
               {
                 icon: LuLayers,
@@ -448,7 +448,7 @@ export default function LandingPage() {
               items={[
                 {
                   title: "Chọn mẫu & Tư vấn",
-                  content: "Trải nghiệm kho 19 mẫu và chốt luồng tính năng phù hợp.",
+                  content: "Trải nghiệm kho 24 mẫu và chốt luồng tính năng phù hợp.",
                 },
                 {
                   title: "Tuỳ biến & Dựng API",
