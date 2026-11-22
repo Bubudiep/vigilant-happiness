@@ -178,11 +178,7 @@ export default function StoreConsole({
       // bỏ qua
     }
   };
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => activeNav === "miniapp");
-
-  useEffect(() => {
-    setSidebarCollapsed(activeNav === "miniapp");
-  }, [activeNav]);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   // Modals
   const [publishModalOpen, setPublishModalOpen] = useState(false);
@@ -631,7 +627,6 @@ export default function StoreConsole({
     </div>
   );
 
-  const isStudioView = activeNav === "miniapp";
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
@@ -692,7 +687,7 @@ export default function StoreConsole({
         {renderSidebarMenu(() => setMobileSidebarOpen(false))}
       </Drawer>
 
-      <div className={`flex w-full ${isStudioView ? "gap-3 px-3 py-3" : "gap-5 px-3 py-4 sm:px-4 lg:px-6 lg:py-5"}`}>
+      <div className="flex w-full gap-5 px-3 py-4 sm:px-4 lg:px-6 lg:py-5">
         {/* Sidebar Desktop */}
         <aside className={`hidden shrink-0 transition-all lg:block ${sidebarCollapsed ? "w-[62px]" : "w-56"}`}>
           <div className={`sticky top-[68px] rounded-2xl border border-slate-200/80 bg-white shadow-sm ${sidebarCollapsed ? "p-2" : "p-3"}`}>

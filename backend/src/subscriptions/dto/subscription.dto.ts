@@ -85,6 +85,12 @@ export class CreateSubscriptionDto {
   @IsString()
   @MaxLength(500)
   note?: string;
+
+  /** Mã voucher nền tảng (giảm vào giá gói; bỏ qua nếu đã nhập pricePaid) */
+  @IsOptional()
+  @IsString()
+  @MaxLength(30)
+  voucherCode?: string;
 }
 
 export class UpdateSubscriptionDto {

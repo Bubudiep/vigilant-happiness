@@ -17,6 +17,9 @@ import {
   LuStore,
   LuUsers,
   LuWallet,
+  LuSmartphone,
+  LuPackage,
+  LuTicketPercent,
   LuRocket,
 } from "react-icons/lu";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
@@ -38,6 +41,9 @@ const ApiChannelsSection = lazy(() => named(import("./PlatformViews"), "ApiChann
 const PortalSection = lazy(() => named(import("./PortalAdminViews"), "PortalSection"));
 const AntiSpamSection = lazy(() => named(import("./PortalAdminViews"), "AntiSpamSection"));
 const DebtsSection = lazy(() => named(import("./DebtViews"), "DebtsSection"));
+const CustomerAppsSection = lazy(() => named(import("./CustomerAppsViews"), "CustomerAppsSection"));
+const PlansSection = lazy(() => named(import("./PlatformBillingViews"), "PlansSection"));
+const PlatformVouchersSection = lazy(() => named(import("./PlatformBillingViews"), "PlatformVouchersSection"));
 const BuildRequestsSection = lazy(() => named(import("./StoreSettingsViews"), "BuildRequestsSection"));
 
 export type PlatformNavKey =
@@ -49,6 +55,9 @@ export type PlatformNavKey =
   | "projects"
   | "debts"
   | "builds"
+  | "apps"
+  | "plans"
+  | "vouchers"
   | "antispam"
   | "accounts"
   | "audit"
@@ -66,6 +75,9 @@ export const LEGACY_PLATFORM_SECTIONS: Record<string, PlatformNavKey> = {
   portal: "projects",
   debts: "debts",
   builds: "builds",
+  apps: "apps",
+  plans: "plans",
+  vouchers: "vouchers",
   antispam: "antispam",
   accounts: "accounts",
   audit: "audit",
@@ -116,8 +128,16 @@ export default function PlatformConsole({
     {
       title: "Vận hành",
       items: [
+        { key: "apps", label: "Cấu hình app khách", icon: <LuSmartphone size={17} /> },
         { key: "projects", label: "Dự án & Ticket", icon: <LuKanban size={17} /> },
         { key: "builds", label: "Yêu cầu build app", icon: <LuRocket size={17} /> },
+      ],
+    },
+    {
+      title: "Kinh doanh",
+      items: [
+        { key: "plans", label: "Gói dịch vụ", icon: <LuPackage size={17} /> },
+        { key: "vouchers", label: "Voucher gói", icon: <LuTicketPercent size={17} /> },
         { key: "debts", label: "Khách nợ tiền", icon: <LuWallet size={17} /> },
       ],
     },
@@ -229,6 +249,9 @@ export default function PlatformConsole({
             {active === "callbacks" && <CallbacksSection />}
             {active === "projects" && <PortalSection />}
             {active === "builds" && <BuildRequestsSection />}
+            {active === "apps" && <CustomerAppsSection />}
+            {active === "plans" && <PlansSection />}
+            {active === "vouchers" && <PlatformVouchersSection />}
             {active === "debts" && <DebtsSection />}
             {active === "accounts" && <AccountsSection currentUserId={account.id} />}
             {active === "antispam" && <AntiSpamSection />}

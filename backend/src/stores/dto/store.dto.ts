@@ -66,6 +66,16 @@ export class CreateStoreDto {
 }
 
 export class UpdateStoreConfigDto {
+  /** Chỉ quản trị nền tảng: chuyển store sang khách hàng khác (null = bỏ gắn) */
+  @IsOptional()
+  @IsString()
+  customerId?: string | null;
+
+  /** Chỉ quản trị nền tảng: gắn gói đăng ký của khách (null = bỏ gắn) */
+  @IsOptional()
+  @IsString()
+  subscriptionId?: string | null;
+
   /** App Secret Mini App riêng của store (chỉ ghi, không đọc lại được). Chuỗi rỗng = xoá. */
   @IsOptional()
   @IsString()

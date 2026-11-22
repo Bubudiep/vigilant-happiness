@@ -154,24 +154,54 @@ model SubscriptionPlan {
 
 /// Gói đăng ký đã kích hoạt cho từng khách hàng (PlatformCustomer)
 model Subscription {
-  id           String           @id @default(cuid())
-  customerId   String
-  customer     PlatformCustomer @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  planId       String
-  plan         SubscriptionPlan @relation(fields: [planId], references: [id], onDelete: Restrict)
-  billingCycle String           @default("monthly")
-  pricePaid    Int              @default(0)
-  status       String           @default("active")
-  startedAt    DateTime         @default(now())
-  expiresAt    DateTime
-  autoRenew    Boolean          @default(false)
-  note         String?
-  createdAt    DateTime         @default(now())
-  updatedAt    DateTime         @updatedAt
-  stores       Store[]
+  id             String           @id @default(cuid())
+  customerId     String
+  customer       PlatformCustomer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  planId         String
+  plan           SubscriptionPlan @relation(fields: [planId], references: [id], onDelete: Restrict)
+  billingCycle   String           @default("monthly")
+  pricePaid      Int              @default(0)
+  status         String           @default("active")
+  startedAt      DateTime         @default(now())
+  expiresAt      DateTime
+  autoRenew      Boolean          @default(false)
+  note           String?
+  /// Voucher nền tảng đã áp khi đăng ký (mã + số tiền giảm)
+  voucherCode    String?
+  discountAmount Int              @default(0)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  stores         Store[]
 
   @@index([customerId, status])
   @@index([expiresAt])
+}
+
+/// Voucher giảm giá khi khách mua / gia hạn gói reMini (quản lý ở Trang điều hành)
+model PlatformVoucher {
+  id            String    @id @default(cuid())
+  code          String    @unique
+  title         String
+  /// percent | fixed
+  discountType  String    @default("percent")
+  discountValue Int       @default(0)
+  /// Giảm tối đa (đ) cho loại percent, 0 = không giới hạn
+  maxDiscount   Int       @default(0)
+  minAmount     Int       @default(0)
+  /// Chỉ áp cho các gói này (rỗng = mọi gói)
+  planIds       String[]  @default([])
+  /// monthly | yearly | all
+  billingCycle  String    @default("all")
+  quantity      Int       @default(100)
+  usedCount     Int       @default(0)
+  startDate     DateTime  @default(now())
+  endDate       DateTime?
+  active        Boolean   @default(true)
+  note          String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([active, endDate])
 }
 
 /// Nhân viên thuộc quản lý của khách hàng (PlatformCustomer)
@@ -197,12 +227,12 @@ model CustomerStaff {
 
 /// Gian hàng / Mini App đã đăng ký và cấu hình trên recloud.vn
 model Store {
-  id               String             @id @default(cuid())
+  id               String              @id @default(cuid())
   customerId       String?
-  customer         PlatformCustomer?  @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  customer         PlatformCustomer?   @relation(fields: [customerId], references: [id], onDelete: SetNull)
   subscriptionId   String?
-  subscription     Subscription?      @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
-  slug             String             @unique
+  subscription     Subscription?       @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+  slug             String              @unique
   name             String
   subtitle         String?
   logoUrl          String?
@@ -221,9 +251,9 @@ model Store {
   builderSchema    Json?
   /// Loại album do shop tự đặt: [{ key, label, color, icon, hint }] — null = mặc định
   albumKinds       Json?
-  active           Boolean            @default(true)
-  createdAt        DateTime           @default(now())
-  updatedAt        DateTime           @updatedAt
+  active           Boolean             @default(true)
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
   products         StoreProduct[]
   customers        StoreCustomer[]
   staff            CustomerStaff[]

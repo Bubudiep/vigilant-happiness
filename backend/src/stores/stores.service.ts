@@ -97,7 +97,11 @@ export class StoresService {
         createdAt: true,
         updatedAt: true,
         _count: { select: { products: true, customers: true } },
-        customer: { select: { id: true, name: true, companyName: true } },
+        customer: { select: { id: true, name: true, companyName: true, phone: true } },
+        zaloOaId: true,
+        phone: true,
+        subscriptionId: true,
+        subscription: { select: { id: true, status: true, expiresAt: true, plan: { select: { name: true } } } },
       },
       orderBy: { createdAt: "desc" },
     });
@@ -217,10 +221,28 @@ export class StoresService {
 
   async updateConfig(auth: AuthContext, id: string, dto: UpdateStoreConfigDto) {
     await this.assertAccess(auth, id);
+    // Đổi chủ / gói: chỉ quản trị nền tảng (Trang điều hành → Cấu hình app khách)
+    const owner: Prisma.StoreUncheckedUpdateInput = {};
+    if (dto.customerId !== undefined || dto.subscriptionId !== undefined) {
+      if (!auth.isAdmin) throw new ForbiddenException("Chỉ quản trị nền tảng được đổi chủ / gói của store");
+      const cur = await this.prisma.store.findUniqueOrThrow({ where: { id }, select: { customerId: true } });
+      const customerId = dto.customerId !== undefined ? dto.customerId || null : cur.customerId;
+      if (dto.customerId && !(await this.prisma.platformCustomer.findUnique({ where: { id: dto.customerId }, select: { id: true } })))
+        throw new NotFoundException("Không tìm thấy khách hàng");
+      if (dto.subscriptionId) {
+        const sub = await this.prisma.subscription.findUnique({ where: { id: dto.subscriptionId }, select: { customerId: true } });
+        if (!sub) throw new NotFoundException("Không tìm thấy gói đăng ký");
+        if (sub.customerId !== customerId) throw new ConflictException("Gói đăng ký không thuộc khách hàng sở hữu store");
+      }
+      if (dto.customerId !== undefined) owner.customerId = customerId;
+      if (dto.subscriptionId !== undefined) owner.subscriptionId = dto.subscriptionId || null;
+      else if (dto.customerId !== undefined && customerId !== cur.customerId) owner.subscriptionId = null;
+    }
     const secret = dto.zaloAppSecret?.trim();
     const updated = await this.prisma.store.update({
       where: { id },
       data: {
+        ...owner,
         ...(dto.zaloAppSecret !== undefined
           ? { zaloAppSecretEnc: secret ? sealSecret(secret, this.auth.getServerSecret()) : null }
           : {}),

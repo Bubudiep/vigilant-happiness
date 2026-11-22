@@ -516,7 +516,8 @@ export function MiniAppBuilder({ brand, initialSchema, products, documents, vouc
           <Button size="small" icon={<LuLayoutTemplate size={13} />} onClick={() => setTemplateOpen(true)}>
             Mẫu
           </Button>
-          <div className="mx-0.5 hidden h-5 w-px bg-slate-200 sm:block" />
+          <div className="flex-1" />
+          {/* Kích thước khung thiết kế */}
           <Select
             size="small"
             value={device}
@@ -535,7 +536,7 @@ export function MiniAppBuilder({ brand, initialSchema, products, documents, vouc
               { value: "1", label: "100%" },
             ]}
           />
-          <div className="flex-1" />
+          <div className="mx-0.5 hidden h-5 w-px bg-slate-200 sm:block" />
           <Tooltip title="Hoàn tác (Ctrl+Z)">
             <Button size="small" icon={<LuUndo2 size={13} />} disabled={!hist.past.length} onClick={undo} />
           </Tooltip>
@@ -585,7 +586,8 @@ export function MiniAppBuilder({ brand, initialSchema, products, documents, vouc
 
       <div
         className="grid min-h-0 flex-1 gap-2.5 lg:grid-cols-[232px_minmax(0,1fr)_280px] 2xl:grid-cols-[256px_minmax(0,1fr)_316px]"
-        style={{ height: fullscreen ? undefined : "calc(100vh - 120px)", minHeight: 480 }}
+        // Vừa khít màn hình: header 56 + lề trên/dưới 40 + thanh công cụ ~48
+        style={{ height: fullscreen ? undefined : "calc(100vh - 150px)", minHeight: 480 }}
       >
         {/* Left panel */}
         <ConfigProvider

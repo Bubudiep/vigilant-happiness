@@ -346,3 +346,91 @@ export const deleteDebt = (id: string) => api(`/debts/${id}`, { method: "DELETE"
 export const addDebtPayment = (id: string, data: { amount: number; paidAt?: string; method?: string; note?: string }) =>
   api<DebtRow>(`/debts/${id}/payments`, { method: "POST", body: JSON.stringify(data) });
 export const removeDebtPayment = (paymentId: string) => api<DebtRow>(`/debts/payments/${paymentId}`, { method: "DELETE" });
+
+// ───────────────────────── Gói dịch vụ & voucher nền tảng (Trang điều hành) ─────────────────────────
+
+export interface PlanRow {
+  id: string;
+  code: string;
+  name: string;
+  description?: string | null;
+  priceMonthly: number;
+  priceYearly: number;
+  maxStores: number;
+  maxProducts: number;
+  maxStaff: number;
+  features: string[];
+  isActive: boolean;
+  sortOrder: number;
+  _count?: { subscriptions: number };
+}
+export type PlanInput = Omit<PlanRow, "id" | "_count">;
+
+export interface SubscriptionRow {
+  id: string;
+  customerId: string;
+  customer: { id: string; name: string; companyName?: string | null; phone: string };
+  planId: string;
+  plan: PlanRow;
+  billingCycle: "monthly" | "yearly";
+  pricePaid: number;
+  discountAmount: number;
+  voucherCode?: string | null;
+  status: "active" | "trial" | "expired" | "cancelled" | string;
+  startedAt: string;
+  expiresAt: string;
+  autoRenew: boolean;
+  note?: string | null;
+  _count?: { stores: number };
+}
+
+export interface PlatformVoucherRow {
+  id: string;
+  code: string;
+  title: string;
+  discountType: "percent" | "fixed";
+  discountValue: number;
+  maxDiscount: number;
+  minAmount: number;
+  planIds: string[];
+  billingCycle: "all" | "monthly" | "yearly";
+  quantity: number;
+  usedCount: number;
+  startDate: string;
+  endDate?: string | null;
+  active: boolean;
+  note?: string | null;
+}
+export type PlatformVoucherInput = Partial<Omit<PlatformVoucherRow, "id" | "usedCount">>;
+
+export const fetchPlans = () => api<PlanRow[]>("/subscriptions/plans");
+export const savePlan = (id: string | null, data: PlanInput) =>
+  api<PlanRow>(id ? `/subscriptions/plans/${id}` : "/subscriptions/plans", { method: id ? "PATCH" : "POST", body: JSON.stringify(data) });
+export const deletePlan = (id: string) => api(`/subscriptions/plans/${id}`, { method: "DELETE" });
+
+export const fetchSubscriptions = (customerId?: string) =>
+  api<SubscriptionRow[]>(`/subscriptions${customerId ? `?customerId=${customerId}` : ""}`);
+export const createSubscription = (data: {
+  customerId: string;
+  planId: string;
+  billingCycle: string;
+  expiresAt: string;
+  startedAt?: string;
+  pricePaid?: number;
+  status?: string;
+  autoRenew?: boolean;
+  note?: string;
+  voucherCode?: string;
+}) => api<SubscriptionRow>("/subscriptions", { method: "POST", body: JSON.stringify(data) });
+export const updateSubscription = (id: string, data: Partial<{ planId: string; billingCycle: string; pricePaid: number; status: string; expiresAt: string; autoRenew: boolean; note: string }>) =>
+  api<SubscriptionRow>(`/subscriptions/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+
+export const fetchPlatformVouchers = () => api<PlatformVoucherRow[]>("/subscriptions/vouchers");
+export const savePlatformVoucher = (id: string | null, data: PlatformVoucherInput) =>
+  api<PlatformVoucherRow>(id ? `/subscriptions/vouchers/${id}` : "/subscriptions/vouchers", { method: id ? "PATCH" : "POST", body: JSON.stringify(data) });
+export const deletePlatformVoucher = (id: string) => api(`/subscriptions/vouchers/${id}`, { method: "DELETE" });
+export const previewPlatformVoucher = (data: { code: string; planId: string; billingCycle: string }) =>
+  api<{ amount: number; code: string; title: string; discount: number; finalAmount: number }>("/subscriptions/vouchers/preview", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });

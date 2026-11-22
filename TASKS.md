@@ -192,6 +192,14 @@ Mỗi việc ghi rõ file liên quan và tiêu chí xong. Sau mỗi việc: type
 - API `GET|PUT /stores/:id/album-kinds` — `{ kinds: [{ key?, label, color, icon, hint? }] }`, tối đa 20, key bỏ trống = loại mới (`k_xxxxxx`); album thuộc loại bị xoá chuyển sang "Khác" (hoặc loại cuối). Tạo/sửa album kiểm tra `kind` theo danh sách của shop.
 - Frontend: `AlbumKindsModal` (tên, mô tả, 17 biểu tượng, màu, sắp xếp, xoá) + hook `useAlbumKinds` dùng chung; mở từ nút "Loại album" / "+ Thêm loại" ở mục Album ảnh, ô "Thêm / sửa loại" khi tạo album, nút "+" cạnh chọn loại trong modal Gửi ảnh. Đổi loại album trong `AlbumDrawer`.
 
+### [x] T28. Trang điều hành: cấu hình app khách, gói dịch vụ, voucher gói (23/11/2026)
+- **Cấu hình app khách** (`/controller/apps`, `CustomerAppsViews.tsx`): mọi store kèm chủ, gói (hạn còn lại), App ID / OA, số sản phẩm / khách; lọc (App riêng, chưa gắn gói, sắp hết hạn, đang tắt); bật/tắt app; QR xem trước;
+  drawer sửa thông tin, mẫu, Zalo App ID / App Secret / OA, **đổi chủ & gắn gói** (`PATCH /stores/:id/config` nhận `customerId`, `subscriptionId` — chỉ admin, gói phải thuộc chủ store); "Mở trang quản trị / Miniapp Studio của khách" để làm hộ.
+- **Gói dịch vụ** (`/controller/plans`, `PlatformBillingViews.tsx`): danh mục gói (thêm / sửa / tắt / xoá nếu chưa có khách — `DELETE /subscriptions/plans/:id`), gói khách đang dùng (đăng ký cho khách + voucher, gia hạn +1 tháng / +1 năm, đổi trạng thái, sửa).
+- **Voucher gói** (`/controller/vouchers`): model `PlatformVoucher` (migration `20261123090000_platform_vouchers`), `GET|POST /subscriptions/vouchers`, `PATCH|DELETE /subscriptions/vouchers/:id`, `POST /subscriptions/vouchers/preview`;
+  giảm % (trần) hoặc số tiền, giá tối thiểu, giới hạn gói / chu kỳ, số lượt (giữ lượt có điều kiện), thời gian. `Subscription.voucherCode` + `discountAmount`. Test `test/billing.api.test.ts` (3).
+- Miniapp Studio: bỏ đổi lề riêng khi vào tab Miniapp (gây nhảy giao diện), khung thiết kế vừa khít màn hình (`calc(100vh - 150px)`).
+
 ### [/] T27. Quét QR mở đúng Mini App của gian hàng (xem trước) (22/11/2026)
 - QR ở trang quản trị (Thông tin store + Miniapp Studio) dùng `getZaloStoreUrl(slug)` → `zalo.me/s/<appId reMini>/?env&version&store=<slug>` (trước là `mode=Template&templateID=…` nên chỉ ra mẫu minh hoạ).
 - Mini App: `?store=<slug>` → route `/store/:slug` (`src/store-runtime/store-app.tsx`) đọc `GET /stores/public/:slug` và render đúng thiết kế Miniapp Studio (`builderSchema`): thanh tiêu đề, khối, tab bar, popup hội viên (giả lập). Store chưa có thiết kế → mở mẫu `templateId`.

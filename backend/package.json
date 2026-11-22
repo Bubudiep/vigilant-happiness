@@ -15,8 +15,8 @@
     "prisma:seed": "ts-node prisma/seed.ts",
     "typecheck": "tsc --noEmit",
     "test": "node --require ts-node/register --test test/unit.test.ts test/inbox.unit.test.ts",
-    "test:api": "node --require ts-node/register --test --test-concurrency=1 test/api.test.ts test/inbox.api.test.ts test/store-oa.api.test.ts",
-    "test:all": "node --require ts-node/register --test --test-concurrency=1 test/unit.test.ts test/inbox.unit.test.ts test/api.test.ts test/inbox.api.test.ts test/store-oa.api.test.ts",
+    "test:api": "node --require ts-node/register --test --test-concurrency=1 test/api.test.ts test/inbox.api.test.ts test/store-oa.api.test.ts test/billing.api.test.ts",
+    "test:all": "node --require ts-node/register --test --test-concurrency=1 test/unit.test.ts test/inbox.unit.test.ts test/api.test.ts test/inbox.api.test.ts test/store-oa.api.test.ts test/billing.api.test.ts",
     "start:test": "node test/start-test-server.js"
   },
   "dependencies": {
