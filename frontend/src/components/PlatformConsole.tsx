@@ -17,6 +17,7 @@ import {
   LuStore,
   LuUsers,
   LuWallet,
+  LuRocket,
 } from "react-icons/lu";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
 import type { AccountInfo, AuthUser } from "../data/auth";
@@ -37,6 +38,7 @@ const ApiChannelsSection = lazy(() => named(import("./PlatformViews"), "ApiChann
 const PortalSection = lazy(() => named(import("./PortalAdminViews"), "PortalSection"));
 const AntiSpamSection = lazy(() => named(import("./PortalAdminViews"), "AntiSpamSection"));
 const DebtsSection = lazy(() => named(import("./DebtViews"), "DebtsSection"));
+const BuildRequestsSection = lazy(() => named(import("./StoreSettingsViews"), "BuildRequestsSection"));
 
 export type PlatformNavKey =
   | "customers"
@@ -46,6 +48,7 @@ export type PlatformNavKey =
   | "callbacks"
   | "projects"
   | "debts"
+  | "builds"
   | "antispam"
   | "accounts"
   | "audit"
@@ -62,6 +65,7 @@ export const LEGACY_PLATFORM_SECTIONS: Record<string, PlatformNavKey> = {
   callbacks: "callbacks",
   portal: "projects",
   debts: "debts",
+  builds: "builds",
   antispam: "antispam",
   accounts: "accounts",
   audit: "audit",
@@ -113,6 +117,7 @@ export default function PlatformConsole({
       title: "Vận hành",
       items: [
         { key: "projects", label: "Dự án & Ticket", icon: <LuKanban size={17} /> },
+        { key: "builds", label: "Yêu cầu build app", icon: <LuRocket size={17} /> },
         { key: "debts", label: "Khách nợ tiền", icon: <LuWallet size={17} /> },
       ],
     },
@@ -223,6 +228,7 @@ export default function PlatformConsole({
             {active === "care" && <CareSection onChanged={refreshSummary} />}
             {active === "callbacks" && <CallbacksSection />}
             {active === "projects" && <PortalSection />}
+            {active === "builds" && <BuildRequestsSection />}
             {active === "debts" && <DebtsSection />}
             {active === "accounts" && <AccountsSection currentUserId={account.id} />}
             {active === "antispam" && <AntiSpamSection />}

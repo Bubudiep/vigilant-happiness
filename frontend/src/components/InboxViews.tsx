@@ -10,18 +10,16 @@ import {
   deleteCare,
   deleteImage,
   fetchCare,
-  fetchConversation,
-  fetchConversations,
   fetchGallery,
   fetchOaStatus,
   GalleryImage,
   InboxMessage,
   OaStatus,
   patchCare,
-  patchConversation,
   patchImage,
+  platformInboxOps,
+  storeInboxOps,
   saveOaCredentials,
-  sendStaffMessage,
   uploadCustomerImage,
   CareTaskRow,
 } from "../data/inbox-api";
@@ -39,11 +37,11 @@ const shortTime = (iso: string) => {
   return d.isSame(dayjs(), "day") ? d.format("HH:mm") : d.format("DD/MM");
 };
 
-function useCustomers() {
+function useCustomers(enabled = true) {
   const [rows, setRows] = useState<PlatformCustomerRow[]>([]);
   useEffect(() => {
-    fetchCustomerRows().then(setRows).catch(() => undefined);
-  }, []);
+    if (enabled) fetchCustomerRows().then(setRows).catch(() => undefined);
+  }, [enabled]);
   return rows;
 }
 const customerOptions = (rows: PlatformCustomerRow[]) => rows.map((c) => ({ value: c.id, label: `${customerLabel(c)} · ${c.phone}` }));
@@ -143,9 +141,11 @@ function Bubble({ m }: { m: InboxMessage }) {
   );
 }
 
-export function InboxSection({ onUnreadChange }: { onUnreadChange?: () => void }) {
+/** storeId có giá trị → hộp thư Zalo OA riêng của gian hàng (chủ shop); không có → hộp thư reMini (quản trị viên). */
+export function InboxSection({ onUnreadChange, storeId }: { onUnreadChange?: () => void; storeId?: string }) {
   const { message } = AntApp.useApp();
-  const customers = useCustomers();
+  const customers = useCustomers(!storeId);
+  const ops = useMemo(() => (storeId ? storeInboxOps(storeId) : platformInboxOps), [storeId]);
   const [status, setStatus] = useState("open");
   const [channel, setChannel] = useState("");
   const [q, setQ] = useState("");
@@ -165,26 +165,26 @@ export function InboxSection({ onUnreadChange }: { onUnreadChange?: () => void }
   const loadList = useCallback(async () => {
     setLoading(true);
     try {
-      setList(await fetchConversations({ status: status === "all" ? undefined : status, channel: channel || undefined, q: q || undefined }));
+      setList(await ops.list({ status: status === "all" ? undefined : status, channel: channel || undefined, q: q || undefined }));
       setError(null);
     } catch (e) {
       setError(errMsg(e, "Không tải được hộp thư"));
     } finally {
       setLoading(false);
     }
-  }, [status, channel, q]);
+  }, [ops, status, channel, q]);
 
   const loadDetail = useCallback(
     async (id: string) => {
       try {
-        const d = await fetchConversation(id);
+        const d = await ops.get(id);
         setDetail((cur) => (cur?.id === id && cur.messages.length === d.messages.length && cur.status === d.status ? cur : d));
         onUnreadChange?.();
       } catch (e) {
         message.error(errMsg(e));
       }
     },
-    [message, onUnreadChange],
+    [ops, message, onUnreadChange],
   );
 
   useEffect(() => {
@@ -212,7 +212,7 @@ export function InboxSection({ onUnreadChange }: { onUnreadChange?: () => void }
     if (!detail || sending || (!text.trim() && !file)) return;
     setSending(true);
     try {
-      const m = await sendStaffMessage(detail.id, { body: text.trim(), internal, file });
+      const m = await ops.send(detail.id, { body: text.trim(), internal, file });
       setText("");
       setFile(null);
       if (m.delivery === "failed") message.warning(m.error || "Chưa gửi được tới khách");
@@ -234,7 +234,7 @@ export function InboxSection({ onUnreadChange }: { onUnreadChange?: () => void }
 
   return (
     <div className="space-y-3">
-      <OaConnect onChanged={loadList} />
+      {!storeId && <OaConnect onChanged={loadList} />}
       {error && <Alert type="warning" showIcon title={error} action={<Button size="small" onClick={loadList}>Thử lại</Button>} />}
       <div className="grid h-[calc(100vh-230px)] min-h-[480px] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm lg:grid-cols-[330px_1fr]">
         {/* Danh sách */}
@@ -252,17 +252,19 @@ export function InboxSection({ onUnreadChange }: { onUnreadChange?: () => void }
                   { value: "all", label: "Tất cả" },
                 ]}
               />
-              <Select
-                size="small"
-                value={channel}
-                onChange={setChannel}
-                className="flex-1"
-                options={[
-                  { value: "", label: "Mọi kênh" },
-                  { value: "miniapp", label: "Mini App" },
-                  { value: "oa", label: "Zalo OA" },
-                ]}
-              />
+              {!storeId && (
+                <Select
+                  size="small"
+                  value={channel}
+                  onChange={setChannel}
+                  className="flex-1"
+                  options={[
+                    { value: "", label: "Mọi kênh" },
+                    { value: "miniapp", label: "Mini App" },
+                    { value: "oa", label: "Zalo OA" },
+                  ]}
+                />
+              )}
               <Button size="small" icon={<LuRefreshCw size={13} />} onClick={loadList} loading={loading} />
             </div>
             <Input.Search size="small" allowClear placeholder="Tìm tên / SĐT / nội dung" onSearch={setQ} />
@@ -314,6 +316,7 @@ export function InboxSection({ onUnreadChange }: { onUnreadChange?: () => void }
                     {detail.phone && <span className="font-mono">{detail.phone}</span>}
                   </div>
                 </div>
+                {!storeId && (
                 <Select
                   size="small"
                   showSearch
@@ -326,7 +329,7 @@ export function InboxSection({ onUnreadChange }: { onUnreadChange?: () => void }
                   options={customerOptions(customers)}
                   onChange={async (v) => {
                     try {
-                      await patchConversation(detail.id, { customerId: v ?? null });
+                      await ops.patch(detail.id, { customerId: v ?? null });
                       message.success(v ? "Đã gắn khách — ảnh trong hội thoại thuộc khách này" : "Đã bỏ gắn khách");
                       loadDetail(detail.id);
                       loadList();
@@ -335,13 +338,14 @@ export function InboxSection({ onUnreadChange }: { onUnreadChange?: () => void }
                     }
                   }}
                 />
-                <Button size="small" onClick={() => setCare({ title: `Chăm sóc ${detail.displayName}`, dueAt: dayjs().add(1, "day").hour(9).minute(0), note: "" })}>
+                )}
+                {!storeId && <Button size="small" onClick={() => setCare({ title: `Chăm sóc ${detail.displayName}`, dueAt: dayjs().add(1, "day").hour(9).minute(0), note: "" })}>
                   Hẹn chăm sóc
-                </Button>
+                </Button>}
                 <Button
                   size="small"
                   onClick={async () => {
-                    await patchConversation(detail.id, { status: detail.status === "open" ? "closed" : "open" }).catch((e) => message.error(errMsg(e)));
+                    await ops.patch(detail.id, { status: detail.status === "open" ? "closed" : "open" }).catch((e) => message.error(errMsg(e)));
                     loadDetail(detail.id);
                     loadList();
                   }}

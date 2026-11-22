@@ -6,6 +6,7 @@ import { AuditModule } from "./audit/audit.module";
 import { AuthModule } from "./auth/auth.module";
 import { CustomersModule } from "./customers/customers.module";
 import { DebtsModule } from "./debts/debts.module";
+import { BuildsModule } from "./builds/builds.module";
 import { InboxModule } from "./inbox/inbox.module";
 import { HealthModule } from "./health/health.module";
 import { JobsModule } from "./jobs/jobs.module";
@@ -42,6 +43,7 @@ import { TemplatesModule } from "./templates/templates.module";
     CustomersModule,
     DebtsModule,
     InboxModule,
+    BuildsModule,
     SubscriptionsModule,
     PortalModule,
   ],

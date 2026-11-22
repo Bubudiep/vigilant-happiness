@@ -1,4 +1,4 @@
-import { App as AntApp, Badge, Button, Drawer, Dropdown, Empty, Input, Modal, Progress, Segmented, Spin, Table, Tabs, Tag, Tooltip } from "antd";
+import { App as AntApp, Badge, Button, Drawer, Dropdown, Empty, Input, Modal, Progress, Select, Spin, Table, Tabs, Tag, Tooltip } from "antd";
 import dayjs from "dayjs";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -34,7 +34,7 @@ import {
 } from "../data/album-api";
 import { ApiError } from "../data/platform-api";
 import type { StoreBookingItem, StoreConfig, StoreCustomerItem, StoreOrderItem } from "../data/store-api";
-import { AlbumDrawer, CustomerThread, guessProvider, KINDS, PROVIDERS } from "./AlbumViews";
+import { AlbumDrawer, AlbumKindsModal, CustomerThread, guessProvider, PROVIDERS, useAlbumKinds } from "./AlbumViews";
 import { BookingCreateModal } from "./StoreOperationsViews";
 
 const ORDER_STATUS: Record<string, { label: string; color: string }> = {
@@ -417,8 +417,6 @@ export function CustomersSection({
 
 // ───────────────────────── Gửi ảnh / link cho khách ─────────────────────────
 
-const KIND_OPTIONS = KINDS.map((k) => ({ value: k.key, label: k.short }));
-
 function QuickSendModal({
   payload,
   store,
@@ -434,6 +432,8 @@ function QuickSendModal({
   const [files, setFiles] = useState<{ file: File; url: string }[]>([]);
   const [links, setLinks] = useState<{ label: string; url: string }[]>([]);
   const [title, setTitle] = useState("");
+  const { kinds } = useAlbumKinds(store.id);
+  const [kindsOpen, setKindsOpen] = useState(false);
   const [kind, setKind] = useState<AlbumKind>("today");
   const [note, setNote] = useState("");
   const [linkInput, setLinkInput] = useState("");
@@ -447,11 +447,12 @@ function QuickSendModal({
     if (!payload) return;
     setFiles(payload.files.map((file) => ({ file, url: URL.createObjectURL(file) })));
     setLinks(payload.links);
-    setKind("today");
+    setKind(kinds[0]?.key ?? "today");
     setNote("");
     setLinkInput("");
     setProgress(null);
     setTitle(payload.files.length || !payload.links.length ? `Ảnh ngày ${dayjs().format("DD/MM")}` : payload.links[0].label);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [payload]);
   // Giải phóng ảnh xem trước
   useEffect(() => () => files.forEach((f) => URL.revokeObjectURL(f.url)), [files]);
@@ -631,7 +632,26 @@ function QuickSendModal({
           </div>
           <div>
             <div className="mb-1.5 text-xs font-bold text-slate-600">Loại</div>
-            <Segmented value={kind} onChange={(v) => setKind(v as AlbumKind)} options={KIND_OPTIONS} />
+            <div className="flex gap-1">
+              <Select
+                value={kinds.some((k) => k.key === kind) ? kind : kinds[0]?.key}
+                onChange={setKind}
+                style={{ width: 170 }}
+                options={kinds.map((k) => ({
+                  value: k.key,
+                  label: (
+                    <span className="flex items-center gap-2">
+                      <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: k.color }} />
+                      {k.short}
+                    </span>
+                  ),
+                }))}
+              />
+              <Tooltip title="Thêm / sửa loại album">
+                <Button icon={<LuPlus size={14} />} onClick={() => setKindsOpen(true)} aria-label="Thêm loại album" />
+              </Tooltip>
+            </div>
+            <AlbumKindsModal storeId={store.id} open={kindsOpen} onClose={() => setKindsOpen(false)} />
           </div>
         </div>
         <div>
@@ -674,6 +694,7 @@ function CustomerProfile({
   onSendPhotos: () => void;
 }) {
   const { modal } = AntApp.useApp();
+  const { kindOf } = useAlbumKinds(store.id);
   const [albums, setAlbums] = useState<AlbumSummary[] | null>(null);
   const [tab, setTab] = useState("info");
 
@@ -849,7 +870,7 @@ function CustomerProfile({
                 ) : albums.length ? (
                   <div className="grid grid-cols-2 gap-2">
                     {albums.map((a) => {
-                      const k = KINDS.find((x) => x.key === a.kind) ?? KINDS[3];
+                      const k = kindOf(a.kind);
                       return (
                         <button
                           key={a.id}

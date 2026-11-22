@@ -5,13 +5,14 @@ import Contact from "@/components/showcase/contact";
 import Hero from "@/components/showcase/hero";
 import { Clients, HowItWorks, Offers, Pricing } from "@/components/showcase/info-sections";
 import TemplateGallery from "@/components/showcase/template-gallery";
-import { consumeLaunchTemplateId, hasPendingLaunchTemplate } from "@/hooks/use-launch-params";
+import { consumeLaunchStore, consumeLaunchTemplateId, hasPendingLaunchTemplate } from "@/hooks/use-launch-params";
 import { findLiveTemplate, findTemplate } from "@/templates";
 import { templateBasePath } from "@/templates/paths";
 
 /**
  * Trang chủ (Showcase) của Công ty T.
- * Lúc khởi động, nếu link có ?mode=Template&templateID=... thì chuyển thẳng vào mẫu đó.
+ * Lúc khởi động, nếu link có ?store=<slug> thì mở Mini App của gian hàng đó;
+ * ?mode=Template&templateID=... thì chuyển thẳng vào mẫu đó.
  */
 export default function HomePage() {
   const navigate = useNavigate();
@@ -19,6 +20,11 @@ export default function HomePage() {
   const [redirecting, setRedirecting] = useState(hasPendingLaunchTemplate);
 
   useEffect(() => {
+    const store = consumeLaunchStore();
+    if (store) {
+      navigate(`/store/${encodeURIComponent(store)}`, { replace: true, animate: false });
+      return;
+    }
     const id = consumeLaunchTemplateId();
     if (!id) return;
 

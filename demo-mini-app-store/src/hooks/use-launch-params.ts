@@ -2,13 +2,16 @@ import { getRouteParams } from "zmp-sdk";
 
 /**
  * Đọc tham số khởi động của Mini App:
- *   ?mode=Template&templateID=thoi_trang_01
+ *   ?mode=Template&templateID=thoi_trang_01   → mở mẫu giao diện (dữ liệu minh hoạ)
+ *   ?store=<slug>                             → mở Mini App của gian hàng (đúng thiết kế & dữ liệu của shop)
  * Không phân biệt hoa thường cho cả tên tham số lẫn giá trị `mode`.
  * Chỉ đọc MỘT lần lúc app khởi động (trước khi router đổi URL).
  */
 export interface LaunchParams {
   mode?: string;
   templateId?: string;
+  /** slug gian hàng */
+  store?: string;
 }
 
 function readParams(): LaunchParams {
@@ -31,6 +34,7 @@ function readParams(): LaunchParams {
   return {
     mode: lower["mode"]?.toLowerCase(),
     templateId: lower["templateid"]?.trim().toLowerCase(),
+    store: lower["store"]?.trim().toLowerCase() || undefined,
   };
 }
 
@@ -45,6 +49,7 @@ let consumed = false;
 export function consumeLaunchTemplateId(): string | undefined {
   if (consumed) return undefined;
   consumed = true;
+  if (launchParams.store) return undefined;
   if (launchParams.mode === "template" && launchParams.templateId) {
     return launchParams.templateId;
   }
@@ -52,7 +57,16 @@ export function consumeLaunchTemplateId(): string | undefined {
 }
 
 export function hasPendingLaunchTemplate(): boolean {
-  return !consumed && launchParams.mode === "template" && !!launchParams.templateId;
+  return !consumed && ((launchParams.mode === "template" && !!launchParams.templateId) || !!launchParams.store);
+}
+
+let storeConsumed = false;
+
+/** slug gian hàng cần mở lúc khởi động (một lần). */
+export function consumeLaunchStore(): string | undefined {
+  if (storeConsumed) return undefined;
+  storeConsumed = true;
+  return launchParams.store;
 }
 
 export function templateShareQuery(templateId: string): string {

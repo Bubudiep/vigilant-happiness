@@ -57,6 +57,8 @@ export type StoreNavKey =
   | "inventory"
   | "documents"
   | "support"
+  | "oainbox"
+  | "settings"
   | "callbacks"
   | "portal"
   | "platformCustomers"

@@ -5,7 +5,8 @@ import { NotifyService } from "../notify/notify.service";
 import { PortalService } from "../portal/portal.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { FilesService } from "./files.service";
-import { OaService } from "./oa.service";
+import { OaCtx, OaService } from "./oa.service";
+import { StoreOaService } from "./store-oa.service";
 
 const MAX_TEXT = 2000;
 const MAX_CUSTOMER_IMAGES_PER_DAY = 30;
@@ -31,6 +32,7 @@ export class InboxService {
     private readonly oa: OaService,
     private readonly notify: NotifyService,
     private readonly portal: PortalService,
+    private readonly storeOa: StoreOaService,
   ) {}
 
   private view(m: MessageFull) {
@@ -46,7 +48,7 @@ export class InboxService {
 
   // ───────────────────────── Ghi nhận tin của khách ─────────────────────────
 
-  private async upsertConversation(channel: "miniapp" | "oa", externalKey: string, init: { displayName: string; avatarUrl?: string | null; phone?: string | null; customerId?: string | null }) {
+  private async upsertConversation(channel: "miniapp" | "oa", externalKey: string, init: { displayName: string; avatarUrl?: string | null; phone?: string | null; customerId?: string | null; storeId?: string }) {
     const existing = await this.prisma.conversation.findUnique({ where: { channel_externalKey: { channel, externalKey } } });
     if (existing) {
       // bổ sung thông tin còn thiếu (không ghi đè tên nhân viên đã sửa)
@@ -58,7 +60,7 @@ export class InboxService {
     }
     try {
       return await this.prisma.conversation.create({
-        data: { channel, externalKey, displayName: init.displayName, avatarUrl: init.avatarUrl, phone: init.phone, customerId: init.customerId },
+        data: { channel, externalKey, displayName: init.displayName, avatarUrl: init.avatarUrl, phone: init.phone, customerId: init.customerId, storeId: init.storeId },
       });
     } catch (e) {
       if (isUniqueViolation(e)) return this.prisma.conversation.findUniqueOrThrow({ where: { channel_externalKey: { channel, externalKey } } });
@@ -76,7 +78,8 @@ export class InboxService {
         where: { id: conv.id },
         data: { unreadStaff: { increment: 1 }, lastMessageAt: msg.createdAt, lastPreview: previewOf(m.kind, m.body), status: "open" },
       });
-      this.notify.notify({ type: "message.created", channel: conv.channel, from: await this.label(conv), preview: previewOf(m.kind, m.body) });
+      // hộp thư OA riêng của gian hàng: không báo nhân viên reMini
+      if (!conv.storeId) this.notify.notify({ type: "message.created", channel: conv.channel, from: await this.label(conv), preview: previewOf(m.kind, m.body) });
       return msg;
     } catch (e) {
       if (isUniqueViolation(e)) return null; // webhook gửi lặp
@@ -142,7 +145,7 @@ export class InboxService {
   // ───────────────────────── Zalo OA (webhook) ─────────────────────────
 
   /** Xử lý một sự kiện webhook đã được xác thực chữ ký. Không ném lỗi ra ngoài (Zalo sẽ gửi lại liên tục). */
-  async handleOaEvent(payload: Record<string, unknown>): Promise<void> {
+  async handleOaEvent(payload: Record<string, unknown>, scope?: { storeId: string; ctx: OaCtx }): Promise<void> {
     try {
       const name = String(payload.event_name ?? "");
       const sender = (payload.sender as { id?: string } | undefined)?.id;
@@ -151,7 +154,7 @@ export class InboxService {
 
       if (name === "follow" || name.startsWith("user_send_")) {
         if (!sender) return;
-        const conv = await this.oaConversation(sender);
+        const conv = await this.oaConversation(sender, scope);
         if (name === "follow") return;
         if (name === "user_send_text") {
           if (message.text?.trim()) await this.recordIncoming(conv, { kind: "text", body: message.text.trim().slice(0, MAX_TEXT), externalId: message.msg_id });
@@ -178,7 +181,7 @@ export class InboxService {
 
       // Nhân viên trả lời trực tiếp trong ứng dụng Zalo OA → đồng bộ vào hộp thư
       if (name.startsWith("oa_send_") && recipient && message.msg_id) {
-        const conv = await this.oaConversation(recipient);
+        const conv = await this.oaConversation(recipient, scope);
         const text = message.text?.trim();
         if (!text) return;
         const exists = await this.prisma.message.findFirst({ where: { conversationId: conv.id, externalId: message.msg_id } });
@@ -191,28 +194,40 @@ export class InboxService {
     }
   }
 
-  private async oaConversation(oaUserId: string) {
-    const existing = await this.prisma.conversation.findUnique({ where: { channel_externalKey: { channel: "oa", externalKey: oaUserId } } });
+  /** externalKey của hội thoại OA: id người dùng OA; với gian hàng thì thêm tiền tố `<storeId>:` (id OA chỉ duy nhất trong từng OA). */
+  private oaKey(oaUserId: string, storeId?: string | null) {
+    return storeId ? `${storeId}:${oaUserId}` : oaUserId;
+  }
+
+  private oaUserOf(conv: Pick<Conversation, "externalKey" | "storeId">) {
+    return conv.storeId ? conv.externalKey.slice(conv.storeId.length + 1) : conv.externalKey;
+  }
+
+  private async oaConversation(oaUserId: string, scope?: { storeId: string; ctx: OaCtx }) {
+    const externalKey = this.oaKey(oaUserId, scope?.storeId);
+    const existing = await this.prisma.conversation.findUnique({ where: { channel_externalKey: { channel: "oa", externalKey } } });
     if (existing) return existing;
-    const p = await this.oa.profile(oaUserId);
-    return this.upsertConversation("oa", oaUserId, { displayName: p?.name || "Khách Zalo OA", avatarUrl: p?.avatar });
+    const p = await this.oa.profile(oaUserId, scope?.ctx);
+    return this.upsertConversation("oa", externalKey, { displayName: p?.name || "Khách Zalo OA", avatarUrl: p?.avatar, storeId: scope?.storeId });
   }
 
   // ───────────────────────── Nhân viên (web quản trị) ─────────────────────────
 
   async summary() {
     const [unread, open] = await Promise.all([
-      this.prisma.conversation.aggregate({ _sum: { unreadStaff: true }, where: { status: "open" } }),
-      this.prisma.conversation.count({ where: { status: "open" } }),
+      this.prisma.conversation.aggregate({ _sum: { unreadStaff: true }, where: { status: "open", storeId: null } }),
+      this.prisma.conversation.count({ where: { status: "open", storeId: null } }),
     ]);
     const careDue = await this.prisma.careTask.count({ where: { doneAt: null, dueAt: { lte: new Date() } } });
     return { unread: unread._sum.unreadStaff ?? 0, open, careDue };
   }
 
-  async list(opts: { status?: string; channel?: string; q?: string; customerId?: string }) {
+  /** storeId = null → hộp thư reMini; có giá trị → hộp thư OA của gian hàng đó. */
+  async list(opts: { status?: string; channel?: string; q?: string; customerId?: string }, storeId: string | null = null) {
     const q = opts.q?.trim();
     return this.prisma.conversation.findMany({
       where: {
+        storeId: storeId ?? null,
         status: opts.status || undefined,
         channel: opts.channel || undefined,
         customerId: opts.customerId || undefined,
@@ -224,7 +239,15 @@ export class InboxService {
     });
   }
 
-  async get(id: string) {
+  /** Hội thoại phải thuộc đúng hộp thư (reMini hoặc gian hàng) — chặn truy cập chéo. */
+  private async owned(id: string, storeId: string | null) {
+    const conv = await this.prisma.conversation.findUnique({ where: { id } });
+    if (!conv || conv.storeId !== storeId) throw new NotFoundException("Không tìm thấy hội thoại");
+    return conv;
+  }
+
+  async get(id: string, storeId: string | null = null) {
+    await this.owned(id, storeId);
     const conv = await this.prisma.conversation.findUnique({
       where: { id },
       include: { customer: { select: { id: true, name: true, companyName: true, phone: true } } },
@@ -236,9 +259,8 @@ export class InboxService {
   }
 
   /** Gửi tin cho khách. Tin gửi OA thất bại vẫn được lưu (delivery=failed + lý do) để nhân viên thấy và xử lý. */
-  async staffSend(id: string, staffLabel: string, input: { body?: string; internal?: boolean; file?: Express.Multer.File }): Promise<Message> {
-    const conv = await this.prisma.conversation.findUnique({ where: { id } });
-    if (!conv) throw new NotFoundException("Không tìm thấy hội thoại");
+  async staffSend(id: string, staffLabel: string, input: { body?: string; internal?: boolean; file?: Express.Multer.File }, storeId: string | null = null): Promise<Message> {
+    const conv = await this.owned(id, storeId);
     const body = input.body?.trim();
     if (!body && !input.file) throw new BadRequestException("Nhập nội dung hoặc chọn ảnh");
     if (body && body.length > MAX_TEXT) throw new BadRequestException(`Tin nhắn tối đa ${MAX_TEXT} ký tự`);
@@ -258,7 +280,9 @@ export class InboxService {
     let externalId: string | undefined;
     if (!input.internal && conv.channel === "oa") {
       try {
-        externalId = attachmentId ? await this.oa.sendImage(conv.externalKey, imageUrl!, body) : await this.oa.sendText(conv.externalKey, body!);
+        const ctx = conv.storeId ? await this.storeOa.ctx(conv.storeId) : undefined;
+        const to = this.oaUserOf(conv);
+        externalId = attachmentId ? await this.oa.sendImage(to, imageUrl!, body, ctx) : await this.oa.sendText(to, body!, ctx);
       } catch (e) {
         delivery = "failed";
         error = e instanceof Error ? e.message : "Gửi thất bại";
@@ -278,10 +302,10 @@ export class InboxService {
     return this.view(msg) as unknown as Message;
   }
 
-  async update(id: string, dto: { status?: string; customerId?: string | null; displayName?: string }) {
-    const conv = await this.prisma.conversation.findUnique({ where: { id } });
-    if (!conv) throw new NotFoundException("Không tìm thấy hội thoại");
+  async update(id: string, dto: { status?: string; customerId?: string | null; displayName?: string }, storeId: string | null = null) {
+    await this.owned(id, storeId);
     if (dto.status && !["open", "closed"].includes(dto.status)) throw new BadRequestException("Trạng thái không hợp lệ");
+    if (dto.customerId && storeId) throw new BadRequestException("Hội thoại của gian hàng không gắn với khách hàng reMini");
     if (dto.customerId) {
       const c = await this.prisma.platformCustomer.findUnique({ where: { id: dto.customerId }, select: { id: true } });
       if (!c) throw new NotFoundException("Không tìm thấy khách hàng");
@@ -305,6 +329,8 @@ export class InboxService {
     const q = opts.q?.trim();
     const rows = await this.prisma.attachment.findMany({
       where: {
+        // chỉ ảnh của hộp thư reMini (ảnh của hộp thư gian hàng không lộ ra đây)
+        AND: [{ OR: [{ conversationId: null }, { conversation: { storeId: null } }] }],
         customerId: opts.customerId || undefined,
         conversationId: opts.conversationId || undefined,
         tag: opts.tag || undefined,
@@ -358,8 +384,8 @@ export class InboxService {
     if (isNaN(+dueAt)) throw new BadRequestException("Thời hạn không hợp lệ");
     let customerId = dto.customerId || null;
     if (dto.conversationId) {
-      const conv = await this.prisma.conversation.findUnique({ where: { id: dto.conversationId }, select: { customerId: true } });
-      if (!conv) throw new NotFoundException("Không tìm thấy hội thoại");
+      const conv = await this.prisma.conversation.findUnique({ where: { id: dto.conversationId }, select: { customerId: true, storeId: true } });
+      if (!conv || conv.storeId) throw new NotFoundException("Không tìm thấy hội thoại");
       customerId ??= conv.customerId;
     }
     if (!customerId && !dto.conversationId) throw new BadRequestException("Chọn khách hàng hoặc hội thoại cần chăm sóc");

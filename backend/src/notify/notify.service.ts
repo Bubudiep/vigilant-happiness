@@ -8,7 +8,8 @@ export type NotifyEvent =
   | { type: "ticket.created"; code: string; subject: string; customer: string; category: string }
   | { type: "ticket.customer_reply"; code: string; subject: string; customer: string; body: string }
   | { type: "message.created"; channel: string; from: string; preview: string }
-  | { type: "care.due"; title: string; customer: string; note?: string | null };
+  | { type: "care.due"; title: string; customer: string; note?: string | null }
+  | { type: "build.requested"; store: string; customer: string; appName?: string | null };
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const cut = (s: string | null | undefined, n = 200) => (s && s.length > n ? s.slice(0, n) + "…" : (s ?? ""));
@@ -71,6 +72,11 @@ export class NotifyService {
         lines.push("🤝 <b>Đến hạn chăm sóc khách</b>", esc(e.title), esc(e.customer));
         if (e.note) lines.push(`“${esc(cut(e.note))}”`);
         link = this.adminLink("care");
+        break;
+      case "build.requested":
+        lines.push("🛠 <b>Yêu cầu build Mini App riêng</b>", esc(e.store), esc(e.customer));
+        if (e.appName) lines.push(`Tên app: ${esc(e.appName)}`);
+        link = this.adminLink("builds");
         break;
     }
     if (link) lines.push(link);

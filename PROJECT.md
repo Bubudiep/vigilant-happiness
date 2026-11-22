@@ -37,6 +37,7 @@ backend/               NestJS 10 + Prisma 5 + PostgreSQL (chạy native, không 
   src/notify/          thông báo nhân viên (Telegram, webhook)
   src/audit/           nhật ký thao tác quản trị
   src/inbox/           hộp thư khách (Mini App + Zalo OA), ảnh khách riêng tư (URL ký), việc chăm sóc, webhook OA
+  src/builds/          yêu cầu build Mini App riêng của gian hàng (StoreBuildRequest: chờ reMini duyệt → chờ Zalo duyệt → đã phát hành)
   src/debts/           công nợ khách hàng (Debt, DebtPayment; trạng thái tính khi đọc)
   src/jobs/            cron: nhắc lịch gọi lại (mỗi phút), dọn dữ liệu (3:15 sáng)
   test/                unit.test.ts, api.test.ts, start-test-server.js
@@ -74,6 +75,15 @@ backend/               NestJS 10 + Prisma 5 + PostgreSQL (chạy native, không 
   Web quản trị đồng bộ tự động (`frontend/src/data/store-sync.ts`).
 - Album ảnh (`src/albums/`): `StoreAlbum` + `StoreAlbumPhoto` (file ở `uploads-private/albums/`, xem qua `/api/album-photos/:id?exp&sig`),
   link ảnh gốc ở `StoreAlbum.links`. Gửi album → `StoreMessage` (hộp thư store ↔ khách). Chủ shop: `/api/stores/:id/albums*`, `/api/stores/:id/messages*`.
+
+### OA riêng & build app riêng của gian hàng (web quản trị `/admin/settings`, `/admin/oainbox`)
+- Gian hàng có App ID + App Secret riêng (`Store.zaloAppId`, `zaloAppSecretEnc`) và có thể có **OA riêng**: OA Secret Key mã hoá ở `Store.oaSecretEnc`,
+  token OA ở `OaCredential` (id `store:<storeId>`, tự làm mới). API: `GET/PUT /stores/:id/oa`, `DELETE /stores/:id/oa/token` (chỉ ghi, không trả secret/token).
+- Webhook OA của gian hàng: `POST /api/oa/webhook/:slug` (chữ ký = App ID + OA Secret Key của gian hàng đó). Tin vào `Conversation.storeId = <id>`
+  (externalKey `<storeId>:<oaUserId>`), chỉ hiện ở hộp thư gian hàng `/stores/:id/inbox/*`; hộp thư reMini (`/inbox/*`) chỉ thấy `storeId = null`.
+- Build app riêng: form ở cửa sổ **Xuất bản** (Miniapp → Xuất bản); shop `POST /stores/:id/build-requests` (lưu `snapshot` thiết kế/sản phẩm/ảnh; mỗi gian hàng 1 yêu cầu mở); quản trị duyệt ở `/controller/builds`
+  (`PATCH /admin/build-requests/:id` action `approve` | `publish` | `reject`). Phát hành → cập nhật `Store.zaloAppId`.
+- Ảnh sản phẩm / slider / logo của gian hàng: tải lên bằng `POST /stores/:storeId/media/upload` (lưu `backend/uploads/`, URL công khai `/uploads/...`), rồi dán URL vào `imageUrl` của sản phẩm / slider.
 
 ### OAuth 2.0 (mô hình django-oauth-toolkit)
 - Bảng `OAuthApplication` (mỗi **kênh** của khách: `zalo_mini_app | web | pos | api | webhook`) có `clientId` + `clientSecretHash`.

@@ -83,3 +83,26 @@ export class OaCredentialsDto {
   @MaxLength(2000)
   refreshToken!: string;
 }
+
+export class StoreOaDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  oaId?: string;
+
+  /** OA Secret Key — chuỗi rỗng = xoá */
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  oaSecret?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  accessToken?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  refreshToken?: string;
+}

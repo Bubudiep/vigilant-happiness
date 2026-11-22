@@ -1,7 +1,23 @@
-import { App as AntApp, Button, DatePicker, Drawer, Empty, Input, Modal, Popconfirm, Progress, Select, Spin, Tag, Tooltip } from "antd";
+import { App as AntApp, Button, ColorPicker, DatePicker, Drawer, Empty, Input, Modal, Popconfirm, Popover, Progress, Select, Spin, Tag, Tooltip } from "antd";
 import dayjs from "dayjs";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
+import type { IconType } from "react-icons";
 import {
+  LuArrowDown,
+  LuArrowUp,
+  LuBaby,
+  LuBriefcase,
+  LuCake,
+  LuFlower2,
+  LuGift,
+  LuGraduationCap,
+  LuPartyPopper,
+  LuPawPrint,
+  LuPlane,
+  LuShirt,
+  LuSparkles,
+  LuTags,
+  LuUsers,
   LuCalendarHeart,
   LuCamera,
   LuCheck,
@@ -22,15 +38,18 @@ import { SiDropbox, SiGoogledrive, SiGooglephotos, SiIcloud } from "react-icons/
 import {
   AlbumDetail,
   AlbumKind,
+  AlbumKindDef,
   AlbumLink,
   AlbumSummary,
   createAlbum,
   deleteAlbum,
   deleteAlbumPhoto,
   fetchAlbum,
+  fetchAlbumKinds,
   fetchAlbums,
   fetchStoreThread,
   publishAlbum,
+  saveAlbumKinds,
   sendStoreMessage,
   shrinkImage,
   StoreMessage,
@@ -43,13 +62,258 @@ import type { StoreConfig } from "../data/store-api";
 
 const errMsg = (e: unknown, fb = "Thao tác thất bại") => (e instanceof ApiError ? e.message : fb);
 
-export const KINDS: { key: AlbumKind; label: string; short: string; icon: React.ReactNode; color: string; hint: string }[] = [
-  { key: "today", label: "Album hôm nay", short: "Hôm nay", icon: <LuCamera size={18} />, color: "#0ea5e9", hint: "Ảnh chụp trong ngày, gửi khách xem ngay" },
-  { key: "wedding", label: "Album ảnh cưới", short: "Ảnh cưới", icon: <LuHeart size={18} />, color: "#e11d48", hint: "Ảnh cưới / pre-wedding" },
-  { key: "engagement", label: "Album ảnh đám hỏi", short: "Đám hỏi", icon: <LuGem size={18} />, color: "#d97706", hint: "Lễ dạm ngõ, ăn hỏi" },
-  { key: "other", label: "Album khác", short: "Khác", icon: <LuImages size={18} />, color: "#64748b", hint: "Sự kiện, kỷ yếu, gia đình…" },
+// ═══════════════════════════════ Loại album (shop tự tạo) ═══════════════════════════════
+
+export const KIND_ICONS: Record<string, IconType> = {
+  camera: LuCamera,
+  heart: LuHeart,
+  gem: LuGem,
+  images: LuImages,
+  baby: LuBaby,
+  cake: LuCake,
+  graduation: LuGraduationCap,
+  users: LuUsers,
+  gift: LuGift,
+  sparkles: LuSparkles,
+  flower: LuFlower2,
+  party: LuPartyPopper,
+  plane: LuPlane,
+  briefcase: LuBriefcase,
+  paw: LuPawPrint,
+  shirt: LuShirt,
+  star: LuStar,
+};
+const KIND_COLORS = ["#0ea5e9", "#e11d48", "#d97706", "#64748b", "#ec4899", "#8b5cf6", "#10b981", "#f97316", "#14b8a6", "#6366f1", "#84cc16", "#0f172a"];
+
+const DEFAULT_KINDS: AlbumKindDef[] = [
+  { key: "today", label: "Hôm nay", color: "#0ea5e9", icon: "camera", hint: "Ảnh chụp trong ngày, gửi khách xem ngay" },
+  { key: "wedding", label: "Ảnh cưới", color: "#e11d48", icon: "heart", hint: "Ảnh cưới / pre-wedding" },
+  { key: "engagement", label: "Đám hỏi", color: "#d97706", icon: "gem", hint: "Lễ dạm ngõ, ăn hỏi" },
+  { key: "other", label: "Khác", color: "#64748b", icon: "images", hint: "Sự kiện, kỷ yếu, gia đình…" },
 ];
-const kindOf = (k: string) => KINDS.find((x) => x.key === k) ?? KINDS[3];
+
+export interface KindView {
+  key: AlbumKind;
+  /** Tên ngắn — VD "Ảnh cưới" */
+  short: string;
+  /** Tên đầy đủ — VD "Album ảnh cưới" (tên mặc định của album mới) */
+  label: string;
+  icon: React.ReactNode;
+  color: string;
+  hint: string;
+}
+
+const toView = (d: AlbumKindDef): KindView => {
+  const Icon = KIND_ICONS[d.icon] ?? LuImages;
+  return { key: d.key, short: d.label, label: `Album ${d.label.toLocaleLowerCase("vi-VN")}`, icon: <Icon size={18} />, color: d.color, hint: d.hint ?? "" };
+};
+
+// Bộ nhớ dùng chung giữa các màn (Album ảnh, Khách hàng…) — sửa loại ở đâu cũng cập nhật mọi nơi
+const kindCache = new Map<string, AlbumKindDef[]>();
+const kindLoading = new Map<string, Promise<void>>();
+const kindSubs = new Set<() => void>();
+const putKinds = (storeId: string, kinds: AlbumKindDef[]) => {
+  kindCache.set(storeId, kinds);
+  kindSubs.forEach((f) => f());
+};
+
+/** Loại album của shop: { kinds, kindOf(key) } — tải 1 lần / store, mặc định trong lúc chờ. */
+export function useAlbumKinds(storeId: string) {
+  const [, force] = useReducer((x: number) => x + 1, 0);
+  useEffect(() => {
+    kindSubs.add(force);
+    return () => void kindSubs.delete(force);
+  }, []);
+  useEffect(() => {
+    if (kindCache.has(storeId) || kindLoading.has(storeId)) return;
+    kindLoading.set(
+      storeId,
+      fetchAlbumKinds(storeId)
+        .then((k) => putKinds(storeId, k))
+        .catch(() => undefined)
+        .finally(() => kindLoading.delete(storeId)),
+    );
+  }, [storeId]);
+  const defs = kindCache.get(storeId) ?? DEFAULT_KINDS;
+  const kinds = useMemo(() => defs.map(toView), [defs]);
+  const kindOf = useCallback(
+    (k: string) => kinds.find((x) => x.key === k) ?? kinds.find((x) => x.key === "other") ?? kinds[kinds.length - 1],
+    [kinds],
+  );
+  return { kinds, kindOf };
+}
+
+type KindDraft = Omit<AlbumKindDef, "key"> & { key?: string; _id: string };
+let draftSeq = 0;
+
+/** Quản lý loại album: thêm / đổi tên, màu, biểu tượng / sắp xếp / xoá. */
+export function AlbumKindsModal({ storeId, open, onClose }: { storeId: string; open: boolean; onClose: () => void }) {
+  const { message } = AntApp.useApp();
+  const [rows, setRows] = useState<KindDraft[]>([]);
+  const [saving, setSaving] = useState(false);
+  const lastInput = useRef<HTMLInputElement | null>(null);
+  const [focusNew, setFocusNew] = useState(false);
+
+  useAlbumKinds(storeId); // đăng ký nhận cập nhật + tải nếu chưa có
+  const loaded = kindCache.get(storeId);
+  useEffect(() => {
+    if (!open) return;
+    setRows((loaded ?? DEFAULT_KINDS).map((d) => ({ ...d, _id: `r${++draftSeq}` })));
+  }, [open, loaded]);
+  useEffect(() => {
+    if (focusNew) {
+      lastInput.current?.focus();
+      setFocusNew(false);
+    }
+  }, [focusNew]);
+
+  const edit = (i: number, p: Partial<KindDraft>) => setRows((r) => r.map((x, j) => (j === i ? { ...x, ...p } : x)));
+  const move = (i: number, d: number) =>
+    setRows((r) => {
+      const n = r.slice();
+      const [x] = n.splice(i, 1);
+      n.splice(i + d, 0, x);
+      return n;
+    });
+  const add = () => {
+    setRows((r) => [...r, { _id: `r${++draftSeq}`, label: "", color: KIND_COLORS[r.length % KIND_COLORS.length], icon: "star", hint: "" }]);
+    setFocusNew(true);
+  };
+
+  const save = async () => {
+    const clean = rows.map((r) => ({ ...r, label: r.label.trim(), hint: r.hint?.trim() }));
+    if (!clean.length) return message.warning("Cần ít nhất 1 loại album");
+    if (clean.some((r) => !r.label)) return message.warning("Đặt tên cho mọi loại album");
+    const names = clean.map((r) => r.label.toLocaleLowerCase("vi-VN"));
+    if (new Set(names).size !== names.length) return message.warning("Có 2 loại trùng tên");
+    setSaving(true);
+    try {
+      const res = await saveAlbumKinds(
+        storeId,
+        clean.map(({ _id: _x, ...r }) => r),
+      );
+      putKinds(storeId, res.kinds);
+      message.success(res.moved ? `Đã lưu loại album · ${res.moved} album chuyển sang "${toView(res.kinds.find((k) => k.key === "other") ?? res.kinds[res.kinds.length - 1]).short}"` : "Đã lưu loại album");
+      onClose();
+    } catch (e) {
+      message.error(errMsg(e));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const removedHasOther = rows.some((r) => r.key === "other");
+
+  return (
+    <Modal
+      title={
+        <span className="flex items-center gap-2">
+          <LuTags size={16} /> Loại album
+        </span>
+      }
+      open={open}
+      onCancel={onClose}
+      onOk={save}
+      okText="Lưu"
+      cancelText="Huỷ"
+      confirmLoading={saving}
+      width={640}
+      destroyOnHidden
+    >
+      <p className="mb-3 text-xs text-slate-500">
+        Tự đặt loại album theo dịch vụ của quán (VD: Sinh nhật, Kỷ yếu, Gia đình, Thời trang…). Album thuộc loại bị xoá sẽ chuyển sang{" "}
+        <b>{removedHasOther ? "Khác" : "loại cuối danh sách"}</b>.
+      </p>
+      <div className="space-y-2">
+        {rows.map((r, i) => {
+          const Icon = KIND_ICONS[r.icon] ?? LuImages;
+          return (
+            <div key={r._id} className="flex items-center gap-2 rounded-xl border border-slate-200 p-2">
+              <Popover
+                trigger="click"
+                placement="bottomLeft"
+                content={
+                  <div className="w-64 space-y-3">
+                    <div className="grid grid-cols-6 gap-1">
+                      {Object.entries(KIND_ICONS).map(([k, I]) => (
+                        <button
+                          key={k}
+                          type="button"
+                          onClick={() => edit(i, { icon: k })}
+                          className={`flex h-9 w-9 items-center justify-center rounded-lg transition ${r.icon === k ? "text-white" : "text-slate-600 hover:bg-slate-100"}`}
+                          style={r.icon === k ? { background: r.color } : undefined}
+                        >
+                          <I size={17} />
+                        </button>
+                      ))}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {KIND_COLORS.map((c) => (
+                        <button
+                          key={c}
+                          type="button"
+                          onClick={() => edit(i, { color: c })}
+                          className={`h-6 w-6 rounded-full ring-offset-2 ${r.color === c ? "ring-2 ring-slate-400" : ""}`}
+                          style={{ background: c }}
+                          aria-label={c}
+                        />
+                      ))}
+                      <ColorPicker size="small" disabledAlpha value={r.color} onChangeComplete={(c) => edit(i, { color: c.toHexString() })} />
+                    </div>
+                  </div>
+                }
+              >
+                <button
+                  type="button"
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white shadow-sm"
+                  style={{ background: r.color }}
+                  aria-label="Đổi biểu tượng & màu"
+                  title="Đổi biểu tượng & màu"
+                >
+                  <Icon size={17} />
+                </button>
+              </Popover>
+              <Input
+                ref={(el) => {
+                  if (i === rows.length - 1) lastInput.current = el?.input ?? null;
+                }}
+                placeholder="Tên loại (VD: Sinh nhật)"
+                value={r.label}
+                maxLength={40}
+                onChange={(e) => edit(i, { label: e.target.value })}
+                style={{ width: 170, flexShrink: 0 }}
+              />
+              <Input placeholder="Mô tả ngắn (tuỳ chọn)" value={r.hint} maxLength={80} onChange={(e) => edit(i, { hint: e.target.value })} />
+              <div className="flex shrink-0">
+                <Button type="text" size="small" icon={<LuArrowUp size={14} />} disabled={i === 0} onClick={() => move(i, -1)} aria-label="Lên" />
+                <Button
+                  type="text"
+                  size="small"
+                  icon={<LuArrowDown size={14} />}
+                  disabled={i === rows.length - 1}
+                  onClick={() => move(i, 1)}
+                  aria-label="Xuống"
+                />
+                <Button
+                  type="text"
+                  size="small"
+                  danger
+                  icon={<LuTrash2 size={14} />}
+                  disabled={rows.length <= 1}
+                  onClick={() => setRows((x) => x.filter((_, j) => j !== i))}
+                  aria-label="Xoá"
+                />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <Button className="mt-3" block type="dashed" icon={<LuPlus size={14} />} onClick={add} disabled={rows.length >= 20}>
+        Thêm loại album
+      </Button>
+    </Modal>
+  );
+}
 
 export const PROVIDERS: Record<string, { label: string; icon: React.ReactNode }> = {
   google_drive: { label: "Google Drive", icon: <SiGoogledrive size={14} /> },
@@ -102,6 +366,8 @@ export function AlbumsSection({ store, initialCustomerId }: { store: StoreConfig
   const [customerId, setCustomerId] = useState<string | undefined>(initialCustomerId);
   const [kind, setKind] = useState<AlbumKind | "all">("all");
   const [createOpen, setCreateOpen] = useState(false);
+  const [kindsOpen, setKindsOpen] = useState(false);
+  const { kinds, kindOf } = useAlbumKinds(store.id);
   const [openId, setOpenId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -119,8 +385,11 @@ export function AlbumsSection({ store, initialCustomerId }: { store: StoreConfig
     load();
   }, [load]);
 
-  const shown = (albums ?? []).filter((a) => kind === "all" || a.kind === kind);
-  const counts = useMemo(() => Object.fromEntries(KINDS.map((k) => [k.key, (albums ?? []).filter((a) => a.kind === k.key).length])), [albums]);
+  const shown = (albums ?? []).filter((a) => kind === "all" || kindOf(a.kind).key === kind);
+  const counts = useMemo(
+    () => Object.fromEntries(kinds.map((k) => [k.key, (albums ?? []).filter((a) => kindOf(a.kind).key === k.key).length])),
+    [albums, kinds, kindOf],
+  );
 
   return (
     <div className="space-y-4">
@@ -145,13 +414,16 @@ export function AlbumsSection({ store, initialCustomerId }: { store: StoreConfig
               style={{ width: 220 }}
               options={store.customers.map((c) => ({ value: c.id, label: `${c.name}${c.phone ? ` · ${c.phone}` : ""}` }))}
             />
+            <Button icon={<LuTags size={15} />} onClick={() => setKindsOpen(true)}>
+              Loại album
+            </Button>
             <Button type="primary" icon={<LuPlus size={15} />} onClick={() => setCreateOpen(true)}>
               Tạo album
             </Button>
           </div>
         </div>
         <div className="mt-4 flex flex-wrap gap-1.5">
-          {[{ key: "all" as const, short: "Tất cả", icon: null, color: "" }, ...KINDS].map((k) => (
+          {[{ key: "all" as const, short: "Tất cả", icon: null, color: "" }, ...kinds].map((k) => (
             <button
               key={k.key}
               type="button"
@@ -164,6 +436,13 @@ export function AlbumsSection({ store, initialCustomerId }: { store: StoreConfig
               <span className="opacity-60">{k.key === "all" ? (albums?.length ?? 0) : counts[k.key]}</span>
             </button>
           ))}
+          <button
+            type="button"
+            onClick={() => setKindsOpen(true)}
+            className="flex items-center gap-1 rounded-full border border-dashed border-slate-300 px-3 py-1 text-xs font-semibold text-slate-500 hover:border-brand-400 hover:text-brand-600"
+          >
+            <LuPlus size={12} /> Thêm loại
+          </button>
         </div>
       </div>
 
@@ -244,6 +523,7 @@ export function AlbumsSection({ store, initialCustomerId }: { store: StoreConfig
         onClose={() => setOpenId(null)}
         onChanged={load}
       />
+      <AlbumKindsModal storeId={store.id} open={kindsOpen} onClose={() => setKindsOpen(false)} />
     </div>
   );
 }
@@ -264,6 +544,8 @@ function CreateAlbumModal({
   onCreated: (a: AlbumDetail) => void;
 }) {
   const { message } = AntApp.useApp();
+  const { kinds, kindOf } = useAlbumKinds(store.id);
+  const [kindsOpen, setKindsOpen] = useState(false);
   const [kind, setKind] = useState<AlbumKind>("today");
   const [customerId, setCustomerId] = useState<string | undefined>();
   const [title, setTitle] = useState("");
@@ -274,12 +556,13 @@ function CreateAlbumModal({
 
   useEffect(() => {
     if (!open) return;
-    setKind("today");
+    setKind(kinds[0]?.key ?? "today");
     setCustomerId(defaultCustomerId);
     setTitle("");
     setTitleTouched(false);
     setDate(dayjs());
     setLinks([]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, defaultCustomerId]);
 
   const autoTitle = kind === "today" ? `Album ngày ${(date ?? dayjs()).format("DD/MM/YYYY")}` : kindOf(kind).label;
@@ -310,7 +593,7 @@ function CreateAlbumModal({
     <Modal title="Tạo album ảnh" open={open} onCancel={onClose} onOk={submit} okText="Tạo album" confirmLoading={saving} width={620} destroyOnHidden>
       <div className="space-y-4 pt-2">
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          {KINDS.map((k) => (
+          {kinds.map((k) => (
             <button
               key={k.key}
               type="button"
@@ -327,7 +610,15 @@ function CreateAlbumModal({
               <div className="text-[11px] leading-tight text-slate-500">{k.hint}</div>
             </button>
           ))}
+          <button
+            type="button"
+            onClick={() => setKindsOpen(true)}
+            className="flex flex-col items-center justify-center gap-1 rounded-2xl border border-dashed border-slate-300 p-3 text-xs font-semibold text-slate-500 hover:border-brand-400 hover:text-brand-600"
+          >
+            <LuPlus size={18} /> Thêm / sửa loại
+          </button>
         </div>
+        <AlbumKindsModal storeId={store.id} open={kindsOpen} onClose={() => setKindsOpen(false)} />
 
         <div>
           <div className="mb-1 text-xs font-semibold text-slate-600">Khách hàng *</div>
@@ -425,6 +716,7 @@ export function AlbumDrawer({
   onChanged: () => void;
 }) {
   const { message } = AntApp.useApp();
+  const { kinds, kindOf } = useAlbumKinds(storeId);
   const [album, setAlbum] = useState<AlbumDetail | null>(null);
   const [links, setLinks] = useState<{ label: string; url: string }[]>([]);
   const [linksDirty, setLinksDirty] = useState(false);
@@ -485,7 +777,7 @@ export function AlbumDrawer({
     if (errors.length) message.warning(`${errors.length} ảnh lỗi: ${errors.slice(0, 2).join("; ")}`);
   };
 
-  const k = album ? kindOf(album.kind) : KINDS[0];
+  const k = album ? kindOf(album.kind) : kinds[0];
 
   return (
     <Drawer
@@ -635,6 +927,23 @@ export function AlbumDrawer({
 
           {/* Thông tin */}
           <div className="space-y-4">
+            <div>
+              <div className="mb-1 text-xs font-semibold text-slate-600">Loại album</div>
+              <Select
+                className="w-full"
+                value={k.key}
+                onChange={(v) => save({ kind: v }, "Đã đổi loại album")}
+                options={kinds.map((x) => ({
+                  value: x.key,
+                  label: (
+                    <span className="flex items-center gap-2">
+                      <span className="h-2.5 w-2.5 rounded-full" style={{ background: x.color }} />
+                      {x.short}
+                    </span>
+                  ),
+                }))}
+              />
+            </div>
             <div className="rounded-2xl bg-slate-50 p-3 text-xs text-slate-600">
               <div className="mb-1 font-bold text-slate-800">{album.customer?.name}</div>
               <div>{album.customer?.phone || "Chưa có SĐT"}</div>

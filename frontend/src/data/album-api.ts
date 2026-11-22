@@ -2,7 +2,17 @@ import { getStoredAuthToken } from "./auth";
 import { api, ApiError } from "./platform-api";
 import { siteConfig } from "./site";
 
-export type AlbumKind = "today" | "wedding" | "engagement" | "other";
+/** key của loại album (shop tự tạo ở "Loại album"; mặc định today | wedding | engagement | other) */
+export type AlbumKind = string;
+
+export interface AlbumKindDef {
+  key: string;
+  label: string;
+  color: string;
+  /** camera | heart | gem | images | baby | cake | graduation | users | gift | sparkles | flower | party | plane | briefcase | paw | shirt | star */
+  icon: string;
+  hint?: string;
+}
 
 export interface AlbumLink {
   label: string;
@@ -67,6 +77,10 @@ export const fetchAlbums = (storeId: string, q: { customerId?: string; kind?: st
   const p = new URLSearchParams(Object.entries(q).filter(([, v]) => !!v) as [string, string][]);
   return api<AlbumSummary[]>(`${base(storeId)}/albums${p.toString() ? `?${p}` : ""}`);
 };
+export const fetchAlbumKinds = (storeId: string) => api<AlbumKindDef[]>(`${base(storeId)}/album-kinds`);
+/** key bỏ trống = loại mới. Album của loại bị xoá chuyển sang "Khác" (moved = số album bị chuyển). */
+export const saveAlbumKinds = (storeId: string, kinds: (Omit<AlbumKindDef, "key"> & { key?: string })[]) =>
+  api<{ kinds: AlbumKindDef[]; moved: number }>(`${base(storeId)}/album-kinds`, { method: "PUT", body: JSON.stringify({ kinds }) });
 export const fetchAlbum = (storeId: string, id: string) => api<AlbumDetail>(`${base(storeId)}/albums/${id}`);
 export const createAlbum = (storeId: string, data: AlbumInput) =>
   api<AlbumDetail>(`${base(storeId)}/albums`, { method: "POST", body: JSON.stringify(data) });

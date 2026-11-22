@@ -212,11 +212,15 @@ model Store {
   /// App Secret của Mini App riêng của store (mã hoá AES-GCM) — để lấy SĐT khách khi đăng nhập Zalo
   zaloAppSecretEnc String?
   zaloOaId         String?
+  /// OA Secret Key (mã hoá AES-GCM) — để kiểm tra chữ ký webhook OA riêng của store
+  oaSecretEnc      String?
   phone            String?
   address          String?
   theme            Json
   sliders          Json
   builderSchema    Json?
+  /// Loại album do shop tự đặt: [{ key, label, color, icon, hint }] — null = mặc định
+  albumKinds       Json?
   active           Boolean            @default(true)
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
@@ -235,6 +239,8 @@ model Store {
   albums           StoreAlbum[]
   albumPhotos      StoreAlbumPhoto[]
   messages         StoreMessage[]
+  conversations    Conversation[]
+  buildRequests    StoreBuildRequest[]
 
   @@index([templateId])
   @@index([customerId])
@@ -816,6 +822,9 @@ model Conversation {
   externalKey    String
   customerId     String?
   customer       PlatformCustomer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  /// null = hộp thư của reMini; có giá trị = hộp thư OA riêng của gian hàng đó
+  storeId        String?
+  store          Store?            @relation(fields: [storeId], references: [id], onDelete: Cascade)
   displayName    String
   avatarUrl      String?
   phone          String?
@@ -833,6 +842,7 @@ model Conversation {
   @@unique([channel, externalKey])
   @@index([status, lastMessageAt])
   @@index([customerId])
+  @@index([storeId, status, lastMessageAt])
 }
 
 /// direction: in (khách gửi) | out (nhân viên gửi) | note (ghi chú nội bộ, khách không thấy)
@@ -904,4 +914,28 @@ model OaCredential {
   expiresAt    DateTime
   oaName       String?
   updatedAt    DateTime @updatedAt
+}
+
+/// Yêu cầu build Mini App riêng cho gian hàng. status: pending_admin (chờ reMini duyệt) → pending_zalo (chờ Zalo duyệt)
+/// → published (đã phát hành) · rejected · cancelled. `snapshot` = bản chụp cấu hình store lúc gửi.
+model StoreBuildRequest {
+  id           String    @id @default(cuid())
+  storeId      String
+  store        Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  status       String    @default("pending_admin")
+  appName      String?
+  appId        String?
+  note         String?
+  adminNote    String?
+  publishedUrl String?
+  snapshot     Json
+  requestedBy  String?
+  approvedAt   DateTime?
+  publishedAt  DateTime?
+  closedAt     DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([storeId, createdAt])
+  @@index([status, createdAt])
 }

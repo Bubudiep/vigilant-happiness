@@ -23,6 +23,24 @@ const defaultTheme = {
   productCardVariant: "editorial",
 };
 
+const ASSET_KEYS = new Set(["image", "logoUrl", "imageUrl", "coverUrl", "url"]);
+
+/** Đổi URL ảnh tương đối ("/stock/…", "/src/assets/templates/…" của bản cũ) thành URL đầy đủ theo FRONTEND_URL. */
+export function absolutizeAssets<T>(value: T, base: string): T {
+  const walk = (v: unknown, key?: string): unknown => {
+    if (typeof v === "string") {
+      if (!key || !ASSET_KEYS.has(key) || !v.startsWith("/") || v.startsWith("//")) return v;
+      return base + v.replace(/^\/src\/assets\/templates\//, "/stock/");
+    }
+    if (Array.isArray(v)) return v.map((x) => walk(x, key === "gallery" ? "image" : undefined));
+    if (v && typeof v === "object" && !(v instanceof Date)) {
+      return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, walk(x, k)]));
+    }
+    return v;
+  };
+  return walk(value) as T;
+}
+
 @Injectable()
 export class StoresService {
   constructor(
@@ -31,9 +49,9 @@ export class StoresService {
   ) {}
 
   /** Không bao giờ trả App Secret (dù đã mã hoá) ra ngoài — chỉ báo đã cấu hình hay chưa. */
-  private redact<T extends { zaloAppSecretEnc?: string | null }>(store: T) {
-    const { zaloAppSecretEnc, ...rest } = store;
-    return { ...rest, hasZaloAppSecret: !!zaloAppSecretEnc };
+  private redact<T extends { zaloAppSecretEnc?: string | null; oaSecretEnc?: string | null }>(store: T) {
+    const { zaloAppSecretEnc, oaSecretEnc, ...rest } = store;
+    return { ...rest, hasZaloAppSecret: !!zaloAppSecretEnc, hasOaSecret: !!oaSecretEnc };
   }
 
   /** App Secret Mini App riêng của store (giải mã), dùng khi khách đăng nhập Zalo để lấy SĐT. */
@@ -135,10 +153,25 @@ export class StoresService {
             gallery: true,
           },
         },
+        vouchers: {
+          where: { active: true, endDate: { gte: new Date() } },
+          orderBy: { endDate: "asc" },
+          take: 30,
+          select: { id: true, code: true, title: true, discountType: true, discountValue: true, minOrderValue: true, endDate: true },
+        },
+        documents: {
+          where: { published: true },
+          orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+          take: 50,
+          select: { id: true, slug: true, title: true, category: true, content: true },
+        },
       },
     });
     if (!store) throw new NotFoundException("Không tìm thấy Mini App store");
-    return store;
+    // Ảnh mẫu trong thiết kế là đường dẫn tương đối của web quản trị (/stock/…, /assets/…)
+    // → đổi thành URL đầy đủ để Mini App (chạy ở domain Zalo) tải được.
+    const assetBase = this.auth.getFrontendUrl();
+    return absolutizeAssets({ ...store, assetBase }, assetBase);
   }
 
   /**

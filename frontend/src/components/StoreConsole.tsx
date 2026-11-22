@@ -40,10 +40,12 @@ import {
   LuUsers,
   LuImages,
   LuWarehouse,
+  LuMessagesSquare,
+  LuSettings,
 } from "react-icons/lu";
 import type { AccountInfo, AuthUser } from "../data/auth";
 import { ApiError } from "../data/platform-api";
-import { getZaloTemplateUrl } from "../data/site";
+import { getZaloStoreUrl } from "../data/site";
 import {
   addStoreCustomer,
   addStoreProduct,
@@ -70,6 +72,9 @@ import { LEGACY_PLATFORM_SECTIONS } from "./PlatformConsole";
 const named = <K extends string, M extends Record<K, React.ComponentType<never>>>(p: Promise<M>, k: K) =>
   p.then((m) => ({ default: m[k] as M[K] }));
 const MiniAppStudio = lazy(() => import("./MiniAppStudio"));
+const InboxSection = lazy(() => named(import("./InboxViews"), "InboxSection"));
+const BuildRequestPanel = lazy(() => named(import("./StoreSettingsViews"), "BuildRequestPanel"));
+const StoreSettingsSection = lazy(() => named(import("./StoreSettingsViews"), "StoreSettingsSection"));
 const AlbumsSection = lazy(() => named(import("./AlbumViews"), "AlbumsSection"));
 const CustomersSection = lazy(() => named(import("./StoreCustomerViews"), "CustomersSection"));
 const OrdersSection = lazy(() => named(import("./StoreOrderViews"), "OrdersSection"));
@@ -103,6 +108,8 @@ const VALID_NAV_KEYS: StoreNavKey[] = [
   "inventory",
   "documents",
   "support",
+  "oainbox",
+  "settings",
 ];
 
 
@@ -537,7 +544,8 @@ export default function StoreConsole({
     );
   }
 
-  const zaloPreviewUrl = getZaloTemplateUrl(store.templateId);
+  // QR mở Mini App của đúng gian hàng này (thiết kế + sản phẩm của shop), không phải mẫu minh hoạ
+  const zaloPreviewUrl = getZaloStoreUrl(store.slug);
 
   const navItems: { key: StoreNavKey; label: string; icon: React.ReactNode; badge?: number; alert?: boolean }[] = [
     { key: "overview", label: "Tổng quan", icon: <LuLayoutDashboard size={17} /> },
@@ -557,6 +565,8 @@ export default function StoreConsole({
     { key: "miniapp", label: "Miniapp", icon: <LuSmartphone size={17} /> },
     { key: "inventory", label: "Kho", icon: <LuWarehouse size={17} /> },
     { key: "documents", label: "Thư viện & Tài liệu", icon: <LuBookOpen size={17} />, badge: store.documents?.length },
+    { key: "oainbox", label: "Tin nhắn OA", icon: <LuMessagesSquare size={17} /> },
+    { key: "settings", label: "Thiết lập", icon: <LuSettings size={17} /> },
     { key: "support", label: "Hỗ trợ", icon: <LuLifeBuoy size={17} /> },
   ];
 
@@ -844,6 +854,18 @@ export default function StoreConsole({
           )}
 
 
+          {activeNav === "oainbox" && <InboxSection key={store.id} storeId={store.id} />}
+
+          {activeNav === "settings" && (
+            <StoreSettingsSection
+              key={store.id}
+              store={store}
+              onPatch={(patch) => updateCurrentStore((s) => ({ ...s, ...patch }))}
+              onSecretInput={(v) => applyLocal((s) => ({ ...s, zaloAppSecret: v }))}
+              onSecretSave={saveZaloSecret}
+            />
+          )}
+
           {activeNav === "albums" && (
             <AlbumsSection key={store.id} store={store} initialCustomerId={searchParams.get("customer") ?? undefined} />
           )}
@@ -952,9 +974,14 @@ export default function StoreConsole({
           </div>
           <div className="flex flex-col items-center justify-center rounded-2xl border border-slate-100 bg-slate-50 p-4 text-center md:col-span-4">
             <QRCode value={zaloPreviewUrl} size={136} bordered={false} />
-            <div className="mt-2.5 text-xs font-bold text-slate-900">Mã QR truy cập Store</div>
-            <div className="mt-0.5 text-[11px] text-slate-500">Slug: /{store.slug}</div>
+            <div className="mt-2.5 text-xs font-bold text-slate-900">Quét bằng Zalo để xem trước</div>
+            <div className="mt-0.5 text-[11px] text-slate-500">Mini App của shop · /{store.slug}</div>
           </div>
+        </div>
+        <div className="mt-4 border-t border-slate-100 pt-4">
+          <Suspense fallback={<Spin />}>
+            <BuildRequestPanel key={store.id} store={store} />
+          </Suspense>
         </div>
       </Modal>
 

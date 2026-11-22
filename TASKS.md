@@ -187,6 +187,25 @@ Mỗi việc ghi rõ file liên quan và tiêu chí xong. Sau mỗi việc: type
 - Kéo thả 1 / nhiều ảnh hoặc link (Drive, Google Photos…) vào dòng khách → modal đặt tên → tạo album + gửi tin báo khách. Bấm dòng mở hồ sơ (drawer), album mở ngay tại chỗ (`AlbumDrawer`), không chuyển trang.
 - API mới `GET /stores/:id/messages/conversations` (tin cuối + số chưa đọc theo từng khách).
 
+### [x] T25. Shop tự tạo loại album (22/11/2026)
+- `Store.albumKinds` (Json, null = mặc định Hôm nay / Ảnh cưới / Đám hỏi / Khác), migration `20261122180000_store_album_kinds`.
+- API `GET|PUT /stores/:id/album-kinds` — `{ kinds: [{ key?, label, color, icon, hint? }] }`, tối đa 20, key bỏ trống = loại mới (`k_xxxxxx`); album thuộc loại bị xoá chuyển sang "Khác" (hoặc loại cuối). Tạo/sửa album kiểm tra `kind` theo danh sách của shop.
+- Frontend: `AlbumKindsModal` (tên, mô tả, 17 biểu tượng, màu, sắp xếp, xoá) + hook `useAlbumKinds` dùng chung; mở từ nút "Loại album" / "+ Thêm loại" ở mục Album ảnh, ô "Thêm / sửa loại" khi tạo album, nút "+" cạnh chọn loại trong modal Gửi ảnh. Đổi loại album trong `AlbumDrawer`.
+
+### [/] T27. Quét QR mở đúng Mini App của gian hàng (xem trước) (22/11/2026)
+- QR ở trang quản trị (Thông tin store + Miniapp Studio) dùng `getZaloStoreUrl(slug)` → `zalo.me/s/<appId reMini>/?env&version&store=<slug>` (trước là `mode=Template&templateID=…` nên chỉ ra mẫu minh hoạ).
+- Mini App: `?store=<slug>` → route `/store/:slug` (`src/store-runtime/store-app.tsx`) đọc `GET /stores/public/:slug` và render đúng thiết kế Miniapp Studio (`builderSchema`): thanh tiêu đề, khối, tab bar, popup hội viên (giả lập). Store chưa có thiết kế → mở mẫu `templateId`.
+  Bộ render chép từ `frontend/src/miniapp-builder/{blocks,icons,types}` bằng `node scripts/sync-builder.mjs` (chạy lại khi sửa bên frontend).
+- Ảnh mẫu của builder chuyển sang `frontend/public/stock/<ngành>/…` (URL cố định); `/stores/public/:slug` đổi URL ảnh tương đối thành `FRONTEND_URL/…` (kèm `assetBase`), trả thêm voucher đang chạy + tài liệu đã đăng. Thiết kế cũ `/src/assets/templates/…` tự đổi sang `/stock/…`.
+- **Còn lại:** deploy Mini App bản mới + cập nhật `VITE_ZALO_VERSION`; `FRONTEND_URL` trên VPS phải là domain https của web; nối dữ liệu thật (đăng nhập, giỏ hàng, đặt lịch, album) — bước 3; App ID riêng của shop chưa dùng link này.
+
+### [x] T26. Thiết lập gian hàng: App ID riêng, OA riêng, yêu cầu build app (22/11/2026)
+- **Đã làm:** trang chủ shop **Thiết lập** (`/admin/settings`: Mini App ID + App Secret, OA ID/OA Secret/token/URL webhook); form **yêu cầu build** + tiến trình nằm trong cửa sổ **Xuất bản** (Miniapp → Xuất bản) và **Tin nhắn OA** (`/admin/oainbox`, dùng lại `InboxSection` với `storeId`);
+  trang điều hành **Yêu cầu build app** (`/controller/builds`: Duyệt → Đã phát hành / Từ chối + lý do). Backend `src/builds/`, `src/inbox/store-oa.service.ts`, migration `20261122200000_store_oa_build_requests`.
+  Thông báo Telegram/webhook `build.requested`. Test: `test/store-oa.api.test.ts` (6) — API 29/29, unit 16/16. Test bắt được lỗi lộ `oaSecretEnc` ở chi tiết store → đã vá.
+- **Chưa thử thật / còn lại:** OA thật của gian hàng (cần OA + https + B13); shop chưa được báo khi trạng thái build đổi (chỉ thấy khi mở trang); build/deploy vẫn do reMini làm tay từ `snapshot`
+  (chưa tự `zmp-cli deploy`); tin OA của gian hàng chưa có thông báo cho chủ shop; chưa xem giao diện bằng trình duyệt.
+
 ### [/] T11. Trang quản trị: hoàn thiện
 - **Đã làm:** xuất CSV (Lịch gọi lại / Nhận tư vấn); trang **Khách hàng reMini** (CRUD + SĐT nhân sự, SĐT tự chuẩn hoá về `0xxxxxxxxx` để khớp số Zalo). **Còn lại:** gán `storeId` cho dự án, sửa ngày bắt đầu/hạn dự án trong giao diện.
 - Lead tab "Nhận tư vấn" + "Đặt lịch" thêm xuất Excel/CSV.

@@ -1,129 +1,129 @@
-import retailBanner1 from "../assets/templates/retail/banner-1.jpg";
-import retailBanner2 from "../assets/templates/retail/banner-2.jpg";
-import retailProd1 from "../assets/templates/retail/prod-1.jpg";
-import retailProd2 from "../assets/templates/retail/prod-2.jpg";
-import retailProd3 from "../assets/templates/retail/prod-3.jpg";
-import retailProd4 from "../assets/templates/retail/prod-4.jpg";
-import retailProd5 from "../assets/templates/retail/prod-5.jpg";
-import retailProd6 from "../assets/templates/retail/prod-6.jpg";
+const retailBanner1 = "/stock/retail/banner-1.jpg";
+const retailBanner2 = "/stock/retail/banner-2.jpg";
+const retailProd1 = "/stock/retail/prod-1.jpg";
+const retailProd2 = "/stock/retail/prod-2.jpg";
+const retailProd3 = "/stock/retail/prod-3.jpg";
+const retailProd4 = "/stock/retail/prod-4.jpg";
+const retailProd5 = "/stock/retail/prod-5.jpg";
+const retailProd6 = "/stock/retail/prod-6.jpg";
 
-import fnbBanner1 from "../assets/templates/fnb/banner-1.jpg";
-import fnbBanner2 from "../assets/templates/fnb/banner-2.jpg";
-import fnbProd1 from "../assets/templates/fnb/prod-1.jpg";
-import fnbProd2 from "../assets/templates/fnb/prod-2.jpg";
-import fnbProd3 from "../assets/templates/fnb/prod-3.jpg";
-import fnbProd4 from "../assets/templates/fnb/prod-4.jpg";
-import fnbProd5 from "../assets/templates/fnb/prod-5.jpg";
-import fnbProd6 from "../assets/templates/fnb/prod-6.jpg";
+const fnbBanner1 = "/stock/fnb/banner-1.jpg";
+const fnbBanner2 = "/stock/fnb/banner-2.jpg";
+const fnbProd1 = "/stock/fnb/prod-1.jpg";
+const fnbProd2 = "/stock/fnb/prod-2.jpg";
+const fnbProd3 = "/stock/fnb/prod-3.jpg";
+const fnbProd4 = "/stock/fnb/prod-4.jpg";
+const fnbProd5 = "/stock/fnb/prod-5.jpg";
+const fnbProd6 = "/stock/fnb/prod-6.jpg";
 
-import restaurantBanner1 from "../assets/templates/restaurant/banner-1.jpg";
-import restaurantBanner2 from "../assets/templates/restaurant/banner-2.jpg";
-import restaurantProd1 from "../assets/templates/restaurant/prod-1.jpg";
-import restaurantProd2 from "../assets/templates/restaurant/prod-2.jpg";
-import restaurantProd3 from "../assets/templates/restaurant/prod-3.jpg";
-import restaurantProd4 from "../assets/templates/restaurant/prod-4.jpg";
-import restaurantProd5 from "../assets/templates/restaurant/prod-5.jpg";
-import restaurantProd6 from "../assets/templates/restaurant/prod-6.jpg";
+const restaurantBanner1 = "/stock/restaurant/banner-1.jpg";
+const restaurantBanner2 = "/stock/restaurant/banner-2.jpg";
+const restaurantProd1 = "/stock/restaurant/prod-1.jpg";
+const restaurantProd2 = "/stock/restaurant/prod-2.jpg";
+const restaurantProd3 = "/stock/restaurant/prod-3.jpg";
+const restaurantProd4 = "/stock/restaurant/prod-4.jpg";
+const restaurantProd5 = "/stock/restaurant/prod-5.jpg";
+const restaurantProd6 = "/stock/restaurant/prod-6.jpg";
 
-import spaBanner1 from "../assets/templates/spa/banner-1.jpg";
-import spaBanner2 from "../assets/templates/spa/banner-2.jpg";
-import spaNews1 from "../assets/templates/spa/news-1.jpg";
-import spaNews2 from "../assets/templates/spa/news-2.jpg";
-import spaProd1 from "../assets/templates/spa/prod-1.jpg";
-import spaProd2 from "../assets/templates/spa/prod-2.jpg";
-import spaProd3 from "../assets/templates/spa/prod-3.jpg";
-import spaProd4 from "../assets/templates/spa/prod-4.jpg";
-import spaProd5 from "../assets/templates/spa/prod-5.jpg";
+const spaBanner1 = "/stock/spa/banner-1.jpg";
+const spaBanner2 = "/stock/spa/banner-2.jpg";
+const spaNews1 = "/stock/spa/news-1.jpg";
+const spaNews2 = "/stock/spa/news-2.jpg";
+const spaProd1 = "/stock/spa/prod-1.jpg";
+const spaProd2 = "/stock/spa/prod-2.jpg";
+const spaProd3 = "/stock/spa/prod-3.jpg";
+const spaProd4 = "/stock/spa/prod-4.jpg";
+const spaProd5 = "/stock/spa/prod-5.jpg";
 
-import clinicBanner1 from "../assets/templates/clinic/banner-1.jpg";
-import clinicBanner2 from "../assets/templates/clinic/banner-2.jpg";
-import clinicProd1 from "../assets/templates/clinic/prod-1.jpg";
-import clinicProd2 from "../assets/templates/clinic/prod-2.jpg";
-import clinicProd3 from "../assets/templates/clinic/prod-3.jpg";
-import clinicProd4 from "../assets/templates/clinic/prod-4.jpg";
-import clinicProd5 from "../assets/templates/clinic/prod-5.jpg";
-import clinicProd6 from "../assets/templates/clinic/prod-6.jpg";
+const clinicBanner1 = "/stock/clinic/banner-1.jpg";
+const clinicBanner2 = "/stock/clinic/banner-2.jpg";
+const clinicProd1 = "/stock/clinic/prod-1.jpg";
+const clinicProd2 = "/stock/clinic/prod-2.jpg";
+const clinicProd3 = "/stock/clinic/prod-3.jpg";
+const clinicProd4 = "/stock/clinic/prod-4.jpg";
+const clinicProd5 = "/stock/clinic/prod-5.jpg";
+const clinicProd6 = "/stock/clinic/prod-6.jpg";
 
-import supermarketBanner1 from "../assets/templates/supermarket/banner-1.jpg";
-import supermarketBanner2 from "../assets/templates/supermarket/banner-2.jpg";
-import supermarketProd1 from "../assets/templates/supermarket/prod-1.jpg";
-import supermarketProd2 from "../assets/templates/supermarket/prod-2.jpg";
-import supermarketProd3 from "../assets/templates/supermarket/prod-3.jpg";
-import supermarketProd4 from "../assets/templates/supermarket/prod-4.jpg";
-import supermarketProd5 from "../assets/templates/supermarket/prod-5.jpg";
-import supermarketProd6 from "../assets/templates/supermarket/prod-6.jpg";
+const supermarketBanner1 = "/stock/supermarket/banner-1.jpg";
+const supermarketBanner2 = "/stock/supermarket/banner-2.jpg";
+const supermarketProd1 = "/stock/supermarket/prod-1.jpg";
+const supermarketProd2 = "/stock/supermarket/prod-2.jpg";
+const supermarketProd3 = "/stock/supermarket/prod-3.jpg";
+const supermarketProd4 = "/stock/supermarket/prod-4.jpg";
+const supermarketProd5 = "/stock/supermarket/prod-5.jpg";
+const supermarketProd6 = "/stock/supermarket/prod-6.jpg";
 
-import mombabyBanner1 from "../assets/templates/mombaby/banner-1.jpg";
-import mombabyBanner2 from "../assets/templates/mombaby/banner-2.jpg";
-import mombabyProd1 from "../assets/templates/mombaby/prod-1.jpg";
-import mombabyProd2 from "../assets/templates/mombaby/prod-2.jpg";
-import mombabyProd3 from "../assets/templates/mombaby/prod-3.jpg";
-import mombabyProd4 from "../assets/templates/mombaby/prod-4.jpg";
-import mombabyProd5 from "../assets/templates/mombaby/prod-5.jpg";
-import mombabyProd6 from "../assets/templates/mombaby/prod-6.jpg";
+const mombabyBanner1 = "/stock/mombaby/banner-1.jpg";
+const mombabyBanner2 = "/stock/mombaby/banner-2.jpg";
+const mombabyProd1 = "/stock/mombaby/prod-1.jpg";
+const mombabyProd2 = "/stock/mombaby/prod-2.jpg";
+const mombabyProd3 = "/stock/mombaby/prod-3.jpg";
+const mombabyProd4 = "/stock/mombaby/prod-4.jpg";
+const mombabyProd5 = "/stock/mombaby/prod-5.jpg";
+const mombabyProd6 = "/stock/mombaby/prod-6.jpg";
 
-import giftBanner1 from "../assets/templates/gift/banner-1.jpg";
-import giftBanner2 from "../assets/templates/gift/banner-2.jpg";
-import giftProd1 from "../assets/templates/gift/prod-1.jpg";
-import giftProd2 from "../assets/templates/gift/prod-2.jpg";
-import giftProd3 from "../assets/templates/gift/prod-3.jpg";
-import giftProd4 from "../assets/templates/gift/prod-4.jpg";
-import giftProd5 from "../assets/templates/gift/prod-5.jpg";
-import giftProd6 from "../assets/templates/gift/prod-6.jpg";
+const giftBanner1 = "/stock/gift/banner-1.jpg";
+const giftBanner2 = "/stock/gift/banner-2.jpg";
+const giftProd1 = "/stock/gift/prod-1.jpg";
+const giftProd2 = "/stock/gift/prod-2.jpg";
+const giftProd3 = "/stock/gift/prod-3.jpg";
+const giftProd4 = "/stock/gift/prod-4.jpg";
+const giftProd5 = "/stock/gift/prod-5.jpg";
+const giftProd6 = "/stock/gift/prod-6.jpg";
 
-import hotelBanner1 from "../assets/templates/hotel/banner-1.jpg";
-import hotelBanner2 from "../assets/templates/hotel/banner-2.jpg";
-import hotelProd1 from "../assets/templates/hotel/prod-1.jpg";
-import hotelProd2 from "../assets/templates/hotel/prod-2.jpg";
-import hotelProd3 from "../assets/templates/hotel/prod-3.jpg";
-import hotelProd4 from "../assets/templates/hotel/prod-4.jpg";
-import hotelProd5 from "../assets/templates/hotel/prod-5.jpg";
-import hotelProd6 from "../assets/templates/hotel/prod-6.jpg";
+const hotelBanner1 = "/stock/hotel/banner-1.jpg";
+const hotelBanner2 = "/stock/hotel/banner-2.jpg";
+const hotelProd1 = "/stock/hotel/prod-1.jpg";
+const hotelProd2 = "/stock/hotel/prod-2.jpg";
+const hotelProd3 = "/stock/hotel/prod-3.jpg";
+const hotelProd4 = "/stock/hotel/prod-4.jpg";
+const hotelProd5 = "/stock/hotel/prod-5.jpg";
+const hotelProd6 = "/stock/hotel/prod-6.jpg";
 
-import realestateBanner1 from "../assets/templates/realestate/banner-1.jpg";
-import realestateBanner2 from "../assets/templates/realestate/banner-2.jpg";
-import realestateProd1 from "../assets/templates/realestate/prod-1.jpg";
-import realestateProd2 from "../assets/templates/realestate/prod-2.jpg";
-import realestateProd3 from "../assets/templates/realestate/prod-3.jpg";
-import realestateProd4 from "../assets/templates/realestate/prod-4.jpg";
-import realestateProd5 from "../assets/templates/realestate/prod-5.jpg";
-import realestateProd6 from "../assets/templates/realestate/prod-6.jpg";
+const realestateBanner1 = "/stock/realestate/banner-1.jpg";
+const realestateBanner2 = "/stock/realestate/banner-2.jpg";
+const realestateProd1 = "/stock/realestate/prod-1.jpg";
+const realestateProd2 = "/stock/realestate/prod-2.jpg";
+const realestateProd3 = "/stock/realestate/prod-3.jpg";
+const realestateProd4 = "/stock/realestate/prod-4.jpg";
+const realestateProd5 = "/stock/realestate/prod-5.jpg";
+const realestateProd6 = "/stock/realestate/prod-6.jpg";
 
-import legalBanner1 from "../assets/templates/legal/banner-1.jpg";
-import legalBanner2 from "../assets/templates/legal/banner-2.jpg";
-import legalProd1 from "../assets/templates/legal/prod-1.jpg";
-import legalProd2 from "../assets/templates/legal/prod-2.jpg";
-import legalProd3 from "../assets/templates/legal/prod-3.jpg";
-import legalProd4 from "../assets/templates/legal/prod-4.jpg";
+const legalBanner1 = "/stock/legal/banner-1.jpg";
+const legalBanner2 = "/stock/legal/banner-2.jpg";
+const legalProd1 = "/stock/legal/prod-1.jpg";
+const legalProd2 = "/stock/legal/prod-2.jpg";
+const legalProd3 = "/stock/legal/prod-3.jpg";
+const legalProd4 = "/stock/legal/prod-4.jpg";
 
-import educationBanner1 from "../assets/templates/education/banner-1.jpg";
-import educationBanner2 from "../assets/templates/education/banner-2.jpg";
-import educationProd1 from "../assets/templates/education/prod-1.jpg";
-import educationProd2 from "../assets/templates/education/prod-2.jpg";
-import educationProd3 from "../assets/templates/education/prod-3.jpg";
-import educationProd4 from "../assets/templates/education/prod-4.jpg";
-import educationProd5 from "../assets/templates/education/prod-5.jpg";
-import educationProd6 from "../assets/templates/education/prod-6.jpg";
+const educationBanner1 = "/stock/education/banner-1.jpg";
+const educationBanner2 = "/stock/education/banner-2.jpg";
+const educationProd1 = "/stock/education/prod-1.jpg";
+const educationProd2 = "/stock/education/prod-2.jpg";
+const educationProd3 = "/stock/education/prod-3.jpg";
+const educationProd4 = "/stock/education/prod-4.jpg";
+const educationProd5 = "/stock/education/prod-5.jpg";
+const educationProd6 = "/stock/education/prod-6.jpg";
 
-import billiardsBanner1 from "../assets/templates/billiards/banner-1.jpg";
-import billiardsBanner2 from "../assets/templates/billiards/banner-2.jpg";
-import billiardsProd1 from "../assets/templates/billiards/prod-1.jpg";
-import billiardsProd2 from "../assets/templates/billiards/prod-2.jpg";
-import billiardsProd3 from "../assets/templates/billiards/prod-3.jpg";
-import billiardsProd4 from "../assets/templates/billiards/prod-4.jpg";
+const billiardsBanner1 = "/stock/billiards/banner-1.jpg";
+const billiardsBanner2 = "/stock/billiards/banner-2.jpg";
+const billiardsProd1 = "/stock/billiards/prod-1.jpg";
+const billiardsProd2 = "/stock/billiards/prod-2.jpg";
+const billiardsProd3 = "/stock/billiards/prod-3.jpg";
+const billiardsProd4 = "/stock/billiards/prod-4.jpg";
 
-import kcnBanner1 from "../assets/templates/kcn/banner-1.jpg";
-import kcnBanner2 from "../assets/templates/kcn/banner-2.jpg";
-import kcnNews1 from "../assets/templates/kcn/news-1.jpg";
-import kcnNews2 from "../assets/templates/kcn/news-2.jpg";
-import kcnProd1 from "../assets/templates/kcn/prod-1.jpg";
-import kcnProd2 from "../assets/templates/kcn/prod-2.jpg";
-import kcnProd3 from "../assets/templates/kcn/prod-3.jpg";
-import kcnProd4 from "../assets/templates/kcn/prod-4.jpg";
+const kcnBanner1 = "/stock/kcn/banner-1.jpg";
+const kcnBanner2 = "/stock/kcn/banner-2.jpg";
+const kcnNews1 = "/stock/kcn/news-1.jpg";
+const kcnNews2 = "/stock/kcn/news-2.jpg";
+const kcnProd1 = "/stock/kcn/prod-1.jpg";
+const kcnProd2 = "/stock/kcn/prod-2.jpg";
+const kcnProd3 = "/stock/kcn/prod-3.jpg";
+const kcnProd4 = "/stock/kcn/prod-4.jpg";
 
 /**
  * Bộ ảnh miễn phí bản quyền (Freepik Free License & Openverse Commercial CC)
- * đã tải về lưu cục bộ trong src/assets/templates/ và phân loại theo đúng 14 ngành nghề
+ * đã tải về lưu ở public/stock/ (URL cố định /stock/<ngành>/<ảnh> — Mini App tải qua FRONTEND_URL) và phân loại theo đúng 14 ngành nghề
  * để hiển thị nhanh, sắc nét, không bị chặn hotlink.
  */
 export const FREEPIK_STOCK = {
@@ -227,6 +227,7 @@ const REMOTE_TO_LOCAL: Record<string, string> = {
 
 export function resolveLocalStockUrl(url?: string): string | undefined {
   if (!url) return url;
+  if (url.startsWith("/src/assets/templates/")) return url.replace("/src/assets/templates/", "/stock/");
   if (!url.includes("img.freepik.com")) return url;
   for (const [slug, localAsset] of Object.entries(REMOTE_TO_LOCAL)) {
     if (url.includes(slug)) return localAsset;

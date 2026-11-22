@@ -24,9 +24,11 @@ import { AuditService } from "../audit/audit.service";
 import { AdminOnly, AppAuthGuard, RequireScopes, type AppRequest } from "../common/guards/app-auth.guard";
 import { RateLimit, RateLimitGuard } from "../common/guards/rate-limit.guard";
 import { FilesService, MAX_IMAGE_BYTES } from "./files.service";
-import { CreateCareDto, OaCredentialsDto, UpdateAttachmentDto, UpdateCareDto, UpdateConversationDto } from "./inbox.dto";
+import { CreateCareDto, OaCredentialsDto, StoreOaDto, UpdateAttachmentDto, UpdateCareDto, UpdateConversationDto } from "./inbox.dto";
 import { InboxService } from "./inbox.service";
+import { StoresService } from "../stores/stores.service";
 import { OaService, oaSignature, verifyOaSignature } from "./oa.service";
+import { StoreOaService } from "./store-oa.service";
 
 const upload = () => FileInterceptor("file", { storage: memoryStorage(), limits: { fileSize: MAX_IMAGE_BYTES, files: 1 } });
 const staffName = (req: AppRequest) => req.auth?.email ?? "Nhân viên";
@@ -163,10 +165,40 @@ export class OaWebhookController {
   constructor(
     private readonly inbox: InboxService,
     private readonly oa: OaService,
+    private readonly storeOa: StoreOaService,
   ) {}
 
   @Get("webhook")
   ping() {
+    return { ok: true };
+  }
+
+  @Get("webhook/:slug")
+  pingStore() {
+    return { ok: true };
+  }
+
+  /** Webhook của OA riêng từng gian hàng — ký bằng App ID + OA Secret Key của gian hàng đó. */
+  @Post("webhook/:slug")
+  @HttpCode(200)
+  async storeWebhook(@Param("slug") slug: string, @Req() req: RawBodyRequest<Request>, @Body() body: Record<string, unknown>, @Res({ passthrough: true }) res: Response) {
+    const found = await this.storeOa.ctxBySlug(slug);
+    const raw = req.rawBody?.toString("utf8");
+    if (!found) {
+      res.status(404);
+      return { ok: false };
+    }
+    const { ctx, storeId } = found;
+    if (!ctx.appId || !ctx.oaSecret || !raw) {
+      res.status(503);
+      return { ok: false, message: "Gian hàng chưa cấu hình App ID / OA Secret Key" };
+    }
+    const mac = oaSignature(ctx.appId, raw, String(body?.timestamp ?? ""), ctx.oaSecret);
+    if (!verifyOaSignature(req.headers["x-zevent-signature"] as string | undefined, mac) || (body?.app_id && String(body.app_id) !== ctx.appId)) {
+      res.status(401);
+      return { ok: false };
+    }
+    void this.inbox.handleOaEvent(body, { storeId, ctx });
     return { ok: true };
   }
 
@@ -217,5 +249,76 @@ export class MeMessagesController {
   @UseInterceptors(upload())
   send(@Req() req: AppRequest, @Body("body") body?: string, @UploadedFile() file?: Express.Multer.File) {
     return this.inbox.customerSend(req.auth!, { body, file });
+  }
+}
+
+/** Chủ shop: Zalo OA riêng + hộp thư OA của gian hàng — /stores/:id/oa, /stores/:id/inbox/* */
+@ApiTags("stores")
+@ApiBearerAuth()
+@UseGuards(AppAuthGuard)
+@RequireScopes("stores:write")
+@Controller("stores/:id")
+export class StoreInboxController {
+  constructor(
+    private readonly inbox: InboxService,
+    private readonly storeOa: StoreOaService,
+    private readonly stores: StoresService,
+    private readonly audit: AuditService,
+  ) {}
+
+  @Get("oa")
+  @ApiOperation({ summary: "Trạng thái kết nối Zalo OA riêng của gian hàng" })
+  async oaStatus(@Req() req: AppRequest, @Param("id") id: string) {
+    await this.stores.ensureAccess(req.auth!, id);
+    return this.storeOa.status(id);
+  }
+
+  @Put("oa")
+  @ApiOperation({ summary: "Lưu OA ID, OA Secret Key, access/refresh token của gian hàng (chỉ ghi)" })
+  async oaSave(@Req() req: AppRequest, @Param("id") id: string, @Body() dto: StoreOaDto) {
+    await this.stores.ensureAccess(req.auth!, id);
+    const r = await this.storeOa.save(id, dto);
+    void this.audit.record(req, "store.oa.update", { type: "store", id }, { fields: Object.keys(dto) });
+    return r;
+  }
+
+  @Delete("oa/token")
+  async oaDisconnect(@Req() req: AppRequest, @Param("id") id: string) {
+    await this.stores.ensureAccess(req.auth!, id);
+    const r = await this.storeOa.disconnect(id);
+    void this.audit.record(req, "store.oa.disconnect", { type: "store", id });
+    return r;
+  }
+
+  @Get("inbox/conversations")
+  async list(@Req() req: AppRequest, @Param("id") id: string, @Query("status") status?: string, @Query("q") q?: string) {
+    await this.stores.ensureAccess(req.auth!, id);
+    return this.inbox.list({ status, q, channel: "oa" }, id);
+  }
+
+  @Get("inbox/conversations/:cid")
+  async get(@Req() req: AppRequest, @Param("id") id: string, @Param("cid") cid: string) {
+    await this.stores.ensureAccess(req.auth!, id);
+    return this.inbox.get(cid, id);
+  }
+
+  @Post("inbox/conversations/:cid/messages")
+  @UseInterceptors(upload())
+  async send(
+    @Req() req: AppRequest,
+    @Param("id") id: string,
+    @Param("cid") cid: string,
+    @Body("body") body?: string,
+    @Body("internal") internal?: string,
+    @UploadedFile() file?: Express.Multer.File,
+  ) {
+    await this.stores.ensureAccess(req.auth!, id);
+    return this.inbox.staffSend(cid, staffName(req), { body, internal: internal === "true", file }, id);
+  }
+
+  @Patch("inbox/conversations/:cid")
+  async update(@Req() req: AppRequest, @Param("id") id: string, @Param("cid") cid: string, @Body() dto: UpdateConversationDto) {
+    await this.stores.ensureAccess(req.auth!, id);
+    return this.inbox.update(cid, { status: dto.status, displayName: dto.displayName }, id);
   }
 }

@@ -564,7 +564,8 @@ export function MiniAppBuilder({ brand, initialSchema, products, documents, vouc
               content={
                 <div className="text-center">
                   <QRCode value={previewUrl} size={150} bordered={false} />
-                  <div className="mt-1 text-xs text-slate-500">Quét bằng Zalo để mở Mini App</div>
+                  <div className="mt-1 text-xs text-slate-500">Quét bằng Zalo để xem trước Mini App</div>
+                  <div className="text-[11px] text-slate-400">Thiết kế tự lưu — quét lại để thấy bản mới</div>
                 </div>
               }
             >

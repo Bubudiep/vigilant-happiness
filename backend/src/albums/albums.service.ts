@@ -4,8 +4,64 @@ import { cleanFilename } from "../inbox/files.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { AlbumStorageService } from "./album-storage.service";
 
-export const ALBUM_KINDS = ["today", "wedding", "engagement", "other"] as const;
-const KIND_LABEL: Record<string, string> = { today: "Album hôm nay", wedding: "Album ảnh cưới", engagement: "Album ảnh đám hỏi", other: "Album ảnh" };
+/** Loại album — shop tự thêm / sửa / xoá; lưu ở Store.albumKinds (null = mặc định). */
+export interface AlbumKindDef {
+  key: string;
+  label: string;
+  color: string;
+  icon: string;
+  hint?: string;
+}
+
+export const ALBUM_KIND_ICONS = [
+  "camera", "heart", "gem", "images", "baby", "cake", "graduation", "users",
+  "gift", "sparkles", "flower", "party", "plane", "briefcase", "paw", "shirt", "star",
+] as const;
+
+export const DEFAULT_ALBUM_KINDS: AlbumKindDef[] = [
+  { key: "today", label: "Hôm nay", color: "#0ea5e9", icon: "camera", hint: "Ảnh chụp trong ngày, gửi khách xem ngay" },
+  { key: "wedding", label: "Ảnh cưới", color: "#e11d48", icon: "heart", hint: "Ảnh cưới / pre-wedding" },
+  { key: "engagement", label: "Đám hỏi", color: "#d97706", icon: "gem", hint: "Lễ dạm ngõ, ăn hỏi" },
+  { key: "other", label: "Khác", color: "#64748b", icon: "images", hint: "Sự kiện, kỷ yếu, gia đình…" },
+];
+
+const MAX_KINDS = 20;
+
+function readKinds(raw: unknown): AlbumKindDef[] {
+  return Array.isArray(raw) && raw.length ? (raw as AlbumKindDef[]) : DEFAULT_ALBUM_KINDS;
+}
+
+/** Loại dự phòng khi loại cũ bị xoá / loại gửi lên không hợp lệ: "other" nếu còn, không thì loại cuối. */
+function fallbackKind(kinds: AlbumKindDef[]) {
+  return kinds.find((k) => k.key === "other") ?? kinds[kinds.length - 1];
+}
+
+const defaultTitle = (k: AlbumKindDef) => `Album ${k.label.toLocaleLowerCase("vi-VN")}`;
+
+function cleanKinds(raw: unknown): AlbumKindDef[] {
+  if (!Array.isArray(raw) || !raw.length) throw new BadRequestException("Cần ít nhất 1 loại album");
+  if (raw.length > MAX_KINDS) throw new BadRequestException(`Tối đa ${MAX_KINDS} loại album`);
+  const used = new Set<string>();
+  const names = new Set<string>();
+  return raw.map((r) => {
+    const x = (r ?? {}) as Partial<AlbumKindDef>;
+    const label = String(x.label ?? "").trim().slice(0, 40);
+    if (!label) throw new BadRequestException("Tên loại album không được trống");
+    const lower = label.toLocaleLowerCase("vi-VN");
+    if (names.has(lower)) throw new BadRequestException(`Trùng tên loại album: ${label}`);
+    names.add(lower);
+    let key = String(x.key ?? "").trim();
+    if (!/^[a-z0-9_-]{1,40}$/.test(key) || used.has(key)) {
+      do key = `k_${Math.random().toString(36).slice(2, 8)}`;
+      while (used.has(key));
+    }
+    used.add(key);
+    const color = /^#[0-9a-fA-F]{6}$/.test(String(x.color ?? "")) ? String(x.color).toLowerCase() : "#64748b";
+    const icon = (ALBUM_KIND_ICONS as readonly string[]).includes(String(x.icon ?? "")) ? String(x.icon) : "images";
+    const hint = String(x.hint ?? "").trim().slice(0, 80);
+    return { key, label, color, icon, ...(hint ? { hint } : {}) };
+  });
+}
 
 export interface AlbumLink {
   label: string;
@@ -110,6 +166,24 @@ export class AlbumsService {
 
   // ───────────── Chủ shop ─────────────
 
+  async kinds(storeId: string): Promise<AlbumKindDef[]> {
+    const st = await this.prisma.store.findUnique({ where: { id: storeId }, select: { albumKinds: true } });
+    if (!st) throw new NotFoundException("Không tìm thấy cửa hàng");
+    return readKinds(st.albumKinds);
+  }
+
+  /** Lưu danh sách loại album; album thuộc loại bị xoá chuyển sang loại dự phòng. */
+  async saveKinds(storeId: string, raw: unknown) {
+    const kinds = cleanKinds(raw);
+    const keys = kinds.map((k) => k.key);
+    const fb = fallbackKind(kinds).key;
+    const [, moved] = await this.prisma.$transaction([
+      this.prisma.store.update({ where: { id: storeId }, data: { albumKinds: kinds as unknown as Prisma.InputJsonValue } }),
+      this.prisma.storeAlbum.updateMany({ where: { storeId, kind: { notIn: keys } }, data: { kind: fb } }),
+    ]);
+    return { kinds, moved: moved.count };
+  }
+
   async list(storeId: string, filter: { customerId?: string; kind?: string } = {}) {
     const list = await this.prisma.storeAlbum.findMany({
       where: { storeId, ...(filter.customerId ? { customerId: filter.customerId } : {}), ...(filter.kind ? { kind: filter.kind } : {}) },
@@ -136,7 +210,9 @@ export class AlbumsService {
     if (!dto.customerId) throw new BadRequestException("Chọn khách hàng");
     const customer = await this.prisma.storeCustomer.findFirst({ where: { id: dto.customerId, storeId }, select: { id: true } });
     if (!customer) throw new BadRequestException("Khách hàng không thuộc cửa hàng này");
-    const kind = (ALBUM_KINDS as readonly string[]).includes(dto.kind ?? "") ? dto.kind! : "other";
+    const kinds = await this.kinds(storeId);
+    const kindDef = kinds.find((k) => k.key === dto.kind) ?? fallbackKind(kinds);
+    const kind = kindDef.key;
     const eventDate = dto.eventDate ? new Date(dto.eventDate) : null;
     if (eventDate && Number.isNaN(eventDate.getTime())) throw new BadRequestException("Ngày chụp không hợp lệ");
     const a = await this.prisma.storeAlbum.create({
@@ -144,7 +220,7 @@ export class AlbumsService {
         storeId,
         customerId: customer.id,
         kind,
-        title: dto.title?.trim().slice(0, 120) || KIND_LABEL[kind],
+        title: dto.title?.trim().slice(0, 120) || defaultTitle(kindDef),
         eventDate,
         note: dto.note?.trim().slice(0, 1000) || null,
         links: (dto.links ? cleanLinks(dto.links) : []) as unknown as Prisma.InputJsonValue,
@@ -155,6 +231,7 @@ export class AlbumsService {
 
   async update(storeId: string, id: string, dto: AlbumInput) {
     const a = await this.find(storeId, id);
+    if (dto.kind !== undefined && !(await this.kinds(storeId)).some((k) => k.key === dto.kind)) throw new BadRequestException("Loại album không tồn tại");
     if (dto.coverPhotoId && !a.photos.some((p) => p.id === dto.coverPhotoId)) throw new BadRequestException("Ảnh bìa không thuộc album");
     const eventDate = dto.eventDate === undefined ? undefined : dto.eventDate ? new Date(dto.eventDate) : null;
     if (eventDate && Number.isNaN(eventDate.getTime())) throw new BadRequestException("Ngày chụp không hợp lệ");
@@ -162,7 +239,7 @@ export class AlbumsService {
       where: { id },
       data: {
         ...(dto.title !== undefined ? { title: dto.title.trim().slice(0, 120) || a.title } : {}),
-        ...(dto.kind !== undefined && (ALBUM_KINDS as readonly string[]).includes(dto.kind) ? { kind: dto.kind } : {}),
+        ...(dto.kind !== undefined ? { kind: dto.kind } : {}),
         ...(eventDate !== undefined ? { eventDate } : {}),
         ...(dto.note !== undefined ? { note: dto.note?.trim().slice(0, 1000) || null } : {}),
         ...(dto.links !== undefined ? { links: cleanLinks(dto.links) as unknown as Prisma.InputJsonValue } : {}),

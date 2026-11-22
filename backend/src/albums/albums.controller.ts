@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, Res, UploadedFiles, UseGuards, UseInterceptors } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, Req, Res, UploadedFiles, UseGuards, UseInterceptors } from "@nestjs/common";
 import { FilesInterceptor } from "@nestjs/platform-express";
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import type { Response } from "express";
@@ -24,6 +24,20 @@ export class StoreAlbumsController {
     private readonly stores: StoresService,
   ) {}
 
+  @Get("album-kinds")
+  @ApiOperation({ summary: "Loại album của shop (mặc định: Hôm nay, Ảnh cưới, Đám hỏi, Khác)" })
+  async kinds(@Req() req: AppRequest, @Param("id") id: string) {
+    await this.stores.ensureAccess(req.auth!, id);
+    return this.albums.kinds(id);
+  }
+
+  @Put("album-kinds")
+  @ApiOperation({ summary: "Lưu loại album: { kinds: [{ key?, label, color, icon, hint? }] } — album của loại bị xoá chuyển sang Khác" })
+  async saveKinds(@Req() req: AppRequest, @Param("id") id: string, @Body("kinds") kinds: unknown) {
+    await this.stores.ensureAccess(req.auth!, id);
+    return this.albums.saveKinds(id, kinds);
+  }
+
   @Get("albums")
   @ApiOperation({ summary: "Danh sách album (lọc customerId, kind)" })
   async list(@Req() req: AppRequest, @Param("id") id: string, @Query("customerId") customerId?: string, @Query("kind") kind?: string) {
@@ -32,7 +46,7 @@ export class StoreAlbumsController {
   }
 
   @Post("albums")
-  @ApiOperation({ summary: "Tạo album cho khách (kind: today | wedding | engagement | other, links: [{label,url}])" })
+  @ApiOperation({ summary: "Tạo album cho khách (kind: key trong album-kinds, links: [{label,url}])" })
   async create(@Req() req: AppRequest, @Param("id") id: string, @Body() body: AlbumInput) {
     await this.stores.ensureAccess(req.auth!, id);
     return this.albums.create(id, body ?? {});

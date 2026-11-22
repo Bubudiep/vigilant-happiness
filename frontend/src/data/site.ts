@@ -100,6 +100,18 @@ export function getZaloTemplateUrl(templateId?: string): string {
   return `${base}?${params.toString()}`;
 }
 
+/**
+ * Link xem trước Mini App của một gian hàng (mở trong app reMini, đúng thiết kế Miniapp Studio + dữ liệu shop):
+ * https://zalo.me/s/<appId>/?env=…&version=…&store=<slug>
+ */
+export function getZaloStoreUrl(slug: string): string {
+  const params = new URLSearchParams();
+  if (siteConfig.zaloEnv) params.set("env", siteConfig.zaloEnv);
+  if (siteConfig.zaloVersion) params.set("version", siteConfig.zaloVersion);
+  params.set("store", slug);
+  return `https://zalo.me/s/${siteConfig.zaloAppId}/?${params.toString()}`;
+}
+
 export function getCategoryLabel(id: string): string {
   return categories.find((c) => c.id === id)?.label ?? id;
 }

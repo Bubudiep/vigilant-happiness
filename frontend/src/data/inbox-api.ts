@@ -116,3 +116,66 @@ export const deleteCare = (id: string) => api(`/inbox/care/${id}`, { method: "DE
 export const fetchOaStatus = () => api<OaStatus>("/inbox/oa/status");
 export const saveOaCredentials = (accessToken: string, refreshToken: string) =>
   api<OaStatus>("/inbox/oa/credentials", { method: "PUT", body: JSON.stringify({ accessToken, refreshToken }) });
+
+// ── Hộp thư OA riêng của gian hàng + thiết lập OA (backend /api/stores/:id/...) ──
+
+/** Cùng bộ thao tác với hộp thư reMini nhưng ở phạm vi một gian hàng. */
+export const storeInboxOps = (storeId: string) => ({
+  list: (f: { status?: string; channel?: string; q?: string }) => api<ConversationRow[]>(`/stores/${storeId}/inbox/conversations${qs({ status: f.status, q: f.q })}`),
+  get: (id: string) => api<ConversationDetail>(`/stores/${storeId}/inbox/conversations/${id}`),
+  patch: (id: string, data: { status?: string; displayName?: string }) =>
+    api<ConversationRow>(`/stores/${storeId}/inbox/conversations/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+  send(id: string, data: { body?: string; internal?: boolean; file?: File | null }) {
+    const fd = new FormData();
+    if (data.body) fd.set("body", data.body);
+    if (data.internal) fd.set("internal", "true");
+    if (data.file) fd.set("file", data.file);
+    return api<InboxMessage>(`/stores/${storeId}/inbox/conversations/${id}/messages`, { method: "POST", body: fd });
+  },
+});
+
+export const platformInboxOps = {
+  list: fetchConversations,
+  get: fetchConversation,
+  patch: patchConversation,
+  send: sendStaffMessage,
+};
+
+export interface StoreOaStatus extends OaStatus {
+  oaId: string;
+  hasOaSecret: boolean;
+  webhookPath: string;
+}
+
+export const fetchStoreOa = (storeId: string) => api<StoreOaStatus>(`/stores/${storeId}/oa`);
+export const saveStoreOa = (storeId: string, data: { oaId?: string; oaSecret?: string; accessToken?: string; refreshToken?: string }) =>
+  api<StoreOaStatus>(`/stores/${storeId}/oa`, { method: "PUT", body: JSON.stringify(data) });
+export const disconnectStoreOa = (storeId: string) => api<StoreOaStatus>(`/stores/${storeId}/oa/token`, { method: "DELETE" });
+
+// ── Yêu cầu build Mini App riêng ──
+
+export type BuildStatus = "pending_admin" | "pending_zalo" | "published" | "rejected" | "cancelled";
+
+export interface BuildRequestRow {
+  id: string;
+  status: BuildStatus;
+  appName?: string | null;
+  appId?: string | null;
+  note?: string | null;
+  adminNote?: string | null;
+  publishedUrl?: string | null;
+  approvedAt?: string | null;
+  publishedAt?: string | null;
+  closedAt?: string | null;
+  createdAt: string;
+  store?: { id: string; name: string; slug: string; templateId: string; customer?: { id: string; name: string; companyName?: string | null; phone: string } | null };
+}
+
+export const fetchStoreBuilds = (storeId: string) => api<BuildRequestRow[]>(`/stores/${storeId}/build-requests`);
+export const createStoreBuild = (storeId: string, data: { appName?: string; appId?: string; note?: string }) =>
+  api<BuildRequestRow>(`/stores/${storeId}/build-requests`, { method: "POST", body: JSON.stringify(data) });
+export const cancelStoreBuild = (storeId: string, id: string) => api<BuildRequestRow>(`/stores/${storeId}/build-requests/${id}/cancel`, { method: "POST" });
+
+export const fetchAdminBuilds = (status?: string) => api<BuildRequestRow[]>(`/admin/build-requests${qs({ status })}`);
+export const reviewBuild = (id: string, data: { action: "approve" | "publish" | "reject"; adminNote?: string; appId?: string; publishedUrl?: string }) =>
+  api<BuildRequestRow>(`/admin/build-requests/${id}`, { method: "PATCH", body: JSON.stringify(data) });

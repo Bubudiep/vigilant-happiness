@@ -211,8 +211,15 @@ function fromApi(raw: StoreWithOwner & { builderSchema?: BuilderSchema | null })
     products: rest.products ?? [],
     customers: rest.customers ?? [],
     sliders: rest.sliders ?? [],
-    builder: rest.builder ?? builderSchema ?? undefined,
+    builder: fixStockUrls(rest.builder ?? builderSchema ?? undefined),
   };
+}
+
+/** Thiết kế cũ lưu ảnh mẫu dạng "/src/assets/templates/…" (URL lúc dev) → "/stock/…" (public/stock). */
+function fixStockUrls<T>(v: T): T {
+  if (!v) return v;
+  const s = JSON.stringify(v);
+  return s.includes("/src/assets/templates/") ? (JSON.parse(s.split("/src/assets/templates/").join("/stock/")) as T) : v;
 }
 
 /**

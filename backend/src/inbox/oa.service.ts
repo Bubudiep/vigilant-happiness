@@ -15,6 +15,14 @@ export interface OaStatus {
   missing: string[];
 }
 
+/** Tài khoản OA: của reMini (credId = "default", cấu hình ở env) hoặc của một gian hàng (credId = "store:<id>"). */
+export interface OaCtx {
+  credId: string;
+  appId: string;
+  appSecret: string;
+  oaSecret: string;
+}
+
 /** Chữ ký webhook Zalo: sha256(appId + body thô + timestamp + OA secret key). Header `X-ZEvent-Signature: mac=<hex>`. */
 export function oaSignature(appId: string, rawBody: string, timestamp: string, secret: string) {
   return createHash("sha256").update(appId + rawBody + timestamp + secret).digest("hex");
@@ -34,7 +42,7 @@ export function verifyOaSignature(header: string | undefined, expected: string):
 @Injectable()
 export class OaService {
   private readonly log = new Logger(OaService.name);
-  private refreshing: Promise<string> | null = null;
+  private readonly refreshing = new Map<string, Promise<string>>();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -51,10 +59,15 @@ export class OaService {
     return this.config.get<string>("ZALO_OA_SECRET") ?? "";
   }
 
+  /** Tài khoản OA mặc định của reMini (đọc từ env). */
+  platformCtx(): OaCtx {
+    return { credId: "default", appId: this.appId(), appSecret: this.appSecret(), oaSecret: this.oaSecret() };
+  }
+
   /** Lần đầu: lấy từ env (ZALO_OA_ACCESS_TOKEN / ZALO_OA_REFRESH_TOKEN), sau đó dùng bản trong DB. */
-  private async credential() {
-    const row = await this.prisma.oaCredential.findUnique({ where: { id: "default" } });
-    if (row) return row;
+  private async credential(ctx: OaCtx) {
+    const row = await this.prisma.oaCredential.findUnique({ where: { id: ctx.credId } });
+    if (row || ctx.credId !== "default") return row;
     const access = this.config.get<string>("ZALO_OA_ACCESS_TOKEN");
     const refresh = this.config.get<string>("ZALO_OA_REFRESH_TOKEN");
     if (!access && !refresh) return null;
@@ -63,43 +76,54 @@ export class OaService {
     });
   }
 
-  async status(): Promise<OaStatus> {
-    const c = await this.credential();
+  async status(ctx: OaCtx = this.platformCtx()): Promise<OaStatus> {
+    const c = await this.credential(ctx);
+    const own = ctx.credId !== "default";
     const missing: string[] = [];
-    if (!this.appId()) missing.push("ZALO_APP_ID");
-    if (!this.appSecret()) missing.push("ZALO_APP_SECRET");
-    if (!this.oaSecret()) missing.push("ZALO_OA_SECRET");
+    if (!ctx.appId) missing.push(own ? "Zalo Mini App ID" : "ZALO_APP_ID");
+    if (!ctx.appSecret) missing.push(own ? "App Secret của Mini App" : "ZALO_APP_SECRET");
+    if (!ctx.oaSecret) missing.push(own ? "OA Secret Key" : "ZALO_OA_SECRET");
     if (!c) missing.push("access token OA");
     return {
       configured: !!c?.accessToken || !!c?.refreshToken,
-      webhookReady: !!this.appId() && !!this.oaSecret(),
+      webhookReady: !!ctx.appId && !!ctx.oaSecret,
       tokenExpiresAt: c?.expiresAt.toISOString() ?? null,
-      canRefresh: !!c?.refreshToken && !!this.appId() && !!this.appSecret(),
+      canRefresh: !!c?.refreshToken && !!ctx.appId && !!ctx.appSecret,
       missing,
     };
   }
 
-  async setCredentials(accessToken: string, refreshToken: string, expiresInSec = 90000) {
+  async setCredentials(accessToken: string, refreshToken: string, expiresInSec = 90000, ctx: OaCtx = this.platformCtx()) {
+    const expiresAt = new Date(Date.now() + expiresInSec * 1000);
     await this.prisma.oaCredential.upsert({
-      where: { id: "default" },
-      update: { accessToken, refreshToken, expiresAt: new Date(Date.now() + expiresInSec * 1000) },
-      create: { id: "default", accessToken, refreshToken, expiresAt: new Date(Date.now() + expiresInSec * 1000) },
+      where: { id: ctx.credId },
+      update: { accessToken, refreshToken, expiresAt },
+      create: { id: ctx.credId, accessToken, refreshToken, expiresAt },
     });
   }
 
-  /** Làm mới token; gộp các lần gọi đồng thời vì refresh_token chỉ dùng được một lần. */
-  private refresh(): Promise<string> {
-    this.refreshing ??= this.doRefresh().finally(() => (this.refreshing = null));
-    return this.refreshing;
+  /** Xoá token OA của một gian hàng (khi gỡ kết nối). */
+  async clearCredentials(ctx: OaCtx) {
+    await this.prisma.oaCredential.deleteMany({ where: { id: ctx.credId } });
   }
 
-  private async doRefresh(): Promise<string> {
-    const c = await this.credential();
-    if (!c?.refreshToken || !this.appId() || !this.appSecret()) throw new ServiceUnavailableException("Chưa cấu hình đủ để làm mới token OA");
+  /** Làm mới token; gộp các lần gọi đồng thời vì refresh_token chỉ dùng được một lần. */
+  private refresh(ctx: OaCtx): Promise<string> {
+    let p = this.refreshing.get(ctx.credId);
+    if (!p) {
+      p = this.doRefresh(ctx).finally(() => this.refreshing.delete(ctx.credId));
+      this.refreshing.set(ctx.credId, p);
+    }
+    return p;
+  }
+
+  private async doRefresh(ctx: OaCtx): Promise<string> {
+    const c = await this.credential(ctx);
+    if (!c?.refreshToken || !ctx.appId || !ctx.appSecret) throw new ServiceUnavailableException("Chưa cấu hình đủ để làm mới token OA");
     const res = await fetch(REFRESH_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded", secret_key: this.appSecret() },
-      body: new URLSearchParams({ refresh_token: c.refreshToken, app_id: this.appId(), grant_type: "refresh_token" }),
+      headers: { "Content-Type": "application/x-www-form-urlencoded", secret_key: ctx.appSecret },
+      body: new URLSearchParams({ refresh_token: c.refreshToken, app_id: ctx.appId, grant_type: "refresh_token" }),
       signal: AbortSignal.timeout(10000),
     });
     const data = (await res.json().catch(() => ({}))) as { access_token?: string; refresh_token?: string; expires_in?: string | number; error_name?: string };
@@ -107,22 +131,22 @@ export class OaService {
       this.log.warn(`Làm mới token OA thất bại: ${data.error_name ?? res.status}`);
       throw new BadGatewayException("Làm mới token Zalo OA thất bại — cần cấp lại refresh token");
     }
-    await this.setCredentials(data.access_token, data.refresh_token, Number(data.expires_in) || 90000);
+    await this.setCredentials(data.access_token, data.refresh_token, Number(data.expires_in) || 90000, ctx);
     this.log.log("Đã làm mới token Zalo OA");
     return data.access_token;
   }
 
-  private async accessToken(): Promise<string> {
-    const c = await this.credential();
+  private async accessToken(ctx: OaCtx): Promise<string> {
+    const c = await this.credential(ctx);
     if (!c) throw new ServiceUnavailableException("Chưa kết nối Zalo OA");
     if (c.accessToken && c.expiresAt.getTime() - Date.now() > REFRESH_MARGIN_MS) return c.accessToken;
-    if (c.refreshToken) return this.refresh();
+    if (c.refreshToken) return this.refresh(ctx);
     if (c.accessToken) return c.accessToken;
     throw new ServiceUnavailableException("Chưa kết nối Zalo OA");
   }
 
-  private async call(method: "GET" | "POST", url: string, body?: unknown, retry = true): Promise<{ error?: number; message?: string; data?: Record<string, unknown> }> {
-    const token = await this.accessToken();
+  private async call(method: "GET" | "POST", url: string, ctx: OaCtx, body?: unknown, retry = true): Promise<{ error?: number; message?: string; data?: Record<string, unknown> }> {
+    const token = await this.accessToken(ctx);
     let res: Response;
     try {
       res = await fetch(url, {
@@ -137,8 +161,8 @@ export class OaService {
     const json = (await res.json().catch(() => ({}))) as { error?: number; message?: string; data?: Record<string, unknown> };
     // -216 / -124: access token sai hoặc hết hạn → làm mới một lần rồi gọi lại
     if (retry && (json.error === -216 || json.error === -124)) {
-      await this.refresh().catch(() => undefined);
-      return this.call(method, url, body, false);
+      await this.refresh(ctx).catch(() => undefined);
+      return this.call(method, url, ctx, body, false);
     }
     return json;
   }
@@ -149,14 +173,14 @@ export class OaService {
   }
 
   /** Trả về message_id của Zalo. Ném lỗi (BadGateway) kèm lý do nếu Zalo từ chối. */
-  async sendText(oaUserId: string, text: string): Promise<string | undefined> {
-    const j = await this.call("POST", `${API}/message/cs`, { recipient: { user_id: oaUserId }, message: { text } });
+  async sendText(oaUserId: string, text: string, ctx: OaCtx = this.platformCtx()): Promise<string | undefined> {
+    const j = await this.call("POST", `${API}/message/cs`, ctx, { recipient: { user_id: oaUserId }, message: { text } });
     if (j.error) throw new BadGatewayException(this.explain(j));
     return j.data?.message_id as string | undefined;
   }
 
-  async sendImage(oaUserId: string, imageUrl: string, caption?: string): Promise<string | undefined> {
-    const j = await this.call("POST", `${API}/message/cs`, {
+  async sendImage(oaUserId: string, imageUrl: string, caption?: string, ctx: OaCtx = this.platformCtx()): Promise<string | undefined> {
+    const j = await this.call("POST", `${API}/message/cs`, ctx, {
       recipient: { user_id: oaUserId },
       message: {
         text: caption || undefined,
@@ -168,9 +192,9 @@ export class OaService {
   }
 
   /** Tên + ảnh đại diện người dùng OA (không bắt buộc — lỗi thì bỏ qua). */
-  async profile(oaUserId: string): Promise<{ name?: string; avatar?: string } | null> {
+  async profile(oaUserId: string, ctx: OaCtx = this.platformCtx()): Promise<{ name?: string; avatar?: string } | null> {
     try {
-      const j = await this.call("GET", `${API}/user/detail?data=${encodeURIComponent(JSON.stringify({ user_id: oaUserId }))}`);
+      const j = await this.call("GET", `${API}/user/detail?data=${encodeURIComponent(JSON.stringify({ user_id: oaUserId }))}`, ctx);
       if (j.error || !j.data) return null;
       return { name: j.data.display_name as string | undefined, avatar: j.data.avatar as string | undefined };
     } catch {
