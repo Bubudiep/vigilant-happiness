@@ -1,6 +1,6 @@
 # TASKS — reMini / recloud.vn
 
-> Cập nhật: 2026-11-19 · Bối cảnh & kiến trúc: [PROJECT.md](./PROJECT.md)
+> Cập nhật: 2026-11-25 · Bối cảnh & kiến trúc: [PROJECT.md](./PROJECT.md)
 > Trạng thái: `[x]` xong · `[/]` đang làm · `[ ]` chưa làm · **(B)** = việc của chủ dự án (không code được)
 
 Từ 20/11/2026 deploy bản **Development** (không dùng `-t`): `zmp-cli deploy -p`. Bản mới nhất: `zdev-943c98c6`
@@ -17,7 +17,7 @@ Quota Zalo: Development 11/300, Testing 19/60.
 - [ ] **B3** Xin quyền `scope.userInfo` + `scope.userPhonenumber` cho Mini App trên mini.zalo.me
 - [ ] **B4** VPS: Node LTS, PostgreSQL, Nginx, PM2, SSL; domain `api.<domain>` → `localhost:4000`, `recloud.vn` → `frontend/dist`
 - [ ] **B5** `backend/.env` production: `NODE_ENV=production`, `JWT_SECRET` mới, `PUBLIC_API_ORIGIN`, `FRONTEND_URL`, `CORS_ORIGINS`, `TRUST_PROXY=1`
-- [ ] **B6** Trên VPS: `npx prisma migrate deploy && npm run prisma:seed && npm run build && pm2 start dist/main.js --name remini-api`
+- [ ] **B6** Trên VPS: `npx prisma migrate deploy && npm run prisma:seed && npm run build && pm2 start dist/src/main.js --name remini-api` (nest build ra `dist/src/main.js`; T33 có `ecosystem.config.js`)
 - [ ] **B7** Khai báo domain backend trong danh sách domain của Mini App (mini.zalo.me → Cấu hình)
 - [ ] **B8** `demo-mini-app-store/.env`: `VITE_API_URL=https://api.ipays.vn/api` (đã đặt 22/11/2026, build OK) → còn deploy Mini App
 - [ ] **B9** Thông tin thật trong `demo-mini-app-store/src/data/company.ts` (hotline, địa chỉ, `zaloOaId`)
@@ -61,7 +61,110 @@ Quota Zalo: Development 11/300, Testing 19/60.
 
 ## 2. Việc tiếp theo (theo thứ tự ưu tiên)
 
-Mỗi việc ghi rõ file liên quan và tiêu chí xong. Sau mỗi việc: typecheck cả 3 project
+### Đợt giao 25/11/2026 — điều phối bởi phiên `demo-f7` (đã xong, commit ở nhánh `feat/storage-quota-media`)
+| Việc | Phiên | Trạng thái |
+|---|---|---|
+| T31 Hạn mức dung lượng theo gói (backend) | `backend-d2` | [x] test API 39/39 |
+| DTO dự án nhận `null` (T11) | `backend-d2` | [x] |
+| T32 Cảnh báo ổ đầy + dọn file mồ côi + nén lại ảnh cũ + chuyển ảnh base64 | `backend-d2` | [x] API 42/42, unit 19/19 |
+| T33 Bộ triển khai AlmaLinux (`deploy/`) + sao lưu | `backend-d2` | [x] chưa thử trên VPS thật |
+| T39 Xoá file ảnh khi xoá gian hàng | `backend-d2` | [x] API 45/45 |
+| T8 Gắn audit log còn thiếu + xoá logo cũ | `backend-d2` | [x] API 49/49 |
+| T34 Giao diện hạn mức dung lượng | `frontend-2b` | [x] (chờ API T31 để thử thật) |
+| T11 còn lại: gán store + sửa ngày dự án | `frontend-2b` | [x] |
+| T34b Album: xử lý `quotaExceeded` (lưu một phần) | `frontend-2b` | [x] |
+| T37 Giảm bundle trang chủ (861KB) | `frontend-2b` | [x] 861 → 719KB |
+| T38 Dọn code chết sau khi bỏ "Album ảnh khách" | `frontend-2b` | [x] |
+| T40 Test tự động cho frontend (vitest) | `frontend-2b` | [x] 28/28 |
+| T41 Album: chia lô tải ≤ 45MB + lỗi 413 của Nginx | `frontend-2b` | [x] test 37/37 |
+| T42 Mini App gian hàng: đăng nhập Zalo + Album + Tin nhắn | `frontend-2b` | [x] chưa thử trong Zalo |
+| T43 Thư viện ảnh của gian hàng (xem / xoá media) | `frontend-2b` | [x] test 41/41 |
+| T44 API media trả cờ `inUse` (gồm logo / cover / banner) | `backend-d2` | [x] API 51/51 |
+| T44c Xoá ảnh đang dùng → 409 (`?force=1` để ép) | `backend-d2` | [x] API 52/52 |
+| T46 Nút "Xoá gian hàng" (trang Cấu hình app khách) | `frontend-2b` | [x] test 60/60 |
+| T45 Nhãn tiếng Việt cho action audit mới | `frontend-2b` | [x] test 45/45 (`data/audit-labels.ts`) |
+| T44b Thư viện ảnh dùng cờ `inUse/usedIn` + xử lý 409 | `frontend-2b` | [x] test 53/53 |
+| T36 Ảnh trình thiết kế: bỏ data URL, tải lên media | `frontend-2b` | [x] chưa thử thật |
+| T35 Kiểm tra giao diện bằng trình duyệt | chủ dự án / phiên có công cụ browser | [ ] |
+
+Quy ước khi chạy song song: phiên backend chỉ sửa `backend/`, phiên frontend chỉ sửa `frontend/`; **không sửa TASKS.md / PROJECT.md** (báo lại `demo-f7` để cập nhật), **không commit / push**, không in giá trị `.env`.
+
+### [x] T31. Hạn mức dung lượng theo gói (backend)
+- **Đã làm (25/11):** migration `20261125090000_plan_storage_quota`; `src/storage-stats/storage-quota.service.ts` (usage / quotaOf / assertCanUpload), `store-storage.controller.ts` (`GET /stores/:id/storage`, shop khác → 404). Media: kiểm `file.size` trước khi ghi. Album: đã đầy → 413 ngay; còn chỗ → kiểm từng ảnh **sau khi nén**, ảnh làm vượt bị xoá và dừng; lưu được một phần → 201 `{ added, errors, quotaExceeded: true }`. PATCH gói: không gửi = giữ nguyên, `null` = bỏ giới hạn. Test `storage-quota.api.test.ts` (5), `projects.api.test.ts` (2); API 39/39, unit 16/16.
+- **Chưa xử lý:** 2 lần tải song song có thể vượt hạn mức một chút (không khoá); ảnh hộp thư + thumbnail không tính vào hạn mức. Server dev cổng 4000 cần khởi động lại.
+- `SubscriptionPlan.storageQuotaMb Int?` (null = không giới hạn) — migration bằng `prisma migrate diff`. API gói (`/subscriptions/plans`) trả + nhận trường này.
+- Dung lượng đã dùng của store = `SUM(StoreAlbumPhoto.size) + SUM(StoreMedia.sizeBytes)`; hạn mức lấy từ gói của `Store.subscriptionId` (không có gói = không giới hạn).
+- Chặn tải lên (album + media) khi vượt: HTTP **413** `{ message: "Gian hàng đã dùng hết dung lượng (đã dùng X / Y)", usedBytes, quotaBytes }`. Kiểm tra trước khi ghi file (tổng byte cả lô).
+- `GET /api/stores/:id/storage` (chủ shop + admin) → `{ usedBytes, quotaBytes: number|null, albumBytes, albumPhotos, mediaBytes, mediaFiles, planName: string|null }`.
+- `GET /api/admin/storage`: mỗi dòng `stores[]` thêm `quotaBytes: number|null`, `planName: string|null`.
+- **Xong khi:** test API: vượt hạn mức → 413; store không gói → tải bình thường; shop A không đọc được storage của shop B.
+
+### [x] T32. Cảnh báo ổ đầy + dọn file
+- **Đã làm (25/11):** cron `checkDisk` mỗi giờ (`jobs.service.ts`, event `disk.warning` → link `/controller/storage`; ≥ 80% warn, ≥ 90% critical, mỗi mức ≤ 1 lần / 12h, nhớ trong RAM nên restart sẽ nhắc lại). Script ở `backend/scripts/`, chạy trong `backend/` (cần `.env`; dùng ts-node nên VPS cần devDependencies):
+  `npm run storage:orphans [-- --delete]` (bỏ qua file < 60 phút) · `npm run storage:recompress [-- --dry-run]` (chỉ thay khi nhỏ hơn, in tổng trước/sau) · `npm run storage:inline-images [-- --apply]` (quét `builderSchema` + `sliders`; cần `PUBLIC_API_ORIGIN`; store vừa được lưu thì bỏ qua và hoàn tác). Test `test/storage-scripts.test.ts` (3). Sửa `start:prod` → `node dist/src/main`.
+- **Chưa thử thật:** gửi Telegram `disk.warning`. **Nên chạy `storage:orphans` hằng tuần** cho tới khi xong T39.
+- Cron mỗi giờ (`src/jobs/`): ổ ≥ 80% → `NotifyService` (tối đa 1 lần / 12h), ≥ 90% → mức khẩn.
+- Lệnh `npm run storage:orphans` (dry-run mặc định, `--delete` để xoá): file trong `uploads/`, `uploads-private/` không còn bản ghi DB (và ngược lại: bản ghi mất file).
+- Lệnh `npm run storage:inline-images` (dry-run mặc định): quét `Store.builderSchema` còn `data:image`, ghi thành file `uploads/` + `StoreMedia`, thay bằng URL.
+- Lệnh `npm run storage:recompress`: nén lại ảnh album cũ (chưa phải `.webp`) + tạo thumbnail, cập nhật `size/mime/width/height/storageKey`, chạy tuần tự.
+
+### [x] T33. Bộ triển khai AlmaLinux + sao lưu
+- **Đã làm (25/11):** `backend/deploy/`: `README.md` (12 mục: swap, firewalld, SELinux, Node 22, PostgreSQL 16 tinh chỉnh cho 4GB, `.env` B5, build B6, PM2, Nginx, frontend, certbot, cron `storage:orphans` CN 04:00, sao lưu + khôi phục, cập nhật, checklist), `nginx.conf` (50m, gzip, cache `/uploads/`), `ecosystem.config.js` (1 instance fork vì có cron nội bộ, 1500M, `MALLOC_ARENA_MAX=2`), `backup.sh` (pg_dump + snapshot `rsync --link-dest`, giữ 7 bản, `rclone` tuỳ chọn qua `/etc/remini/backup.env`), `remini-backup.service/.timer`, `update.sh`. VPS cài đủ devDependencies (script dùng ts-node).
+- **Chưa thử trên VPS thật:** `nginx -t`, certbot, systemd timer, rsync/rclone thật, SELinux.
+- Thư mục `deploy/` (đặt trong `backend/deploy/`): hướng dẫn cài (Node LTS, PostgreSQL, Nginx, PM2, certbot, firewalld, SELinux `httpd_can_network_connect`), `nginx.conf` mẫu (`client_max_body_size 50m`, gzip, cache ảnh `/uploads`), `ecosystem.config.js` PM2, `backup.sh` (pg_dump + `uploads*`, giữ 7 bản, tuỳ chọn `rclone` ra ngoài VPS) + systemd timer / cron.
+- **Xong khi:** làm theo README trên AlmaLinux 9 sạch là chạy được B4–B6.
+
+### [x] T34. Giao diện hạn mức dung lượng (frontend)
+- **Đã làm (25/11):** ô Dung lượng (MB/GB) ở modal gói + tag ở danh mục; cột Gói / Hạn mức + thanh % ở trang Dung lượng (≥ 90% tô đỏ); `StorageBar` "Đã dùng X / Y" ở Album ảnh + drawer album, 413 hiện thông báo và dừng các lô sau. Tự ẩn khi API chưa có. **Chưa thử với API thật.**
+- Trang **Gói dịch vụ**: ô "Dung lượng (MB/GB)" khi thêm/sửa gói, hiện ở danh mục gói (trống = không giới hạn).
+- Trang **Dung lượng** (`StorageViews.tsx`): cột Hạn mức / gói, thanh % theo hạn mức, tô đỏ store ≥ 90%.
+- Trang quản trị shop: thanh "Đã dùng X / Y" ở mục **Album ảnh** (và nơi tải ảnh sản phẩm), lỗi 413 hiện thông báo rõ.
+
+### [x] T36. Ảnh trong trình thiết kế: bỏ data URL
+- **Đã làm (25/11):** `src/data/media-api.ts` (`uploadStoreMedia`), `Inspector.tsx` nén ở client rồi tải lên `/stores/:id/media/upload`, dùng URL; 413 hiện thông báo. `MiniAppBuilder.tsx`: mở thiết kế cũ → tự chuyển lần lượt các `data:image` sang URL (báo "Đang chuyển ảnh cũ x/y"), lưu qua tự lưu. **Chưa thử thật.** Shop không mở lại trình thiết kế thì ảnh cũ vẫn là data URL → script hàng loạt ở T32.
+- **Hiện trạng:** `frontend/src/miniapp-builder/Inspector.tsx` nén ảnh thành data URL rồi lưu thẳng vào `builderSchema` (JSON trong DB) → phình DB, Mini App phải tải lại cả khối base64 mỗi lần mở, không tính vào hạn mức dung lượng.
+- **Làm:** tải ảnh qua `POST /stores/:storeId/media/upload` (đã có, lưu `uploads/`, trả URL công khai) rồi dùng URL; xử lý 413 (T31). Thiết kế cũ còn data URL → khi mở tự tải lên và thay URL (hoặc script backend chuyển hàng loạt).
+- **Xong khi:** lưu thiết kế không còn chuỗi `data:image` trong `builderSchema`.
+
+### [x] T39. Xoá file ảnh khi xoá gian hàng (backend)
+- **Đã làm (25/11):** trước đây **không có API xoá gian hàng** → thêm `DELETE /api/stores/:id` (chỉ quản trị, audit `store.delete`, xoá HẲN mọi dữ liệu + file album / thumbnail / media / ảnh hội thoại + thư mục `uploads/stores/<id>/`; giao diện chưa gọi). `src/common/store-files.ts`. Sửa lỗi thật: xoá khách của store không xoá file album (sinh file mồ côi); xoá media giờ xoá DB trước, lỗi file chỉ log. Test `store-files.api.test.ts` (3).
+- **Cố ý giữ:** xoá sản phẩm không xoá ảnh trong thư viện media (có thể dùng lại) → ảnh thừa vẫn tính vào hạn mức (T43). **Chưa làm:** logo cũ khi đổi logo vẫn giữ lại.
+- Xoá store chỉ xoá bản ghi (cascade) → file album / media / thumbnail thành mồ côi. Làm: trước khi xoá store lấy danh sách `storageKey` (StoreAlbumPhoto, StoreMedia), xoá DB rồi xoá file (lỗi xoá file chỉ log). Test API: xoá store → file không còn.
+
+### [x] T37. Giảm bundle trang chủ
+- **Đã làm (25/11):** chunk chính 861.275 → 719.450 B (gzip 229,6 kB, −16,5%): `LeadForm.tsx` và `PreviewModal` tải lười. Phần còn lại: antd lõi ~219KB, react-dom ~127KB, react-icons ~54KB, react-router ~40KB — muốn giảm tiếp phải bỏ antd khỏi trang chủ.
+- `dist/assets/index-*.js` 861KB (chưa nén) tải ngay ở trang chủ. Tìm thứ kéo vào chunk chính (antd, icon, dayjs locale, dữ liệu mẫu `site.ts`…), tách bằng `lazy`/`manualChunks`. **Xong khi:** chunk vào trang chủ giảm rõ (ghi số trước/sau), các trang vẫn chạy.
+
+### [x] T38. Dọn code chết sau khi bỏ "Album ảnh khách"
+- `frontend/src/data/inbox-api.ts`: `fetchGallery`, `patchImage`, `deleteImage`, `uploadCustomerImage`, `GalleryImage` không còn ai dùng (kiểm tra lại trước khi xoá); chuỗi "Album ảnh khách" còn sót.
+
+### [x] T40. Test tự động cho frontend
+- **Đã làm (25/11):** `vitest@^3` (vitest mới hơn cần vite ≥ 6), `npm test` trong `frontend/`, test ở `src/__tests__/` (28 test, môi trường node). Tách hàm thuần: `data/format.ts` (`fmtBytes`), `miniapp-builder/inline-images.ts`, `data/store-filter.ts`, `store-sync.ts` (`configKey`, `autosaveDecision`). Chưa test component (hàng đợi trong StoreConsole mô phỏng lại bằng chuỗi promise).
+- `vitest` (môi trường node / jsdom khi cần), `npm test` trong `frontend/`. Ưu tiên logic dễ hỏng, không cần trình duyệt: hàng đợi đồng bộ + ánh xạ id tạm (`store-sync.ts`), so sánh tự lưu, `fmtBytes`, đổi data URL ở MiniAppBuilder (tách hàm thuần), lọc store theo khách dự án, xử lý lỗi `ApiError`/413.
+
+### [x] T41. Album: chia lô theo dung lượng
+- **Đã làm (25/11):** `data/upload-batch.ts` (`splitBatches` ≤ 45MB / ≤ 30 ảnh, ảnh > 10MB sau nén bị loại); `ApiError.quota` + `apiErrorFromResponse`: 413 có `quotaBytes` = hết hạn mức (dừng các lô, gợi ý nâng gói), 413 khác (Nginx/multer) = "Ảnh quá lớn, thử ít ảnh hơn" và thử lô sau. Chưa thử với Nginx thật.
+- Nginx giới hạn 50MB / request, album cho 30 ảnh × 10MB → chia lô ≤ ~45MB (và ≤ 30 ảnh); 413 của Nginx không có JSON → vẫn hiện thông báo dễ hiểu.
+
+### [x] T42. Mini App gian hàng: đăng nhập Zalo + Album + Tin nhắn (`demo-mini-app-store/src/store-runtime/`)
+- **Đã làm (25/11):** `shop-session.ts` (token theo slug `remini_shop_<slug>_v1`, 401 → đăng nhập lại 1 lần), `shop-api.ts`, `ShopAccount.tsx` (nút tròn nổi góc dưới phải + chấm đỏ; panel tab Album ảnh / Tin nhắn; lưới `thumbUrl`, xem ảnh lớn, mở link ảnh gốc bằng `openWebview`, gửi tin). `store-app.tsx` chỉ thêm `<ShopAccountButton>`. Ngoài Zalo / thiếu `VITE_API_URL` → màn "Đăng nhập bằng Zalo" + lý do, không crash.
+- **Chưa thử trong Zalo thật:** đăng nhập, gọi API thật, vị trí nút so với tab bar, `openWebview`. Deploy 25/11 **lỗi "Permission denied. Please login again"** → chủ dự án chạy `npx zmp-cli login` (quét QR bằng Zalo) rồi deploy lại.
+- Đăng nhập khách của store: `POST /shop/:slug/auth/zalo { accessToken, phoneToken? }` → token phạm vi shop (lưu theo slug). Màn **Album** (`/me/albums`, `/me/albums/:id`, ảnh dùng `thumbUrl` ở lưới, link ảnh gốc), **Tin nhắn** (`/me/messages`), chấm đỏ theo `/me/unread`. Không deploy.
+
+### [x] T43. Thư viện ảnh của gian hàng (frontend)
+- **Đã làm (25/11):** mục **Thư viện ảnh** (`/admin/media`, `MediaLibraryViews.tsx`): StorageBar, lọc loại, lưới + dung lượng, xoá (ảnh "Đang dùng" cảnh báo đỏ). `data/media-usage.ts` (`findMediaInUse` theo sản phẩm / slider / theme / thiết kế). **Thiếu:** logo / cover / banner không có trong StoreConfig ở frontend nên có thể không được đánh dấu → T44.
+
+### [x] T44. API media trả cờ `inUse` (backend)
+- **Đã làm (25/11):** mỗi media có `inUse` + `usedIn` ("logo" | "cover" | "theme" | "slider" | "design" | "banner" | "product"), so khớp URL hoặc `storageKey`; dùng chung với dọn logo cũ. Test `media-usage.api.test.ts` (2). Không tính ảnh trong đơn hàng cũ / mô tả. **Tiếp (T44c):** `DELETE /stores/media/:id` ảnh đang dùng → 409 `{ message, usedIn }`, `?force=1` để ép.
+- `GET /stores/:storeId/media` trả thêm `inUse: boolean` (và `usedIn: string[]` như `product`, `slider`, `logo`, `banner`, `design`) tính phía server từ mọi nơi tham chiếu. Frontend ưu tiên cờ server, fallback `findMediaInUse`.
+- Màn quản lý media của store (`GET /stores/:storeId/media`, `DELETE /stores/media/:id`): lưới ảnh, dung lượng từng ảnh, lọc theo loại, xoá (cảnh báo ảnh có thể đang dùng trong sản phẩm / thiết kế — đánh dấu "đang dùng" nếu URL xuất hiện trong sản phẩm / slider / `builderSchema`), thanh dung lượng gói.
+
+### T35. Kiểm tra giao diện + T11 còn lại (frontend)
+- Mở bằng trình duyệt: `/controller/inbox` (2 tab Hội thoại / Chăm sóc, badge), `/controller/storage`, album (lưới dùng thumbnail). Sửa lỗi hiển thị / mobile.
+- T11: gán `storeId` cho dự án, sửa ngày bắt đầu/hạn dự án trong giao diện.
+
+
+Mỗi việc ghi rõ file liên quan và tiêu chí xong. Frontend có `npm test` (vitest). Sau mỗi việc: typecheck cả 3 project
 (`npx tsc --noEmit -p .` ở backend & mini app, `npx tsc --noEmit` ở frontend) và build.
 
 ### [x] T1. Thông báo cho nhân viên khi có lead / lịch gọi lại / ticket mới
@@ -107,6 +210,7 @@ Mỗi việc ghi rõ file liên quan và tiêu chí xong. Sau mỗi việc: type
 - Xoá `OAuthAccessToken`/`OAuthRefreshToken` hết hạn hoặc thu hồi > 30 ngày; `SpamEvent` > 90 ngày; `SpamBlock` hết hạn > 30 ngày.
 
 ### [x] T8. Nhật ký thao tác quản trị (audit log)
+- **25/11 bổ sung:** `customer.*`, `customer.staff.*`, `plan.*` (+ `plan.storage_quota` khi đổi hạn mức, meta fromMb/toMb), `plan_voucher.*`, `subscription.*`, `store.product.*`, `store.customer.*`, `store.delete`; meta không chứa SĐT/nội dung. Test `audit.api.test.ts` (4). Đổi logo → xoá logo cũ không còn được tham chiếu. **Cố ý chưa gắn:** `/stores/:id/data/*` (đơn, lịch hẹn…), xoá ảnh / album.
 - **Đã làm:** bảng `AuditLog`, `AuditService.record(req, action, target, meta)` (tự ẩn trường có `secret|token|password|key`), `GET /api/admin/audit`, trang "Nhật ký thao tác" trong web quản trị. Đã gắn: kênh OAuth (tạo/sửa/tắt/đổi secret/thu hồi/xoá), sửa store, chặn/bỏ chặn spam, dự án, ticket. **Chưa gắn:** CRUD khách hàng/nhân sự, gói cước, sản phẩm/khách của store.
 - Bảng `AuditLog` (actorId, action, targetType, targetId, meta JSON, ip, createdAt). Ghi khi: tạo/xoá kênh OAuth,
   đổi secret, thu hồi token, sửa store, chặn/bỏ chặn spam, đổi trạng thái dự án/ticket. Trang xem trong web quản trị.
@@ -145,7 +249,7 @@ Mỗi việc ghi rõ file liên quan và tiêu chí xong. Sau mỗi việc: type
 - **Còn lại:** Mini App của store chưa gọi các API `/shop/*` (cần giao diện đăng nhập / giỏ hàng / đặt lịch trong Mini App runtime); áp voucher khi đặt hàng.
 
 ### [x] T18. Gom trang Khách hàng + Lịch nhóm (22/11/2026)
-- `/admin/customers` có tab: Tệp khách hàng · Tin nhắn · Album ảnh khách · Chăm sóc (3 tab sau chỉ quản trị viên). Link cũ `/admin/inbox|files|care` tự chuyển sang tab.
+- `/admin/customers` có tab: Tệp khách hàng · Tin nhắn · Album ảnh khách · Chăm sóc (3 tab sau chỉ quản trị viên). *(Đã đổi ở T22/T30: chuyển sang `/controller`, Album ảnh khách bỏ, Chăm sóc nằm trong Tin nhắn.)* Link cũ `/admin/inbox|files|care` tự chuyển sang tab.
 - Lịch hẹn: giao diện **Lịch nhóm** (hàng = nhân viên, cột = hôm qua → +5 ngày), bấm lịch để đổi trạng thái / người phụ trách / xoá, bấm ô trống để đặt lịch điền sẵn ngày + nhân viên; tab "Danh sách" giữ bảng cũ.
 
 ### [x] T19. Album ảnh khách theo từng gian hàng (22/11/2026)
@@ -219,7 +323,14 @@ Mỗi việc ghi rõ file liên quan và tiêu chí xong. Sau mỗi việc: type
 - **Chưa thử thật / còn lại:** OA thật của gian hàng (cần OA + https + B13); shop chưa được báo khi trạng thái build đổi (chỉ thấy khi mở trang); build/deploy vẫn do reMini làm tay từ `snapshot`
   (chưa tự `zmp-cli deploy`); tin OA của gian hàng chưa có thông báo cho chủ shop; chưa xem giao diện bằng trình duyệt.
 
-### [/] T11. Trang quản trị: hoàn thiện
+### [x] T30. Lưu trữ ảnh + thống kê dung lượng + gọn trang điều hành (24/11/2026)
+- Ảnh album nén khi tải lên (`sharp`, `album-storage.service.ts`): ≤ 2048px, WebP q80 + thumbnail 400px ở `uploads-private/albums/thumbs/` (xem qua `?t=1`, API trả `thumbUrl`). Ảnh cũ chưa nén vẫn xem bình thường.
+- `/controller`: bỏ mục "Album ảnh khách"; "Chăm sóc" gộp vào "Tin nhắn" (tab `?tab=care`); mục mới **Dung lượng** (`/controller/storage`, `StorageViews.tsx`) ← `GET /api/admin/storage` (`src/storage-stats/`): ổ đĩa server, DB, ảnh theo từng gian hàng + tổng (theo DB), dung lượng thật trên ổ (cache 5 phút).
+- Thư mục `customer-app/` chứa Mini App riêng của từng khách (README).
+- **Chưa xem giao diện bằng trình duyệt.** VPS dự kiến: AlmaLinux, 2 CPU / 4GB RAM / 40GB NVMe → ổ là giới hạn chính (xem T31–T33).
+
+### [x] T11. Trang quản trị: hoàn thiện
+- **25/11:** `PortalAdminViews.tsx` tạo dự án chọn gian hàng + ngày bắt đầu/hạn; thẻ dự án sửa ngày, gán gian hàng. Bỏ gán gian hàng / xoá ngày gửi `null` (backend đã nhận); danh sách gian hàng lọc theo khách của dự án. **Chưa thử trên trình duyệt.**
 - **Đã làm:** xuất CSV (Lịch gọi lại / Nhận tư vấn); trang **Khách hàng reMini** (CRUD + SĐT nhân sự, SĐT tự chuẩn hoá về `0xxxxxxxxx` để khớp số Zalo). **Còn lại:** gán `storeId` cho dự án, sửa ngày bắt đầu/hạn dự án trong giao diện.
 - Lead tab "Nhận tư vấn" + "Đặt lịch" thêm xuất Excel/CSV.
 - Dự án: gán `storeId` để khách thấy Mini App tương ứng; sửa ngày bắt đầu/hạn.
@@ -246,5 +357,4 @@ Mỗi việc ghi rõ file liên quan và tiêu chí xong. Sau mỗi việc: type
 - `prisma generate` lỗi EPERM khi backend dev đang chạy: type vẫn được cập nhật nên `tsc` chạy được; muốn cập nhật cả engine thì dừng server (`nest start --watch`) rồi chạy lại.
 - Deploy Development in ra version dạng `zdev-xxxxxxxx` (không phải số); link xem thử dùng `env=DEVELOPMENT`.
 - `trust proxy` chỉ bật khi có `TRUST_PROXY` — không bật khi không có Nginx phía trước (client giả IP được).
-- Ảnh album được nén khi tải lên (`sharp`, `album-storage.service.ts`): ≤ 2048px, WebP q80 + thumbnail 400px ở `uploads-private/albums/thumbs/` (xem qua `?t=1`). Ảnh album cũ chưa nén/chưa có thumbnail vẫn xem bình thường. `sharp` phải ghim `0.34.x` (0.35 lệch type với `module: commonjs`). Trên AlmaLinux (glibc) `npm ci` tự tải binary dựng sẵn, không cần cài thêm gì.
-- Trang `/controller`: bỏ mục "Album ảnh khách"; "Chăm sóc" gộp vào "Tin nhắn" (tab `?tab=care`); thêm mục "Dung lượng" (`/controller/storage`, API `GET /api/admin/storage`: ổ đĩa server, DB, ảnh theo từng gian hàng + tổng). `customer-app/` chứa Mini App riêng của từng khách.
+- `sharp` phải ghim `0.34.x` (0.35 lệch type với `module: commonjs`). Trên AlmaLinux (glibc) `npm ci` tự tải binary dựng sẵn.
