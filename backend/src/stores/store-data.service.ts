@@ -29,6 +29,39 @@ export type Collection = (typeof COLLECTIONS)[number];
  * Dữ liệu vận hành của từng gian hàng (lịch hẹn, sự kiện, tài liệu, hạng, voucher, đơn hàng).
  * Mọi truy vấn đều lọc theo storeId sau khi đã kiểm tra quyền trên store.
  */
+/** Mục menu web quản trị tương ứng từng loại dữ liệu (tài khoản nhân viên cần được cấp 1 trong các mục) */
+const COL_SECTIONS: Record<Collection, string[]> = {
+  bookings: ["bookings", "overview"],
+  events: ["events"],
+  documents: ["documents"],
+  "member-tiers": ["loyalty"],
+  vouchers: ["loyalty"],
+  orders: ["orders", "pos"],
+  staff: ["staff"],
+};
+/** Khoá menu hợp lệ để cấp cho tài khoản nhân viên */
+export const ADMIN_SECTIONS = [
+  "overview", "pos", "orders", "bookings", "events", "products", "staff", "customers", "loyalty", "oainbox",
+  "miniapp", "albums", "media", "documents", "reports", "settings", "support",
+];
+
+/** Tài khoản web của nhân viên: email chữ thường, mục hợp lệ. Chỉ chủ shop (mine = null) được đặt. */
+function staffLogin(d: Record<string, unknown>, mine: string[] | null) {
+  if (mine) {
+    delete d.loginEmail;
+    delete d.adminSections;
+    return d;
+  }
+  if (d.loginEmail !== undefined) {
+    const e = String(d.loginEmail ?? "").trim().toLowerCase();
+    if (e && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) throw new BadRequestException("Email đăng nhập không hợp lệ");
+    d.loginEmail = e || null;
+  }
+  if (d.adminSections !== undefined)
+    d.adminSections = Array.isArray(d.adminSections) ? [...new Set((d.adminSections as string[]).filter((k) => ADMIN_SECTIONS.includes(k)))] : [];
+  return d;
+}
+
 @Injectable()
 export class StoreDataService {
   constructor(
@@ -37,7 +70,7 @@ export class StoreDataService {
   ) {}
 
   /** Toàn bộ dữ liệu vận hành của store, đúng dạng web quản trị. */
-  async loadAll(storeId: string) {
+  async loadAll(storeId: string, mine: string[] | null = null) {
     const [bookings, events, documents, memberTiers, vouchers, orders, staff] = await Promise.all([
       this.prisma.storeBooking.findMany({ where: { storeId }, orderBy: [{ bookingDate: "desc" }, { createdAt: "desc" }], take: 500 }),
       this.prisma.storeEvent.findMany({ where: { storeId }, orderBy: { startDate: "desc" } }),
@@ -55,12 +88,18 @@ export class StoreDataService {
       memberTiers: memberTiers.map(serializeTier),
       vouchers: vouchers.map((v) => ({ ...serializeVoucher(v), ...(codeStats.get(v.id) ?? { codeCount: 0, codeUsed: 0 }) })),
       orders: orders.map(serializeOrder),
-      staff: staff.map(serializeStaff),
+      // Nhân viên không có mục Nhân sự: chỉ thấy tên / ca (để phân lịch), không thấy lương & tài khoản web
+      staff: staff.map((m) => {
+        const x = serializeStaff(m);
+        if (!mine || mine.includes("staff")) return x;
+        const { baseSalary: _b, commissionPercent: _c, loginEmail: _e, adminSections: _a, phone: _p, birthday: _d, note: _n, ...pub } = x as Record<string, unknown>;
+        return pub;
+      }),
     };
   }
 
   async create(auth: AuthContext, storeId: string, col: Collection, body: unknown) {
-    await this.stores.ensureAccess(auth, storeId);
+    const mine = await this.stores.ensureSection(auth, storeId, ...COL_SECTIONS[col]);
     try {
       switch (col) {
         case "bookings": {
@@ -107,7 +146,7 @@ export class StoreDataService {
         case "orders":
           return this.createOrder(storeId, body as AdminOrderInput);
         case "staff": {
-          const d = pickFields(body, SPECS.staff, ["name"]);
+          const d = staffLogin(pickFields(body, SPECS.staff, ["name"]), mine);
           if (d.attendanceCode === "") d.attendanceCode = null;
           if (d.phone) d.phone = normalizeVnPhone(String(d.phone)) ?? d.phone;
           return serializeStaff(
@@ -121,7 +160,7 @@ export class StoreDataService {
   }
 
   async update(auth: AuthContext, storeId: string, col: Collection, id: string, body: unknown) {
-    await this.stores.ensureAccess(auth, storeId);
+    const mine = await this.stores.ensureSection(auth, storeId, ...COL_SECTIONS[col]);
     try {
       switch (col) {
         case "bookings": {
@@ -152,7 +191,7 @@ export class StoreDataService {
         case "orders":
           return this.updateOrder(storeId, id, pickFields(body, SPECS.orders));
         case "staff": {
-          const d = pickFields(body, SPECS.staff);
+          const d = staffLogin(pickFields(body, SPECS.staff), mine);
           if (d.attendanceCode === "") d.attendanceCode = null;
           if (d.phone) d.phone = normalizeVnPhone(String(d.phone)) ?? d.phone;
           if (d.name === "") throw new BadRequestException("Thiếu tên nhân viên");
@@ -166,7 +205,7 @@ export class StoreDataService {
   }
 
   async remove(auth: AuthContext, storeId: string, col: Collection, id: string) {
-    await this.stores.ensureAccess(auth, storeId);
+    await this.stores.ensureSection(auth, storeId, ...COL_SECTIONS[col]);
     const where = { id, storeId };
     const res =
       col === "bookings"
@@ -189,7 +228,7 @@ export class StoreDataService {
   // ───────────── Thẻ tích tem ─────────────
 
   async saveStampProgram(auth: AuthContext, storeId: string, body: unknown) {
-    await this.stores.ensureAccess(auth, storeId);
+    await this.stores.ensureSection(auth, storeId, "loyalty");
     const program = parseStampProgram(body);
     if (program.productIds.length) {
       const n = await this.prisma.storeProduct.count({ where: { storeId, id: { in: program.productIds } } });
@@ -203,7 +242,7 @@ export class StoreDataService {
    * Tem của 1 khách: { action: "redeem" } đổi quà (trừ đủ số tem), { action: "adjust", delta } cộng / trừ tay.
    */
   async customerStamps(auth: AuthContext, storeId: string, customerId: string, body: { action?: string; delta?: number }) {
-    await this.stores.ensureAccess(auth, storeId);
+    await this.stores.ensureSection(auth, storeId, "customers", "loyalty", "pos");
     const [store, c] = await Promise.all([
       this.prisma.store.findUnique({ where: { id: storeId }, select: { stampProgram: true } }),
       this.prisma.storeCustomer.findFirst({ where: { id: customerId, storeId } }),

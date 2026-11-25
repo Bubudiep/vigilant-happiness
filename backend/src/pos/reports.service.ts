@@ -22,7 +22,7 @@ export class ReportsService {
   ) {}
 
   async revenue(auth: AuthContext, storeId: string, from: string, to: string) {
-    await this.stores.ensureAccess(auth, storeId);
+    await this.stores.ensureSection(auth, storeId, "reports");
     if (!DATE_RE.test(from) || !DATE_RE.test(to) || from > to) throw new BadRequestException("Khoảng ngày không hợp lệ");
     const start = new Date(new Date(`${from}T00:00:00Z`).getTime() - VN);
     const end = new Date(new Date(`${to}T00:00:00Z`).getTime() - VN + 86_400_000);

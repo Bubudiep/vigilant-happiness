@@ -62,7 +62,7 @@ export class AttendanceService {
   }
 
   async list(auth: AuthContext, storeId: string, from: string, to: string) {
-    await this.stores.ensureAccess(auth, storeId);
+    await this.stores.ensureSection(auth, storeId, "staff");
     if (!DATE_RE.test(from) || !DATE_RE.test(to) || from > to) throw new BadRequestException("Khoảng ngày không hợp lệ");
     const days = (new Date(to).getTime() - new Date(from).getTime()) / 86_400_000;
     if (days > 62) throw new BadRequestException("Tối đa 62 ngày mỗi lần xem");
@@ -76,7 +76,7 @@ export class AttendanceService {
 
   /** Nhập / sửa tay một ô chấm công */
   async upsert(auth: AuthContext, storeId: string, body: AttendanceInput) {
-    await this.stores.ensureAccess(auth, storeId);
+    await this.stores.ensureSection(auth, storeId, "staff");
     const member = await this.member(storeId, String(body?.staffId ?? ""));
     const workDate = String(body.workDate ?? "");
     if (!DATE_RE.test(workDate)) throw new BadRequestException("Ngày không hợp lệ");
@@ -100,7 +100,7 @@ export class AttendanceService {
   }
 
   async remove(auth: AuthContext, storeId: string, id: string) {
-    await this.stores.ensureAccess(auth, storeId);
+    await this.stores.ensureSection(auth, storeId, "staff");
     const rec = await this.prisma.storeAttendance.findFirst({ where: { id, storeId } });
     if (!rec) throw new NotFoundException("Không tìm thấy dòng chấm công");
     await this.prisma.storeAttendance.delete({ where: { id } });
@@ -113,7 +113,7 @@ export class AttendanceService {
 
   /** Nút "Chấm vào / Chấm ra" trên web quản trị */
   async punchFromWeb(auth: AuthContext, storeId: string, staffId: string) {
-    await this.stores.ensureAccess(auth, storeId);
+    await this.stores.ensureSection(auth, storeId, "staff");
     const member = await this.member(storeId, staffId);
     return this.punch(storeId, member, new Date(), "web");
   }

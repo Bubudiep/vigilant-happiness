@@ -66,8 +66,33 @@ export class StoresService {
   /** Điều kiện lọc store theo quyền: admin thấy tất cả, chủ shop chỉ thấy store của mình. */
   private scope(auth: AuthContext): Prisma.StoreWhereInput {
     if (auth.isAdmin) return {};
-    if (!auth.customerId) return { id: "__none__" };
-    return { customerId: auth.customerId };
+    const staffIds = Object.keys(auth.staffAccess ?? {});
+    const ors: Prisma.StoreWhereInput[] = [];
+    if (auth.customerId) ors.push({ customerId: auth.customerId });
+    if (staffIds.length) ors.push({ id: { in: staffIds } });
+    if (!ors.length) return { id: "__none__" };
+    return ors.length === 1 ? ors[0] : { OR: ors };
+  }
+
+  /**
+   * Mục người gọi được xem ở store: null = toàn quyền (quản trị nền tảng / chủ shop),
+   * còn lại là danh sách mục chủ shop cấp cho tài khoản nhân viên.
+   */
+  async sectionsOf(auth: AuthContext, storeId: string): Promise<string[] | null> {
+    if (auth.isAdmin || !auth.staffAccess?.[storeId]) return null;
+    if (auth.customerId) {
+      const own = await this.prisma.store.count({ where: { id: storeId, customerId: auth.customerId } });
+      if (own) return null;
+    }
+    return auth.staffAccess[storeId];
+  }
+
+  /** Kiểm tra quyền trên store + nhân viên phải được cấp ít nhất 1 trong các mục `sections`. */
+  async ensureSection(auth: AuthContext, storeId: string, ...sections: string[]) {
+    await this.assertAccess(auth, storeId);
+    const mine = await this.sectionsOf(auth, storeId);
+    if (mine && !sections.some((s) => mine.includes(s))) throw new ForbiddenException("Tài khoản nhân viên chưa được cấp quyền mục này");
+    return mine;
   }
 
   /** Ném 404 nếu store không tồn tại hoặc không thuộc quyền của người gọi. */
@@ -108,7 +133,11 @@ export class StoresService {
       },
       orderBy: { createdAt: "desc" },
     });
-    return list.map((s) => this.redact(s));
+    // Nhân viên: kèm các mục được xem (null = toàn quyền) để web quản trị ẩn menu
+    return list.map((s) => ({
+      ...this.redact(s),
+      access: !auth.isAdmin && auth.staffAccess?.[s.id] && s.customerId !== auth.customerId ? auth.staffAccess[s.id] : null,
+    }));
   }
 
   async findOne(auth: AuthContext, id: string) {
@@ -182,7 +211,14 @@ export class StoresService {
     // Ảnh mẫu trong thiết kế là đường dẫn tương đối của web quản trị (/stock/…, /assets/…)
     // → đổi thành URL đầy đủ để Mini App (chạy ở domain Zalo) tải được.
     const assetBase = this.auth.getFrontendUrl();
-    return absolutizeAssets({ ...store, assetBase }, assetBase);
+    // Tuỳ chọn món: bỏ định mức nguyên liệu (dữ liệu nội bộ của quán) trước khi trả cho Mini App
+    const products = store.products.map((p) => ({
+      ...p,
+      options: Array.isArray(p.options)
+        ? (p.options as { choices?: { bom?: unknown }[] }[]).map((g) => ({ ...g, choices: (g.choices ?? []).map(({ bom: _bom, ...c }) => c) }))
+        : null,
+    }));
+    return absolutizeAssets({ ...store, products, assetBase }, assetBase);
   }
 
   /**
@@ -227,7 +263,7 @@ export class StoresService {
   }
 
   async updateConfig(auth: AuthContext, id: string, dto: UpdateStoreConfigDto) {
-    await this.assertAccess(auth, id);
+    await this.ensureSection(auth, id, "miniapp", "settings");
     // Đổi chủ / gói: chỉ quản trị nền tảng (Trang điều hành → Cấu hình app khách)
     const owner: Prisma.StoreUncheckedUpdateInput = {};
     if (dto.customerId !== undefined || dto.subscriptionId !== undefined) {
@@ -272,7 +308,7 @@ export class StoresService {
   }
 
   async addProduct(auth: AuthContext, storeId: string, dto: UpsertProductDto) {
-    await this.assertAccess(auth, storeId);
+    await this.ensureSection(auth, storeId, "products");
     return this.prisma.storeProduct.create({ data: { storeId, ...(await this.productData(storeId, null, dto)) } as Prisma.StoreProductUncheckedCreateInput });
   }
 
@@ -296,7 +332,7 @@ export class StoresService {
 
   /** Luôn lọc theo storeId để không sửa / xoá được sản phẩm của store khác. */
   async updateProduct(auth: AuthContext, storeId: string, productId: string, dto: UpdateProductDto) {
-    await this.assertAccess(auth, storeId);
+    await this.ensureSection(auth, storeId, "products");
     const res = await this.prisma.storeProduct.updateMany({
       where: { id: productId, storeId },
       data: (await this.productData(storeId, productId, dto)) as Prisma.StoreProductUpdateManyMutationInput,
@@ -306,26 +342,26 @@ export class StoresService {
   }
 
   async removeProduct(auth: AuthContext, storeId: string, productId: string) {
-    await this.assertAccess(auth, storeId);
+    await this.ensureSection(auth, storeId, "products");
     const res = await this.prisma.storeProduct.deleteMany({ where: { id: productId, storeId } });
     if (!res.count) throw new NotFoundException("Không tìm thấy sản phẩm");
     return { id: productId, deleted: true };
   }
 
   async addCustomer(auth: AuthContext, storeId: string, dto: UpsertCustomerDto) {
-    await this.assertAccess(auth, storeId);
+    await this.ensureSection(auth, storeId, "customers", "pos", "orders", "bookings");
     return this.prisma.storeCustomer.create({ data: { storeId, ...dto } });
   }
 
   async updateCustomer(auth: AuthContext, storeId: string, customerId: string, dto: UpdateStoreCustomerDto) {
-    await this.assertAccess(auth, storeId);
+    await this.ensureSection(auth, storeId, "customers");
     const res = await this.prisma.storeCustomer.updateMany({ where: { id: customerId, storeId }, data: dto });
     if (!res.count) throw new NotFoundException("Không tìm thấy khách hàng");
     return this.prisma.storeCustomer.findUniqueOrThrow({ where: { id: customerId } });
   }
 
   async removeCustomer(auth: AuthContext, storeId: string, customerId: string) {
-    await this.assertAccess(auth, storeId);
+    await this.ensureSection(auth, storeId, "customers");
     // Xoá khách → cascade album + ảnh của khách đó: gom file trước, xoá DB rồi xoá file
     const photos = await this.prisma.storeAlbumPhoto.findMany({ where: { storeId, album: { customerId } }, select: { storageKey: true } });
     const res = await this.prisma.storeCustomer.deleteMany({ where: { id: customerId, storeId } });

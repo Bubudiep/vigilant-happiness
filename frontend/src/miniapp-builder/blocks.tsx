@@ -45,6 +45,11 @@ export interface RenderCtx {
   onMemberLogout?: () => void;
   /** Tem thật của khách đang đăng nhập (Mini App) — có thì ưu tiên hơn số tem trong thiết kế */
   memberStamps?: { count: number; required: number; reward: string; icon: string } | null;
+  /**
+   * Mini App: bấm "+" / "Chọn" / thẻ sản phẩm → mở chọn size/topping & thêm vào giỏ.
+   * productId = null khi mục nhập tay không khớp tên món nào đang bán.
+   */
+  onAddToCart?: (productId: string | null, label: string) => void;
   /** Block này đang được chọn và đang ở chế độ chỉnh sửa → cho phép sửa text trực tiếp */
   editable: boolean;
   topInset?: number;
@@ -54,6 +59,24 @@ export interface RenderCtx {
   onEditProp: (key: "title" | "subtitle" | "ctaLabel" | "placeholder" | "eyebrow", value: string) => void;
   onEditItem: (itemId: string, key: keyof BlockItem, value: string) => void;
 }
+
+/**
+ * Mục sản phẩm → id món thật: lấy từ store_<id>; mục nhập tay thì khớp theo tên (bỏ dấu, không phân biệt hoa thường) —
+ * trùng hẳn trước, không thì món có tên dài nhất nằm trong nhãn (VD "Cà Phê Sữa Đá Sài Gòn" → "Cà phê sữa đá").
+ */
+const normName = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/gi, "d").toLowerCase().replace(/\s+/g, " ").trim();
+const productIdOf = (item: BlockItem, ctx: RenderCtx): string | null => {
+  if (item.id.startsWith("store_")) return item.id.slice(6);
+  const key = normName(item.label);
+  const live = ctx.products.filter((p) => p.active !== false).map((p) => ({ id: p.id, n: normName(p.name) }));
+  const exact = live.find((p) => p.n === key);
+  if (exact) return exact.id;
+  return live.filter((p) => p.n.length >= 4 && key.includes(p.n)).sort((a, b) => b.n.length - a.n.length)[0]?.id ?? null;
+};
+const addToCart = (item: BlockItem, ctx: RenderCtx, reason: string) => {
+  if (ctx.onRequireMemberAuth?.("checkout", reason)) return;
+  ctx.onAddToCart?.(productIdOf(item, ctx), item.label);
+};
 
 const PALETTE = ["#fde68a", "#bfdbfe", "#fecdd3", "#bbf7d0", "#ddd6fe", "#fed7aa", "#a5f3fc", "#e9d5ff"];
 export const vnd = (n?: number | null) => (typeof n === "number" ? `${n.toLocaleString("vi-VN")}đ` : "");
@@ -171,9 +194,12 @@ function ItemShell({
   className,
   style,
   children,
+  productItem,
 }: {
   item: BlockItem;
   ctx: RenderCtx;
+  /** Thẻ sản phẩm (lưới / danh sách) — ở Mini App bấm vào mở chọn món */
+  productItem?: boolean;
   className?: string;
   style?: React.CSSProperties;
   children: React.ReactNode;
@@ -185,6 +211,11 @@ function ItemShell({
       className={`${className ?? ""} relative ${selected ? "outline outline-2 outline-offset-2 outline-fuchsia-500" : ""}`}
       style={style}
       onClick={(e) => {
+        // Mini App: bấm cả thẻ sản phẩm thật cũng mở chọn món
+        if (!ctx.editable && ctx.onAddToCart && productItem) {
+          addToCart(item, ctx, "Thêm sản phẩm & đặt hàng");
+          return;
+        }
         if (isVirtual) return;
         e.stopPropagation();
         ctx.onSelectItem(item.id);
@@ -581,6 +612,7 @@ function ProductGridBlock({ block, ctx }: { block: Block; ctx: RenderCtx }) {
             key={p.id}
             item={p}
             ctx={ctx}
+            productItem
             className={variant === "minimal" ? "" : "overflow-hidden bg-white shadow-[0_1px_3px_rgba(15,23,42,0.06)]"}
             style={{ borderRadius: r }}
           >
@@ -612,7 +644,7 @@ function ProductGridBlock({ block, ctx }: { block: Block; ctx: RenderCtx }) {
                   onClick={(e) => {
                     if (ctx.editable) return;
                     e.stopPropagation();
-                    ctx.onRequireMemberAuth?.("checkout", "Thêm sản phẩm & đặt hàng");
+                    addToCart(p, ctx, "Thêm sản phẩm & đặt hàng");
                   }}
                   className="flex h-6 w-6 items-center justify-center rounded-full text-sm font-bold text-white"
                   style={{ background: ctx.theme.primary }}
@@ -635,7 +667,7 @@ function ProductListBlock({ block, ctx }: { block: Block; ctx: RenderCtx }) {
       <SectionTitle block={block} ctx={ctx} />
       <div className="space-y-2">
         {list.map((p) => (
-          <ItemShell key={p.id} item={p} ctx={ctx} className="flex items-center gap-3 bg-white p-2 shadow-[0_1px_3px_rgba(15,23,42,0.05)]" style={{ borderRadius: ctx.theme.radius }}>
+          <ItemShell key={p.id} item={p} ctx={ctx} productItem className="flex items-center gap-3 bg-white p-2 shadow-[0_1px_3px_rgba(15,23,42,0.05)]" style={{ borderRadius: ctx.theme.radius }}>
             <div className="w-[68px] shrink-0">
               <ProductThumb color={p.color} image={p.image} label={p.label} radius={Math.max(ctx.theme.radius - 4, 8)} height={68} />
             </div>
@@ -660,7 +692,7 @@ function ProductListBlock({ block, ctx }: { block: Block; ctx: RenderCtx }) {
                 onClick={(e) => {
                   if (ctx.editable) return;
                   e.stopPropagation();
-                  ctx.onRequireMemberAuth?.("checkout", "Chọn dịch vụ & đặt hàng");
+                  addToCart(p, ctx, "Chọn dịch vụ & đặt hàng");
                 }}
                 className="rounded-full px-2.5 py-1 text-[10.5px] font-bold text-white"
                 style={{ background: ctx.theme.primary }}

@@ -27,46 +27,46 @@ export class StoreAlbumsController {
   @Get("album-kinds")
   @ApiOperation({ summary: "Loại album của shop (mặc định: Hôm nay, Ảnh cưới, Đám hỏi, Khác)" })
   async kinds(@Req() req: AppRequest, @Param("id") id: string) {
-    await this.stores.ensureAccess(req.auth!, id);
+    await this.stores.ensureSection(req.auth!, id, "albums");
     return this.albums.kinds(id);
   }
 
   @Put("album-kinds")
   @ApiOperation({ summary: "Lưu loại album: { kinds: [{ key?, label, color, icon, hint? }] } — album của loại bị xoá chuyển sang Khác" })
   async saveKinds(@Req() req: AppRequest, @Param("id") id: string, @Body("kinds") kinds: unknown) {
-    await this.stores.ensureAccess(req.auth!, id);
+    await this.stores.ensureSection(req.auth!, id, "albums");
     return this.albums.saveKinds(id, kinds);
   }
 
   @Get("albums")
   @ApiOperation({ summary: "Danh sách album (lọc customerId, kind)" })
   async list(@Req() req: AppRequest, @Param("id") id: string, @Query("customerId") customerId?: string, @Query("kind") kind?: string) {
-    await this.stores.ensureAccess(req.auth!, id);
+    await this.stores.ensureSection(req.auth!, id, "albums");
     return this.albums.list(id, { customerId, kind });
   }
 
   @Post("albums")
   @ApiOperation({ summary: "Tạo album cho khách (kind: key trong album-kinds, links: [{label,url}])" })
   async create(@Req() req: AppRequest, @Param("id") id: string, @Body() body: AlbumInput) {
-    await this.stores.ensureAccess(req.auth!, id);
+    await this.stores.ensureSection(req.auth!, id, "albums");
     return this.albums.create(id, body ?? {});
   }
 
   @Get("albums/:albumId")
   async detail(@Req() req: AppRequest, @Param("id") id: string, @Param("albumId") albumId: string) {
-    await this.stores.ensureAccess(req.auth!, id);
+    await this.stores.ensureSection(req.auth!, id, "albums");
     return this.albums.detail(id, albumId);
   }
 
   @Patch("albums/:albumId")
   async update(@Req() req: AppRequest, @Param("id") id: string, @Param("albumId") albumId: string, @Body() body: AlbumInput) {
-    await this.stores.ensureAccess(req.auth!, id);
+    await this.stores.ensureSection(req.auth!, id, "albums");
     return this.albums.update(id, albumId, body ?? {});
   }
 
   @Delete("albums/:albumId")
   async remove(@Req() req: AppRequest, @Param("id") id: string, @Param("albumId") albumId: string) {
-    await this.stores.ensureAccess(req.auth!, id);
+    await this.stores.ensureSection(req.auth!, id, "albums");
     return this.albums.remove(id, albumId);
   }
 
@@ -81,52 +81,52 @@ export class StoreAlbumsController {
     @Param("albumId") albumId: string,
     @UploadedFiles() files: Express.Multer.File[],
   ) {
-    await this.stores.ensureAccess(req.auth!, id);
+    await this.stores.ensureSection(req.auth!, id, "albums");
     return this.albums.addPhotos(id, albumId, files);
   }
 
   @Delete("albums/:albumId/photos/:photoId")
   async removePhoto(@Req() req: AppRequest, @Param("id") id: string, @Param("albumId") albumId: string, @Param("photoId") photoId: string) {
-    await this.stores.ensureAccess(req.auth!, id);
+    await this.stores.ensureSection(req.auth!, id, "albums");
     return this.albums.removePhoto(id, albumId, photoId);
   }
 
   @Post("albums/:albumId/publish")
   @ApiOperation({ summary: "Gửi album cho khách: đánh dấu đã gửi + nhắn tin vào hộp thư của khách" })
   async publish(@Req() req: AppRequest, @Param("id") id: string, @Param("albumId") albumId: string, @Body("message") message?: string) {
-    await this.stores.ensureAccess(req.auth!, id);
+    await this.stores.ensureSection(req.auth!, id, "albums");
     return this.albums.publish(id, albumId, message);
   }
 
   @Post("albums/:albumId/unpublish")
   async unpublish(@Req() req: AppRequest, @Param("id") id: string, @Param("albumId") albumId: string) {
-    await this.stores.ensureAccess(req.auth!, id);
+    await this.stores.ensureSection(req.auth!, id, "albums");
     return this.albums.unpublish(id, albumId);
   }
 
   @Get("messages/unread")
   async unread(@Req() req: AppRequest, @Param("id") id: string) {
-    await this.stores.ensureAccess(req.auth!, id);
+    await this.stores.ensureSection(req.auth!, id, "albums");
     return this.albums.unreadByCustomer(id);
   }
 
   @Get("messages/conversations")
   @ApiOperation({ summary: "Danh sách hội thoại: tin cuối + số tin chưa đọc của từng khách" })
   async conversations(@Req() req: AppRequest, @Param("id") id: string) {
-    await this.stores.ensureAccess(req.auth!, id);
+    await this.stores.ensureSection(req.auth!, id, "albums");
     return this.albums.conversations(id);
   }
 
   @Get("messages/:customerId")
   @ApiOperation({ summary: "Tin nhắn với một khách (đánh dấu đã đọc tin khách gửi)" })
   async thread(@Req() req: AppRequest, @Param("id") id: string, @Param("customerId") customerId: string) {
-    await this.stores.ensureAccess(req.auth!, id);
+    await this.stores.ensureSection(req.auth!, id, "albums");
     return this.albums.thread(id, customerId, "in");
   }
 
   @Post("messages/:customerId")
   async send(@Req() req: AppRequest, @Param("id") id: string, @Param("customerId") customerId: string, @Body("body") body: string) {
-    await this.stores.ensureAccess(req.auth!, id);
+    await this.stores.ensureSection(req.auth!, id, "albums");
     return this.albums.send(id, customerId, "out", body);
   }
 }

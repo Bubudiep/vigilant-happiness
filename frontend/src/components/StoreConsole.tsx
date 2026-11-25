@@ -224,6 +224,18 @@ export default function StoreConsole({
   }, []);
 
   const store = stores.find((s) => s.id === selectedId) ?? stores[0];
+  // Tài khoản nhân viên: chỉ các mục chủ shop cấp (null = toàn quyền)
+  const access = store?.access?.length ? store.access : null;
+  const allowed = (k: StoreNavKey) => !access || access.includes(k);
+  /** Mở mục; mục gộp mà trang đầu không được cấp → mở trang con đầu tiên được cấp */
+  const openNav = (key: StoreNavKey) => {
+    const to = allowed(key) ? key : NAV_TABS[key]?.tabs.find(allowed);
+    if (to) setActiveNav(to);
+  };
+  useEffect(() => {
+    if (access && !access.includes(activeNav)) navigate(`/admin/${access[0]}`, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [access?.join(), activeNav]);
 
   // Bản mới nhất của danh sách store — các thao tác bất đồng bộ đọc từ đây (tránh dùng bản cũ trong closure)
   const storesRef = useRef(stores);
@@ -535,16 +547,25 @@ export default function StoreConsole({
   // Nhóm menu trái (kiểu Jira): mỗi nhóm một tiêu đề nhỏ; mục gộp (NAV_TABS) lấy nhãn cha, badge của trang con đầu
   const itemOf = (k: StoreNavKey) => navItems.find((i) => i.key === k)!;
   const navOf = (...keys: StoreNavKey[]) =>
-    keys.map((k) => (NAV_TABS[k] ? { ...itemOf(k), label: NAV_TABS[k]!.label, children: NAV_TABS[k]!.tabs.map(itemOf) } : itemOf(k))).filter(Boolean);
+    keys.flatMap((k) => {
+      const g = NAV_TABS[k];
+      if (!g) return allowed(k) ? [itemOf(k)] : [];
+      const tabs = g.tabs.filter(allowed);
+      if (!tabs.length) return [];
+      // Chỉ còn 1 trang con được cấp → hiện như mục thường (nhãn & biểu tượng của trang đó)
+      if (tabs.length === 1) return [{ ...itemOf(tabs[0]), key: k }];
+      return [{ ...itemOf(k), label: g.label, children: tabs.map(itemOf) }];
+    });
   const navGroups: ShellNavGroup<StoreNavKey>[] = [
     { title: "Vận hành", items: navOf("overview", "pos", "orders", "bookings") },
     { title: "Hàng hoá & nhân sự", items: navOf("products", "staff") },
     { title: "Khách hàng", items: navOf("customers", "loyalty") },
     { title: "Mini App", items: navOf("miniapp", "albums") },
     { title: "Hệ thống", items: navOf("reports", "settings") },
-  ];
+  ].filter((g) => g.items.length);
+  const tabsOf = (k: StoreNavKey) => (NAV_TABS[k]?.tabs ?? []).filter(allowed);
   const navParent = NAV_PARENT[activeNav] ?? activeNav;
-  const navTabs = NAV_TABS[navParent];
+  const navTabs = NAV_TABS[navParent] && tabsOf(navParent).length > 1 ? { ...NAV_TABS[navParent]!, tabs: tabsOf(navParent) } : undefined;
   const activeLabel = itemOf(activeNav)?.label;
 
   const switcher = (variant: "top" | "sidebar", mini = false) => (
@@ -573,7 +594,7 @@ export default function StoreConsole({
       }
       groups={navGroups}
       active={navParent}
-      onSelect={setActiveNav}
+      onSelect={openNav}
       collapsed={sidebarCollapsed}
       onToggleCollapsed={() => setSidebarCollapsed((c) => !c)}
       sidebarHeader={(mini) => switcher("sidebar", mini)}
@@ -590,7 +611,12 @@ export default function StoreConsole({
               <div className="text-3xs font-semibold uppercase tracking-[0.08em] text-slate-400">Mini App</div>
               <div className="mt-px text-xs font-medium text-slate-700">{store.active ? "Đang hoạt động" : "Tạm tắt"}</div>
             </div>
-            <Switch size="small" checked={store.active} onChange={(v) => updateCurrentStore((s) => ({ ...s, active: v }))} />
+            <Switch
+              size="small"
+              checked={store.active}
+              disabled={!allowed("miniapp") && !allowed("settings")}
+              onChange={(v) => updateCurrentStore((s) => ({ ...s, active: v }))}
+            />
           </div>
         )
       }
@@ -627,7 +653,7 @@ export default function StoreConsole({
           ) : (
           <Suspense fallback={<SectionLoading />}>
           {activeNav === "overview" && (
-            <OverviewSection store={store} onNavigate={setActiveNav} updateCurrentStore={updateCurrentStore} />
+            <OverviewSection store={store} onNavigate={openNav} updateCurrentStore={updateCurrentStore} />
           )}
 
           {activeNav === "bookings" && (

@@ -64,7 +64,7 @@ export class PosService {
   // ───────────── đọc ─────────────
 
   async overview(auth: AuthContext, storeId: string) {
-    await this.stores.ensureAccess(auth, storeId);
+    await this.stores.ensureSection(auth, storeId, "pos");
     const [areas, tables, sessions] = await Promise.all([
       this.prisma.storeArea.findMany({ where: { storeId }, orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] }),
       this.prisma.storeTable.findMany({ where: { storeId }, orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] }),
@@ -82,13 +82,13 @@ export class PosService {
   // ───────────── khu vực ─────────────
 
   async createArea(auth: AuthContext, storeId: string, body: unknown) {
-    await this.stores.ensureAccess(auth, storeId);
+    await this.stores.ensureSection(auth, storeId, "pos");
     const d = pickFields(body, AREA_SPEC, ["name"]);
     return this.serializeArea(await this.prisma.storeArea.create({ data: { ...(d as { name: string }), storeId } }));
   }
 
   async updateArea(auth: AuthContext, storeId: string, id: string, body: unknown) {
-    await this.stores.ensureAccess(auth, storeId);
+    await this.stores.ensureSection(auth, storeId, "pos");
     const res = await this.prisma.storeArea.updateMany({ where: { id, storeId }, data: pickFields(body, AREA_SPEC) });
     if (!res.count) throw new NotFoundException("Không tìm thấy khu vực");
     return this.serializeArea(await this.prisma.storeArea.findUniqueOrThrow({ where: { id } }));
@@ -96,7 +96,7 @@ export class PosService {
 
   /** Xoá khu vực: bàn trong khu chuyển về "Chưa xếp khu" */
   async removeArea(auth: AuthContext, storeId: string, id: string) {
-    await this.stores.ensureAccess(auth, storeId);
+    await this.stores.ensureSection(auth, storeId, "pos");
     const res = await this.prisma.storeArea.deleteMany({ where: { id, storeId } });
     if (!res.count) throw new NotFoundException("Không tìm thấy khu vực");
     return { id, deleted: true };
@@ -105,14 +105,14 @@ export class PosService {
   // ───────────── bàn / phòng ─────────────
 
   async createTable(auth: AuthContext, storeId: string, body: unknown) {
-    await this.stores.ensureAccess(auth, storeId);
+    await this.stores.ensureSection(auth, storeId, "pos");
     const d = await this.tableData(storeId, body, true);
     return this.serializeTable(await this.prisma.storeTable.create({ data: { ...(d as { name: string }), storeId } }));
   }
 
   /** Thêm nhanh nhiều bàn: { prefix: "B", from: 1, count: 10, areaId, ...cấu hình chung } */
   async createTablesBulk(auth: AuthContext, storeId: string, body: { prefix?: string; from?: number; count?: number } & Record<string, unknown>) {
-    await this.stores.ensureAccess(auth, storeId);
+    await this.stores.ensureSection(auth, storeId, "pos");
     const count = Math.min(100, Math.max(1, Math.round(Number(body?.count) || 0)));
     const from = Math.max(0, Math.round(Number(body?.from) || 1));
     const prefix = String(body?.prefix ?? "Bàn ").slice(0, 40);
@@ -126,7 +126,7 @@ export class PosService {
   }
 
   async updateTable(auth: AuthContext, storeId: string, id: string, body: unknown) {
-    await this.stores.ensureAccess(auth, storeId);
+    await this.stores.ensureSection(auth, storeId, "pos");
     const d = await this.tableData(storeId, body, false);
     const res = await this.prisma.storeTable.updateMany({ where: { id, storeId }, data: d });
     if (!res.count) throw new NotFoundException("Không tìm thấy bàn");
@@ -134,7 +134,7 @@ export class PosService {
   }
 
   async removeTable(auth: AuthContext, storeId: string, id: string) {
-    await this.stores.ensureAccess(auth, storeId);
+    await this.stores.ensureSection(auth, storeId, "pos");
     const open = await this.prisma.storeTableSession.count({ where: { storeId, tableId: id, status: "open" } });
     if (open) throw new ConflictException("Bàn đang có khách — thanh toán hoặc huỷ phiên trước khi xoá");
     const res = await this.prisma.storeTable.deleteMany({ where: { id, storeId } });
@@ -145,7 +145,7 @@ export class PosService {
   // ───────────── phiên sử dụng bàn ─────────────
 
   async open(auth: AuthContext, storeId: string, tableId: string, body: { guestCount?: number; customerId?: string; customerName?: string; note?: string; startedAt?: string }) {
-    await this.stores.ensureAccess(auth, storeId);
+    await this.stores.ensureSection(auth, storeId, "pos");
     const table = await this.table(storeId, tableId);
     if (!table.active) throw new BadRequestException("Bàn đang ngưng sử dụng");
     const busy = await this.prisma.storeTableSession.findFirst({ where: { tableId, status: "open" }, select: { id: true } });
@@ -190,7 +190,7 @@ export class PosService {
     id: string,
     body: { items?: unknown; guestCount?: number | null; customerId?: string | null; customerName?: string | null; note?: string | null; discount?: number; startedAt?: string },
   ) {
-    await this.stores.ensureAccess(auth, storeId);
+    await this.stores.ensureSection(auth, storeId, "pos");
     const s = await this.openSession(storeId, id);
     const data: Prisma.StoreTableSessionUpdateInput = {};
     if (body?.items !== undefined) data.items = (await this.items(storeId, body.items)) as unknown as Prisma.InputJsonValue;
@@ -215,7 +215,7 @@ export class PosService {
 
   /** Chuyển khách sang bàn khác (giữ giờ bắt đầu & món; giá giờ theo bàn mới) */
   async move(auth: AuthContext, storeId: string, id: string, tableId: string) {
-    await this.stores.ensureAccess(auth, storeId);
+    await this.stores.ensureSection(auth, storeId, "pos");
     const s = await this.openSession(storeId, id);
     if (s.tableId === tableId) return this.serializeSession(s, new Date());
     const table = await this.table(storeId, tableId);
@@ -229,7 +229,7 @@ export class PosService {
   }
 
   async cancel(auth: AuthContext, storeId: string, id: string) {
-    await this.stores.ensureAccess(auth, storeId);
+    await this.stores.ensureSection(auth, storeId, "pos");
     const s = await this.openSession(storeId, id);
     const saved = await this.prisma.storeTableSession.update({ where: { id: s.id }, data: { status: "cancelled", endedAt: new Date() } });
     return this.serializeSession(saved, new Date());
@@ -237,7 +237,7 @@ export class PosService {
 
   /** Thanh toán: chốt tiền giờ + món → tạo đơn "pos" đã hoàn thành; bàn chuyển "đang dọn" (tuỳ chọn) */
   async checkout(auth: AuthContext, storeId: string, id: string, body: { paymentMethod?: string; discount?: number; cleaning?: boolean }) {
-    await this.stores.ensureAccess(auth, storeId);
+    await this.stores.ensureSection(auth, storeId, "pos");
     const s = await this.openSession(storeId, id);
     const table = await this.table(storeId, s.tableId);
     const paymentMethod = (PAYMENT_METHODS as readonly string[]).includes(String(body?.paymentMethod)) ? String(body.paymentMethod) : "cash";

@@ -1,3 +1,4 @@
+import { staffAccessOf } from "../common/staff-access";
 import {
   BadRequestException,
   ConflictException,
@@ -308,7 +309,9 @@ export class AuthService {
           : user.customer.status === "pending"
             ? "pending"
             : "suspended";
-    return { ...user, isAdmin, accountStatus };
+    // Nhân viên được chủ shop cấp tài khoản web (StoreStaff.loginEmail) → vào được web quản trị với các mục được cấp
+    const staffOf = !isAdmin && accountStatus !== "active" && user.email ? await staffAccessOf(this.prisma, user.email) : undefined;
+    return { ...user, isAdmin, accountStatus: staffOf ? "active" : accountStatus, isStaff: !!staffOf };
   }
 
   /**

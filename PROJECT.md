@@ -62,6 +62,10 @@ backend/               NestJS 10 + Prisma 5 + PostgreSQL (chạy native, không 
   Luồng: đăng nhập Google → `POST /api/auth/register-seller` tạo `PlatformCustomer` ở `pending` → admin bấm **Kích hoạt**
   ở trang Khách hàng reMini → người bán mới tạo được store. `GET /api/auth/me` trả `accountStatus`
   (`admin | unregistered | pending | active | suspended`), web quản trị chặn bằng `AccountGate`.
+- **Nhân viên của shop** đăng nhập Google bằng email khai ở `StoreStaff.loginEmail` → thấy store đó với các mục `StoreStaff.adminSections`
+  (`AuthContext.staffAccess`, `src/common/staff-access.ts`). Service gọi `StoresService.ensureSection(auth, storeId, ...mục)` thay cho `ensureAccess`
+  ở route theo mục (reports, staff, pos, products, settings…); `GET /stores` + `GET /stores/:id` trả `access` (null = toàn quyền) để web ẩn menu.
+  Chỉ chủ shop đặt được `loginEmail` / `adminSections`; nhân viên không có mục `staff` không nhận lương / SĐT nhân viên khác.
 - **Người dùng Zalo** (`role = "member"`) gắn với `PlatformCustomer` khi SĐT Zalo đã xác minh trùng
   `PlatformCustomer.phone` hoặc `CustomerStaff.phone` (xem `PortalService.resolveCustomerId`).
 
@@ -70,7 +74,7 @@ backend/               NestJS 10 + Prisma 5 + PostgreSQL (chạy native, không 
 - `POST /shop/:slug/auth/zalo { accessToken, phoneToken? }` → token JWT phạm vi `shop` (ký bằng `JWT_SECRET:shop`, 30 ngày; không dùng thay token quản trị được).
   Lấy SĐT bằng App Secret riêng của store (`Store.zaloAppSecretEnc`, mã hoá AES-GCM, nhập ở modal Xuất bản) hoặc `ZALO_APP_SECRET`.
   Có SĐT trùng khách tạo tại quầy (chưa có Zalo) → gắn vào bản ghi đó.
-- `GET/PATCH /me`, `GET/POST /me/orders` (giá tính lại từ DB), `GET/POST /me/bookings`.
+- `GET/PATCH /me`, `GET/POST /me/orders` (giá tính lại từ DB; `items[].options = [{ groupId, choiceIds }]` cho size/topping), `GET/POST /me/bookings`.
 - Chủ shop quản lý dữ liệu vận hành: `/api/stores/:id/data/<bookings|events|documents|member-tiers|vouchers|orders>` (POST/PATCH/DELETE),
   danh sách trả kèm `GET /api/stores/:id`. Đơn chuyển sang `completed` → cộng chi tiêu/số đơn/điểm (1 điểm/1.000đ × hệ số hạng) và xét lại hạng.
   Web quản trị đồng bộ tự động (`frontend/src/data/store-sync.ts`).

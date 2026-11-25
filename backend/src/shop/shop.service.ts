@@ -2,6 +2,9 @@ import { BadRequestException, Injectable, NotFoundException } from "@nestjs/comm
 import { AuthService } from "../auth/auth.service";
 import { normalizeVnPhone, ZaloService } from "../oauth/zalo.service";
 import { readStampProgram } from "../stores/stamps";
+import { loadWithIngredients, unitCostOf } from "../stores/inventory";
+import { applyOptions, readOptions, type OptionSelection } from "../stores/options";
+import type { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { makeCode, serializeBooking, serializeOrder, serializeVoucher } from "../stores/store-data";
 import { StoresService } from "../stores/stores.service";
@@ -141,7 +144,8 @@ export class ShopService {
     storeId: string,
     customerId: string,
     dto: {
-      items?: { productId: string; quantity: number }[];
+      /** options: lựa chọn size / topping… [{ groupId, choiceIds }] — giá cộng thêm tính lại theo cấu hình món */
+      items?: { productId: string; quantity: number; options?: OptionSelection[] }[];
       address?: string;
       note?: string;
       phone?: string;
@@ -151,14 +155,23 @@ export class ShopService {
   ) {
     const items = (dto.items ?? []).filter((i) => i && typeof i.productId === "string");
     if (!items.length || items.length > 50) throw new BadRequestException("Giỏ hàng trống hoặc quá nhiều sản phẩm");
-    const products = await this.prisma.storeProduct.findMany({
-      where: { storeId, active: true, id: { in: items.map((i) => i.productId) } },
-    });
+    // Sản phẩm + nguyên liệu (BOM món & BOM lựa chọn) để chốt giá vốn tại thời điểm đặt
+    const byId = await loadWithIngredients(this.prisma, storeId, [...new Set(items.map((i) => i.productId))]);
     const lines = items.map((i) => {
-      const p = products.find((x) => x.id === i.productId);
-      if (!p) throw new BadRequestException("Có sản phẩm không còn bán");
+      const p = byId.get(i.productId) as Prisma.StoreProductGetPayload<object> | undefined;
+      if (!p || !p.active || p.kind === "material") throw new BadRequestException("Có sản phẩm không còn bán");
       const quantity = Math.min(99, Math.max(1, Math.round(Number(i.quantity) || 1)));
-      return { productId: p.id, productName: p.name, imageUrl: p.imageUrl, unitPrice: p.salePrice ?? p.price, quantity };
+      const opt = applyOptions(p.name, readOptions(p.options), Array.isArray(i.options) ? i.options : undefined);
+      const optCost = opt.picked.reduce((s, o) => s + (o.bom ?? []).reduce((x, l) => x + (byId.get(l.productId)?.costPrice ?? 0) * l.quantity, 0), 0);
+      return {
+        productId: p.id,
+        productName: opt.label.slice(0, 200),
+        imageUrl: p.imageUrl,
+        unitPrice: (p.salePrice ?? p.price) + opt.extra,
+        quantity,
+        unitCost: unitCostOf(p, byId) + optCost,
+        ...(opt.picked.length ? { options: opt.picked as unknown as Prisma.InputJsonValue } : {}),
+      };
     });
     const subtotal = lines.reduce((s, l) => s + l.unitPrice * l.quantity, 0);
     const customer = await this.prisma.storeCustomer.findUniqueOrThrow({ where: { id: customerId } });

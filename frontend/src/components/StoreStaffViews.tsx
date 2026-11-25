@@ -36,6 +36,21 @@ const initials = (name: string) =>
     .join("")
     .toUpperCase();
 
+/** Mục web quản trị có thể cấp cho tài khoản nhân viên (khoá = đường dẫn /admin/<khoá>) */
+export const ADMIN_SECTION_GROUPS: { title: string; items: [string, string][] }[] = [
+  { title: "Vận hành", items: [["overview", "Tổng quan"], ["pos", "Bán hàng"], ["orders", "Đơn hàng"], ["bookings", "Lịch hẹn"], ["events", "Sự kiện"]] },
+  { title: "Hàng hoá & nhân sự", items: [["products", "Sản phẩm & kho"], ["staff", "Nhân sự & lương"]] },
+  { title: "Khách hàng", items: [["customers", "Khách hàng"], ["loyalty", "Hạng & Voucher"], ["oainbox", "Tin nhắn OA"]] },
+  { title: "Mini App", items: [["miniapp", "Thiết kế Miniapp"], ["albums", "Album ảnh"], ["media", "Kho ảnh"], ["documents", "Tài liệu"]] },
+  { title: "Hệ thống", items: [["reports", "Báo cáo doanh thu"], ["settings", "Thiết lập"], ["support", "Hỗ trợ"]] },
+];
+const ALL_SECTIONS = ADMIN_SECTION_GROUPS.flatMap((g) => g.items.map(([k]) => k));
+const ACCESS_PRESETS: [string, string[]][] = [
+  ["Thu ngân", ["overview", "pos", "orders", "bookings", "customers"]],
+  ["Quản lý ca", ["overview", "pos", "orders", "bookings", "events", "products", "customers", "loyalty", "oainbox", "albums", "media", "documents"]],
+  ["Toàn quyền", ALL_SECTIONS],
+];
+
 type FormValues = Omit<StoreStaffItem, "id" | "startDate" | "birthday"> & { startDate?: Dayjs | null; birthday?: Dayjs | null };
 
 /**
@@ -47,7 +62,7 @@ export function StaffSection({
   updateCurrentStore,
   applyLocal,
 }: {
-  store: StoreConfig;
+  store: StoreConfig & { access?: string[] | null };
   updateCurrentStore: (updater: (s: StoreConfig) => StoreConfig) => void;
   /** Cập nhật giao diện không gửi lên máy chủ (trạng thái do máy chủ đồng bộ từ chấm công) */
   applyLocal: (updater: (s: StoreConfig) => StoreConfig) => void;
@@ -68,6 +83,8 @@ export function StaffSection({
   const [q, setQ] = useState("");
   const [drawer, setDrawer] = useState<{ open: boolean; item?: StoreStaffItem }>({ open: false });
   const [form] = Form.useForm<FormValues>();
+  // Chỉ chủ shop (không phải tài khoản nhân viên) được cấp tài khoản web cho nhân viên
+  const canGrant = !store.access?.length;
 
   const positions = useMemo(() => [...new Set(staff.map((s) => s.position).filter((p): p is string => !!p))].sort((a, b) => a.localeCompare(b, "vi")), [staff]);
   const serviceNames = store.products.filter(isService).map((p) => p.name);
@@ -124,6 +141,8 @@ export function StaffSection({
       position: clean(v.position),
       department: clean(v.department),
       note: clean(v.note),
+      loginEmail: clean(v.loginEmail)?.toLowerCase() ?? null,
+      adminSections: v.adminSections ?? [],
       baseSalary: v.baseSalary ?? null,
       commissionPercent: v.commissionPercent ?? null,
       workDays: v.workDays ?? [],
@@ -220,7 +239,16 @@ export function StaffSection({
                     <button type="button" className="block max-w-full truncate text-left font-semibold text-slate-900 hover:text-brand-600" onClick={() => open(s)}>
                       {s.name}
                     </button>
-                    <div className="truncate text-xs text-slate-500">{[s.code, s.position].filter(Boolean).join(" · ") || "—"}</div>
+                    <div className="flex min-w-0 items-center gap-1.5">
+                      <span className="truncate text-xs text-slate-500">{[s.code, s.position].filter(Boolean).join(" · ") || "—"}</span>
+                      {s.loginEmail && !!s.adminSections?.length && (
+                        <Tooltip title={`Đăng nhập web: ${s.loginEmail} · ${s.adminSections.length} mục`}>
+                          <Tag color="blue" className="!m-0 shrink-0 !px-1 !text-3xs">
+                            Web
+                          </Tag>
+                        </Tooltip>
+                      )}
+                    </div>
                   </div>
                 </div>
               ),
@@ -435,6 +463,52 @@ export function StaffSection({
           <Form.Item label="Ghi chú" name="note">
             <Input.TextArea rows={2} />
           </Form.Item>
+
+          {canGrant && (
+            <>
+              <div className="mb-2 mt-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Tài khoản web quản trị</div>
+              <Form.Item
+                label="Email Google đăng nhập"
+                name="loginEmail"
+                rules={[{ type: "email", message: "Email không hợp lệ" }]}
+                extra="Nhân viên đăng nhập web quản trị bằng Google với email này, chỉ thấy các mục được tick bên dưới. Để trống = không có tài khoản."
+              >
+                <Input placeholder="nhanvien@gmail.com" />
+              </Form.Item>
+              <Form.Item noStyle shouldUpdate={(a, b) => a.loginEmail !== b.loginEmail}>
+                {({ getFieldValue }) =>
+                  getFieldValue("loginEmail") ? (
+                    <>
+                      <div className="mb-2 flex flex-wrap items-center gap-1.5">
+                        <span className="text-2xs text-slate-500">Mẫu nhanh:</span>
+                        {ACCESS_PRESETS.map(([label, keys]) => (
+                          <Button key={label} size="small" onClick={() => form.setFieldValue("adminSections", keys)}>
+                            {label}
+                          </Button>
+                        ))}
+                      </div>
+                      <Form.Item name="adminSections" extra="Báo cáo doanh thu, Nhân sự & lương và Thiết lập chỉ nên cấp cho người tin cậy.">
+                        <Checkbox.Group className="!grid w-full gap-2">
+                          {ADMIN_SECTION_GROUPS.map((g) => (
+                            <div key={g.title}>
+                              <div className="mb-1 text-3xs font-semibold uppercase tracking-[0.08em] text-slate-400">{g.title}</div>
+                              <div className="flex flex-wrap gap-x-4 gap-y-1">
+                                {g.items.map(([k, label]) => (
+                                  <Checkbox key={k} value={k}>
+                                    {label}
+                                  </Checkbox>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </Checkbox.Group>
+                      </Form.Item>
+                    </>
+                  ) : null
+                }
+              </Form.Item>
+            </>
+          )}
           <FormFooter>
             <Button onClick={() => setDrawer({ open: false })}>Huỷ</Button>
             <Button type="primary" htmlType="submit">

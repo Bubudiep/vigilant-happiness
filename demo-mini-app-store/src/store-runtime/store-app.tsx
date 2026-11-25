@@ -9,8 +9,9 @@ import { fetchPublicStore, PublicStore, StoreLoadError } from "./api";
 import { BlockRenderer, DocumentLike, ProductLike, RenderCtx, VoucherLike } from "./builder/blocks";
 import { Icon } from "./builder/icons";
 import { BuilderAuthConfig, BuilderPage, BuilderSchema, DEFAULT_BUILDER_AUTH } from "./builder/types";
+import { CartBar, CartSheet, ProductSheet, useCart } from "./cart";
 import { ShopAccountButton } from "./ShopAccount";
-import { getShopSession, shopFetch } from "./shop-session";
+import { clearShopSession, getShopSession, ShopAuthError, shopFetch, shopLogin } from "./shop-session";
 import { setStockBase } from "./stock";
 
 /**
@@ -94,10 +95,16 @@ function StoreScreen({ store, schema }: { store: PublicStore; schema: BuilderSch
   const page: BuilderPage = schema.pages.find((p) => p.id === pageId) ?? schema.pages[0];
   const [safeTop, probe] = useSafeTop();
   const scroller = useRef<HTMLDivElement>(null);
-  const [memberLoggedIn, setMemberLoggedIn] = useState(false);
+  // Đã đăng nhập Zalo vào gian hàng (phiên còn hạn) → coi là hội viên
+  const [memberLoggedIn, setMemberLoggedIn] = useState(() => !!getShopSession(store.slug));
   const [authSheet, setAuthSheet] = useState<{ open: boolean; tab: "login" | "register"; reason?: string }>({ open: false, tab: "login" });
   const [toast, setToast] = useState<string | null>(null);
   const authConfig: BuilderAuthConfig = schema.auth ?? DEFAULT_BUILDER_AUTH;
+  // Giỏ hàng: bấm sản phẩm → chọn size/topping → thêm giỏ → đặt hàng
+  const cart = useCart();
+  const [picking, setPicking] = useState<string | null>(null);
+  const [cartOpen, setCartOpen] = useState(false);
+  const pickingProduct = picking ? store.products.find((p) => p.id === picking) : undefined;
 
   // Thẻ tích tem: khách đã đăng nhập Zalo → tem thật từ /me; chưa đăng nhập → khung tem theo cấu hình của quán
   const program = store.stampProgram?.enabled ? store.stampProgram : null;
@@ -203,9 +210,11 @@ function StoreScreen({ store, schema }: { store: PublicStore; schema: BuilderSch
               auth: authConfig,
               isMemberLoggedIn: memberLoggedIn,
               memberStamps,
+              onAddToCart: (id, label) => (id ? setPicking(id) : setToast(`“${label}” chưa mở bán online`)),
               onRequireMemberAuth: requireAuth,
               onOpenMemberAuth: (tab = "login") => setAuthSheet({ open: true, tab }),
               onMemberLogout: () => {
+                clearShopSession(store.slug);
                 setMemberLoggedIn(false);
                 setToast("Đã đăng xuất hội viên");
               },
@@ -231,6 +240,13 @@ function StoreScreen({ store, schema }: { store: PublicStore; schema: BuilderSch
 
         {tabs.length > 0 && <TabBar schema={schema} tabs={tabs} activeId={page.id} onNavigate={goto} />}
 
+        <CartBar
+          cart={cart}
+          primary={schema.theme.primary}
+          bottom={tabs.length > 0 ? (schema.theme.tabbarStyle === "floating" ? 92 : 72) : 20}
+          onOpen={() => setCartOpen(true)}
+        />
+
         <ShopAccountButton
           slug={store.slug}
           primary={schema.theme.primary}
@@ -244,8 +260,23 @@ function StoreScreen({ store, schema }: { store: PublicStore; schema: BuilderSch
           </div>
         )}
 
+        {pickingProduct && (
+          <ProductSheet
+            product={pickingProduct}
+            primary={schema.theme.primary}
+            onClose={() => setPicking(null)}
+            onAdd={(line) => {
+              cart.add(line);
+              setPicking(null);
+              setToast(`Đã thêm ${line.quantity} × ${line.name} vào giỏ`);
+            }}
+          />
+        )}
+        {cartOpen && <CartSheet slug={store.slug} cart={cart} primary={schema.theme.primary} onClose={() => setCartOpen(false)} />}
+
         {authSheet.open && (
           <MemberAuthSheet
+            slug={store.slug}
             appName={schema.appName || store.name}
             theme={schema.theme}
             auth={authConfig}
@@ -319,8 +350,9 @@ function TabBar({ schema, tabs, activeId, onNavigate }: { schema: BuilderSchema;
   );
 }
 
-/** Popup đăng nhập / đăng ký hội viên (bản xem trước — chưa nối tài khoản thật). */
+/** Popup đăng nhập / đăng ký hội viên. Nút Zalo đăng nhập thật vào gian hàng; ô SĐT vẫn là bản xem trước. */
 function MemberAuthSheet({
+  slug,
   appName,
   theme,
   auth,
@@ -329,6 +361,7 @@ function MemberAuthSheet({
   onClose,
   onComplete,
 }: {
+  slug: string;
   appName: string;
   theme: BuilderSchema["theme"];
   auth: BuilderAuthConfig;
@@ -339,6 +372,20 @@ function MemberAuthSheet({
 }) {
   const [tab, setTab] = useState(initialTab);
   const [followOa, setFollowOa] = useState(auth.requireFollowOa);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const zaloLogin = async () => {
+    setBusy(true);
+    setErr(null);
+    try {
+      await shopLogin(slug);
+      onComplete(tab);
+    } catch (e) {
+      setErr(e instanceof ShopAuthError ? e.message : "Đăng nhập không thành công, vui lòng thử lại");
+    } finally {
+      setBusy(false);
+    }
+  };
   return (
     <div className="absolute inset-0 z-50 flex flex-col justify-end bg-black/50" onClick={onClose}>
       <div className="rounded-t-[26px] bg-white px-4 pt-3 shadow-2xl" style={{ paddingBottom: "calc(var(--zaui-safe-area-inset-bottom, 0px) + 24px)" }} onClick={(e) => e.stopPropagation()}>
@@ -361,11 +408,13 @@ function MemberAuthSheet({
           ))}
         </div>
         <div className="mt-3.5 space-y-2.5">
+          {err && <div className="rounded-xl bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">{err}</div>}
           {auth.allowZaloQuickLogin && (
             <button
               type="button"
-              onClick={() => onComplete(tab)}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#0068FF] py-3 text-sm font-bold text-white shadow-sm"
+              disabled={busy}
+              onClick={zaloLogin}
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#0068FF] py-3 text-sm font-bold text-white shadow-sm disabled:opacity-60"
             >
               <span className="rounded bg-white px-1 py-0.5 text-[10px] font-black text-[#0068FF]">Zalo</span>
               {tab === "register" ? "Đăng ký 1 chạm bằng Zalo" : "Đăng nhập 1 chạm bằng Zalo"}

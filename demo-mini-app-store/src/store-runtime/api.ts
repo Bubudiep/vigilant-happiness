@@ -18,15 +18,7 @@ export interface PublicStore {
   updatedAt: string;
   /** Thẻ tích tem của quán (null = chưa bật) */
   stampProgram?: { enabled: boolean; required: number; reward: string; icon: string } | null;
-  products: {
-    id: string;
-    name: string;
-    category: string;
-    price: number;
-    salePrice?: number | null;
-    tag?: string | null;
-    imageUrl?: string | null;
-  }[];
+  products: PublicProduct[];
   vouchers?: {
     id: string;
     code: string;
@@ -36,6 +28,29 @@ export interface PublicStore {
     minOrderValue: number;
   }[];
   documents?: { id: string; title: string; category: string; content: string }[];
+}
+
+/** Nhóm tuỳ chọn của món: size (chọn 1) / topping (chọn nhiều, tối đa max) */
+export interface ProductOptionGroup {
+  id: string;
+  name: string;
+  multiple: boolean;
+  required: boolean;
+  max?: number | null;
+  choices: { id: string; name: string; price: number }[];
+}
+
+export interface PublicProduct {
+  id: string;
+  kind?: string;
+  name: string;
+  category: string;
+  description?: string | null;
+  price: number;
+  salePrice?: number | null;
+  tag?: string | null;
+  imageUrl?: string | null;
+  options?: ProductOptionGroup[] | null;
 }
 
 export class StoreLoadError extends Error {

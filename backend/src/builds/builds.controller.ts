@@ -22,7 +22,7 @@ export class StoreBuildsController {
 
   @Get()
   async list(@Req() req: AppRequest, @Param("id") id: string) {
-    await this.stores.ensureAccess(req.auth!, id);
+    await this.stores.ensureSection(req.auth!, id, "settings");
     return this.builds.listForStore(id);
   }
 
@@ -31,7 +31,7 @@ export class StoreBuildsController {
   @RateLimit(10, 3600)
   @ApiOperation({ summary: "Gửi yêu cầu build Mini App riêng (lưu bản chụp cấu hình gian hàng, chờ reMini duyệt)" })
   async create(@Req() req: AppRequest, @Param("id") id: string, @Body() dto: CreateBuildDto) {
-    await this.stores.ensureAccess(req.auth!, id);
+    await this.stores.ensureSection(req.auth!, id, "settings");
     const r = await this.builds.create(id, dto, req.auth?.email ?? undefined);
     void this.audit.record(req, "build.request", { type: "build", id: r.id }, { storeId: id });
     return r;
@@ -39,7 +39,7 @@ export class StoreBuildsController {
 
   @Post(":rid/cancel")
   async cancel(@Req() req: AppRequest, @Param("id") id: string, @Param("rid") rid: string) {
-    await this.stores.ensureAccess(req.auth!, id);
+    await this.stores.ensureSection(req.auth!, id, "settings");
     const r = await this.builds.cancel(id, rid);
     void this.audit.record(req, "build.cancel", { type: "build", id: rid });
     return r;

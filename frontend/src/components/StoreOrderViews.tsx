@@ -25,7 +25,9 @@ import {
   StoreConfig,
   StoreCustomerItem,
   StoreOrderItem,
+  StoreProductItem,
 } from "../data/store-api";
+import { OptionPickerModal } from "./StoreInventoryViews";
 import { FilterBar, FilterSelect, PageHeader } from "./ui";
 
 const money = (n: number) => `${Math.round(n).toLocaleString("vi-VN")}đ`;
@@ -286,7 +288,18 @@ const Row = ({ label, value, red }: { label: string; value: string; red?: boolea
 
 // ───────────────────────── Tạo đơn tại quầy ─────────────────────────
 
-type Line = { key: string; productId: string | null; name: string; unitPrice: number; quantity: number; imageUrl?: string; stock?: number };
+type Selection = { groupId: string; choiceIds: string[] };
+type Line = {
+  key: string;
+  productId: string | null;
+  name: string;
+  unitPrice: number;
+  quantity: number;
+  imageUrl?: string;
+  stock?: number;
+  /** Size / topping đã chọn — máy chủ chốt lại tên & giá vốn theo cấu hình món */
+  options?: Selection[];
+};
 type Applied = { voucherId: string; code: string; title: string; discount: number; singleUse: boolean };
 
 function OrderCreateDrawer({
@@ -319,6 +332,7 @@ function OrderCreateDrawer({
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
   const [productPick, setProductPick] = useState<string | null>(null);
+  const [optFor, setOptFor] = useState<StoreProductItem | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -387,16 +401,20 @@ function OrderCreateDrawer({
 
   const addProduct = (id: string) => {
     const p = products.find((x) => x.id === id);
-    if (!p) return;
-    setLines((ls) => {
-      const found = ls.find((l) => l.productId === id);
-      if (found) return ls.map((l) => (l === found ? { ...l, quantity: l.quantity + 1 } : l));
-      return [
-        ...ls,
-        { key: `p_${id}`, productId: id, name: p.name, unitPrice: p.salePrice ?? p.price, quantity: 1, imageUrl: p.imageUrl, stock: isService(p) ? undefined : p.stock },
-      ];
-    });
     setProductPick(null);
+    if (!p) return;
+    // Món có size / topping → chọn tuỳ chọn trước
+    if (p.options?.length) return setOptFor(p);
+    pushLine(p, p.name, p.salePrice ?? p.price);
+  };
+  /** Cùng món + cùng tuỳ chọn → cộng số lượng */
+  const pushLine = (p: StoreProductItem, name: string, unitPrice: number, options?: Selection[]) => {
+    const key = `p_${p.id}_${JSON.stringify(options ?? [])}`;
+    setLines((ls) => {
+      const found = ls.find((l) => l.key === key);
+      if (found) return ls.map((l) => (l === found ? { ...l, quantity: l.quantity + 1 } : l));
+      return [...ls, { key, productId: p.id, name, unitPrice, quantity: 1, imageUrl: p.imageUrl, stock: isService(p) ? undefined : p.stock, options }];
+    });
   };
   const addCustomLine = () =>
     setLines((ls) => [...ls, { key: `c_${Date.now()}`, productId: null, name: "", unitPrice: 0, quantity: 1 }]);
@@ -453,6 +471,7 @@ function OrderCreateDrawer({
           productName: l.productId ? undefined : l.name.trim(),
           unitPrice: l.unitPrice,
           quantity: l.quantity,
+          ...(l.options?.length ? { options: l.options } : {}),
         })),
       });
       const { customer: savedCustomer, customerCreated, ...order } = res;
@@ -705,6 +724,14 @@ function OrderCreateDrawer({
           </div>
         </aside>
       </div>
+      <OptionPickerModal
+        product={optFor}
+        onClose={() => setOptFor(null)}
+        onPick={(selections, label, price) => {
+          if (optFor) pushLine(optFor, label, price, selections);
+          setOptFor(null);
+        }}
+      />
     </Drawer>
   );
 }

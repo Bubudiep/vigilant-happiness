@@ -269,14 +269,14 @@ export class StoreInboxController {
   @Get("oa")
   @ApiOperation({ summary: "Trạng thái kết nối Zalo OA riêng của gian hàng" })
   async oaStatus(@Req() req: AppRequest, @Param("id") id: string) {
-    await this.stores.ensureAccess(req.auth!, id);
+    await this.stores.ensureSection(req.auth!, id, "settings");
     return this.storeOa.status(id);
   }
 
   @Put("oa")
   @ApiOperation({ summary: "Lưu OA ID, OA Secret Key, access/refresh token của gian hàng (chỉ ghi)" })
   async oaSave(@Req() req: AppRequest, @Param("id") id: string, @Body() dto: StoreOaDto) {
-    await this.stores.ensureAccess(req.auth!, id);
+    await this.stores.ensureSection(req.auth!, id, "settings");
     const r = await this.storeOa.save(id, dto);
     void this.audit.record(req, "store.oa.update", { type: "store", id }, { fields: Object.keys(dto) });
     return r;
@@ -284,7 +284,7 @@ export class StoreInboxController {
 
   @Delete("oa/token")
   async oaDisconnect(@Req() req: AppRequest, @Param("id") id: string) {
-    await this.stores.ensureAccess(req.auth!, id);
+    await this.stores.ensureSection(req.auth!, id, "settings");
     const r = await this.storeOa.disconnect(id);
     void this.audit.record(req, "store.oa.disconnect", { type: "store", id });
     return r;
@@ -292,13 +292,13 @@ export class StoreInboxController {
 
   @Get("inbox/conversations")
   async list(@Req() req: AppRequest, @Param("id") id: string, @Query("status") status?: string, @Query("q") q?: string) {
-    await this.stores.ensureAccess(req.auth!, id);
+    await this.stores.ensureSection(req.auth!, id, "oainbox");
     return this.inbox.list({ status, q, channel: "oa" }, id);
   }
 
   @Get("inbox/conversations/:cid")
   async get(@Req() req: AppRequest, @Param("id") id: string, @Param("cid") cid: string) {
-    await this.stores.ensureAccess(req.auth!, id);
+    await this.stores.ensureSection(req.auth!, id, "oainbox");
     return this.inbox.get(cid, id);
   }
 
@@ -312,13 +312,13 @@ export class StoreInboxController {
     @Body("internal") internal?: string,
     @UploadedFile() file?: Express.Multer.File,
   ) {
-    await this.stores.ensureAccess(req.auth!, id);
+    await this.stores.ensureSection(req.auth!, id, "oainbox");
     return this.inbox.staffSend(cid, staffName(req), { body, internal: internal === "true", file }, id);
   }
 
   @Patch("inbox/conversations/:cid")
   async update(@Req() req: AppRequest, @Param("id") id: string, @Param("cid") cid: string, @Body() dto: UpdateConversationDto) {
-    await this.stores.ensureAccess(req.auth!, id);
+    await this.stores.ensureSection(req.auth!, id, "oainbox");
     return this.inbox.update(cid, { status: dto.status, displayName: dto.displayName }, id);
   }
 }

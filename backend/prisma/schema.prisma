@@ -391,12 +391,17 @@ model StoreStaff {
   /// Tên các dịch vụ nhân viên làm được (để phân lịch hẹn)
   services          Json?
   note              String?
+  /// Email Google để nhân viên đăng nhập web quản trị (chữ thường). Trống = không có tài khoản web
+  loginEmail        String?
+  /// Mục được xem trên web quản trị: ["overview","pos","orders",…] (khoá menu StoreNavKey)
+  adminSections     Json?
   sortOrder         Int               @default(0)
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
   attendance        StoreAttendance[]
 
   @@unique([storeId, attendanceCode])
+  @@index([loginEmail])
   @@index([storeId, status, sortOrder])
 }
 

@@ -44,7 +44,8 @@ export class StoresController {
   @ApiOperation({ summary: "Chi tiết cấu hình Store, sản phẩm và tệp khách hàng" })
   async findOne(@Req() req: AppRequest, @Param("id") id: string) {
     const store = await this.storesService.findOne(req.auth!, id);
-    return { ...store, ...(await this.storeData.loadAll(id)) };
+    const access = await this.storesService.sectionsOf(req.auth!, id);
+    return { ...store, access, ...(await this.storeData.loadAll(id, access)) };
   }
 
   @Post()

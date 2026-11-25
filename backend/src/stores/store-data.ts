@@ -263,6 +263,8 @@ export const SPECS = {
     services: "strings",
     note: "text",
     sortOrder: "int",
+    loginEmail: "string",
+    adminSections: "strings",
   },
   orders: {
     status: { oneOf: ORDER_STATUS },

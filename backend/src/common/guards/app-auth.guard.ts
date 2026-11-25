@@ -12,6 +12,7 @@ import type { Request } from "express";
 import { timingSafeEqual } from "crypto";
 import { AuthService } from "../../auth/auth.service";
 import { OAuthService } from "../../oauth/oauth.service";
+import { staffAccessOf } from "../staff-access";
 import { PrismaService } from "../../prisma/prisma.service";
 
 /** Thông tin người gọi API sau khi qua AppAuthGuard. */
@@ -26,6 +27,8 @@ export interface AuthContext {
   clientId?: string;
   channel?: string;
   scopes?: string[];
+  /** Nhân viên được chủ shop cấp tài khoản web: storeId → các mục được xem (khoá menu) */
+  staffAccess?: Record<string, string[]>;
 }
 
 export interface AppRequest extends Request {
@@ -135,7 +138,9 @@ export class AppAuthGuard implements CanActivate {
     }
     // Chủ shop chỉ quản lý store của mình khi tài khoản người bán đã được kích hoạt
     const customerId = !isAdmin && user.customer?.status !== "active" ? null : user.customerId;
-    req.auth = { isAdmin, userId: user.id, email: user.email, customerId };
+    const staffAccess = !isAdmin && user.email ? await staffAccessOf(this.prisma, user.email) : undefined;
+    req.auth = { isAdmin, userId: user.id, email: user.email, customerId, ...(staffAccess ? { staffAccess } : {}) };
     return true;
   }
 }
+

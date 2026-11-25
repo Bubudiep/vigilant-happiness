@@ -101,6 +101,10 @@ export interface StoreStaffItem {
   shiftEnd?: string | null;
   services: string[];
   note?: string | null;
+  /** Email Google để đăng nhập web quản trị (trống = không có tài khoản web) */
+  loginEmail?: string | null;
+  /** Mục được xem trên web quản trị (khoá menu) */
+  adminSections?: string[] | null;
   sortOrder?: number;
   createdAt?: string;
 }
@@ -276,6 +280,8 @@ export type StoreWithOwner = StoreConfig & {
   customer?: StoreOwnerLite | null;
   /** true khi đã tải chi tiết (sản phẩm, khách, lịch hẹn, thiết kế…); danh sách chỉ có thông tin tóm tắt */
   loaded?: boolean;
+  /** Tài khoản nhân viên: các mục được xem (null / trống = chủ shop, toàn quyền) */
+  access?: string[] | null;
 };
 
 /** Backend lưu thiết kế ở `builderSchema`; giao diện dùng `builder`. */
@@ -384,7 +390,8 @@ export interface CreateOrderInput {
   voucherCode?: string;
   shippingFee?: number;
   extraDiscount?: number;
-  items: { productId?: string | null; productName?: string; unitPrice?: number; quantity: number }[];
+  /** options: size / topping đã chọn [{ groupId, choiceIds }] */
+  items: { productId?: string | null; productName?: string; unitPrice?: number; quantity: number; options?: { groupId: string; choiceIds: string[] }[] }[];
 }
 
 export const createStoreOrder = (storeId: string, data: CreateOrderInput) =>

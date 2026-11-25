@@ -21,7 +21,7 @@ export class InventoryService {
 
   /** Tổng quan kho: giá trị tồn (giá vốn), giá vốn từng món (kể cả món có BOM), số lượng làm được */
   async summary(auth: AuthContext, storeId: string) {
-    await this.stores.ensureAccess(auth, storeId);
+    await this.stores.ensureSection(auth, storeId, "products");
     const products = await this.prisma.storeProduct.findMany({ where: { storeId } });
     const byId = new Map(products.map((p) => [p.id, p]));
     let stockValue = 0;
@@ -40,13 +40,13 @@ export class InventoryService {
   }
 
   async list(auth: AuthContext, storeId: string) {
-    await this.stores.ensureAccess(auth, storeId);
+    await this.stores.ensureSection(auth, storeId, "products");
     const list = await this.prisma.storeStockReceipt.findMany({ where: { storeId }, orderBy: { receivedAt: "desc" }, take: 200 });
     return list.map(this.serialize);
   }
 
   async create(auth: AuthContext, storeId: string, body: { supplier?: string; note?: string; receivedAt?: string; items?: unknown }) {
-    await this.stores.ensureAccess(auth, storeId);
+    await this.stores.ensureSection(auth, storeId, "products");
     const raw = Array.isArray(body?.items) ? body.items : [];
     if (!raw.length || raw.length > 200) throw new BadRequestException("Phiếu nhập cần 1–200 dòng");
     const lines = raw.map((r) => {
@@ -102,7 +102,7 @@ export class InventoryService {
   }
 
   async cancel(auth: AuthContext, storeId: string, id: string) {
-    await this.stores.ensureAccess(auth, storeId);
+    await this.stores.ensureSection(auth, storeId, "products");
     return this.prisma.$transaction(async (tx) => {
       const r = await tx.storeStockReceipt.findFirst({ where: { id, storeId } });
       if (!r) throw new NotFoundException("Không tìm thấy phiếu nhập");
