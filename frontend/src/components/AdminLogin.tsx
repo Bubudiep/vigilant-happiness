@@ -94,7 +94,7 @@ function GoogleIcon() {
 
 function ZaloIcon() {
   return (
-    <span className="inline-flex h-[18px] w-[18px] items-center justify-center rounded-[4px] bg-[#0068FF] text-3xs font-black tracking-tighter text-white">
+    <span className="inline-flex h-[18px] w-[18px] items-center justify-center rounded-[4px] bg-[#0068FF] text-[8px] font-black tracking-tighter text-white">
       Zalo
     </span>
   );
