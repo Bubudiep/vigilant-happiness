@@ -92,6 +92,7 @@ Quota Zalo: Development 11/300, Testing 19/60.
 | T52b Kết nối máy chấm công: endpoint nhận lượt quẹt → `AttendanceService.punch()` theo `StoreStaff.attendanceCode` | — | [ ] chờ chọn loại máy (ZKTeco push / SDK…) |
 | T53 Tổng quan: bảng lịch hẹn Hôm qua / Hôm nay / Ngày mai + thẻ gói đang dùng & hạn mức (`GET /stores/:id/plan`) | `demo-88` | [x] |
 | T54 Khung chat mở cạnh hồ sơ khách (màn ≥ lg) | `demo-88` | [x] |
+| T56 Kéo thả lịch hẹn: đổi ngày / người phụ trách (Lịch nhóm + board Tổng quan), cảnh báo trùng giờ / nghỉ phép / không có ca, nút Hoàn tác | `demo-88` | [x] |
 | T55 Thang chữ quản trị 9/10/11px (`ui/AdminTheme.tsx` + `index.css`) | `demo-88` | [x] người dùng đang thử |
 | T45 Nhãn tiếng Việt cho action audit mới | `frontend-2b` | [x] test 45/45 (`data/audit-labels.ts`) |
 | T44b Thư viện ảnh dùng cờ `inUse/usedIn` + xử lý 409 | `frontend-2b` | [x] test 53/53 |

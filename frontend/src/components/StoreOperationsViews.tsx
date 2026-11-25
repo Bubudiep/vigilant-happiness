@@ -275,6 +275,108 @@ const BOOKING_STATUS_COLOR: Record<StoreBookingItem["status"], string> = {
   cancelled: "red",
 };
 
+/**
+ * Kéo thả lịch hẹn: đổi ngày và/hoặc người phụ trách.
+ * - Không thả vào ngày đã qua.
+ * - Trùng giờ với lịch khác của cùng người, hoặc người đó không có ca / đang nghỉ phép → hỏi lại.
+ * - Thông báo có nút "Hoàn tác".
+ */
+function useBookingMove(store: StoreConfig, updateCurrentStore: (updater: (s: StoreConfig) => StoreConfig) => void) {
+  const { message, modal } = AntApp.useApp();
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [overKey, setOverKey] = useState<string | null>(null);
+
+  const apply = (id: string, patch: Pick<StoreBookingItem, "date" | "staffName">) =>
+    updateCurrentStore((s) => ({ ...s, bookings: (s.bookings ?? []).map((x) => (x.id === id ? { ...x, ...patch } : x)) }));
+
+  const move = (id: string, to: { date: string; staffName?: string | null }) => {
+    const b = (store.bookings ?? []).find((x) => x.id === id);
+    if (!b) return;
+    const staffName = to.staffName === undefined ? (b.staffName ?? "") : (to.staffName ?? "");
+    if (b.date === to.date && (b.staffName ?? "") === staffName) return;
+    const today = dayjs().format("YYYY-MM-DD");
+    if (to.date < today && to.date !== b.date) {
+      message.warning("Không chuyển lịch hẹn về ngày đã qua");
+      return;
+    }
+    const d = dayjs(to.date);
+    const where = `${WEEKDAY[d.day()]} ${d.format("DD/MM")}${staffName ? ` · ${staffName}` : " · chưa phân công"}`;
+    const warns: string[] = [];
+    if (staffName) {
+      const clash = (store.bookings ?? []).find(
+        (x) => x.id !== b.id && x.status !== "cancelled" && x.date === to.date && x.timeSlot === b.timeSlot && (x.staffName ?? "") === staffName,
+      );
+      if (clash) warns.push(`${staffName} đã có lịch ${clash.timeSlot} với ${clash.customerName}.`);
+      const m = (store.staff ?? []).find((x) => x.name === staffName);
+      if (m?.status === "leave") warns.push(`${staffName} đang nghỉ phép.`);
+      else if (m && m.workDays.length && !m.workDays.includes(d.day())) warns.push(`${staffName} không có ca ngày ${WEEKDAY[d.day()]}.`);
+    }
+    const prev = { date: b.date, staffName: b.staffName ?? "" };
+    const run = () => {
+      apply(b.id, { date: to.date, staffName });
+      const key = `mv_${b.id}`;
+      message.success({
+        key,
+        duration: 5,
+        content: (
+          <span>
+            Đã chuyển lịch {b.timeSlot} của {b.customerName} → {where}{" "}
+            <button
+              type="button"
+              className="ml-1 font-semibold text-brand-600 hover:underline"
+              onClick={() => {
+                apply(b.id, prev);
+                message.info({ key, content: "Đã hoàn tác" });
+              }}
+            >
+              Hoàn tác
+            </button>
+          </span>
+        ),
+      });
+    };
+    if (warns.length) {
+      modal.confirm({ title: "Vẫn chuyển lịch hẹn?", content: warns.join(" "), okText: "Vẫn chuyển", cancelText: "Thôi", onOk: run });
+    } else run();
+  };
+
+  /** Props cho thẻ lịch kéo được */
+  const dragProps = (b: StoreBookingItem) => ({
+    draggable: true,
+    onDragStart: (e: React.DragEvent) => {
+      e.dataTransfer.setData("text/booking-id", b.id);
+      e.dataTransfer.effectAllowed = "move";
+      setDragId(b.id);
+    },
+    onDragEnd: () => {
+      setDragId(null);
+      setOverKey(null);
+    },
+  });
+
+  /** Props cho ô nhận thả; `key` để tô sáng ô đang rê tới */
+  const dropProps = (key: string, to: { date: string; staffName?: string | null }) => ({
+    onDragOver: (e: React.DragEvent) => {
+      if (!e.dataTransfer.types.includes("text/booking-id")) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+      if (overKey !== key) setOverKey(key);
+    },
+    onDragLeave: (e: React.DragEvent) => {
+      if (!(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node)) setOverKey((k) => (k === key ? null : k));
+    },
+    onDrop: (e: React.DragEvent) => {
+      e.preventDefault();
+      const id = e.dataTransfer.getData("text/booking-id");
+      setOverKey(null);
+      setDragId(null);
+      if (id) move(id, to);
+    },
+  });
+
+  return { dragId, overKey, dragProps, dropProps };
+}
+
 export function OverviewSection({
   store,
   onNavigate,
@@ -301,6 +403,8 @@ export function OverviewSection({
     updateCurrentStore((s) => ({ ...s, bookings: [item, ...(s.bookings ?? [])] }));
     message.success(`Đã tạo lịch hẹn ${item.code} cho ${item.customerName}!`);
   };
+
+  const dnd = useBookingMove(store, updateCurrentStore);
 
   const handleQuickStatus = (id: string, status: StoreBookingItem["status"]) => {
     updateCurrentStore((s) => ({
@@ -355,7 +459,7 @@ export function OverviewSection({
               <LuCalendarCheck size={17} className="text-brand-600" /> Lịch hẹn sắp tới & Đặt lịch cho khách
             </h3>
             <p className="text-xs text-slate-500">
-              Theo dõi lịch hẹn khách đặt qua Mini App hoặc tạo lịch hẹn trực tiếp tại quầy.
+              Theo dõi lịch hẹn khách đặt qua Mini App hoặc tạo tại quầy. Kéo thẻ sang cột khác để đổi ngày.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -375,7 +479,17 @@ export function OverviewSection({
             const list = bookings.filter((b) => b.date === key).sort((x, y) => x.timeSlot.localeCompare(y.timeSlot));
             const active = list.filter((b) => b.status !== "cancelled").length;
             return (
-              <div key={key} className={`flex min-w-0 flex-col rounded-xl border ${offset === 0 ? "border-brand-200 bg-brand-50/40" : "border-slate-200 bg-slate-50/70"}`}>
+              <div
+                key={key}
+                {...(offset >= 0 ? dnd.dropProps(key, { date: key }) : {})}
+                className={`flex min-w-0 flex-col rounded-xl border transition ${
+                  dnd.overKey === key
+                    ? "border-brand-400 bg-brand-50 ring-2 ring-brand-300"
+                    : offset === 0
+                      ? "border-brand-200 bg-brand-50/40"
+                      : "border-slate-200 bg-slate-50/70"
+                }`}
+              >
                 <div className="flex items-center justify-between gap-2 border-b border-slate-200/70 px-3 py-2">
                   <div className="min-w-0">
                     <span className={`text-sm font-semibold ${offset === 0 ? "text-brand-700" : "text-slate-800"}`}>{label}</span>
@@ -397,7 +511,9 @@ export function OverviewSection({
                   {list.map((b) => (
                     <div
                       key={b.id}
-                      className={`rounded-lg border border-slate-200 bg-white p-2.5 ${b.status === "cancelled" ? "opacity-60" : ""}`}
+                      {...dnd.dragProps(b)}
+                      title="Kéo sang cột khác để đổi ngày"
+                      className={`cursor-grab rounded-lg border border-slate-200 bg-white p-2.5 active:cursor-grabbing ${b.status === "cancelled" ? "opacity-60" : ""} ${dnd.dragId === b.id ? "opacity-40" : ""}`}
                     >
                       <div className="flex items-center justify-between gap-2">
                         <span className="inline-flex items-center gap-1 text-xs font-bold tabular-nums text-brand-700">
@@ -536,6 +652,7 @@ export function BookingsSection({
   const [hideCancelled, setHideCancelled] = useState(true);
   const [start, setStart] = useState(() => dayjs().subtract(1, "day").startOf("day"));
   const [openChip, setOpenChip] = useState<string | null>(null);
+  const dnd = useBookingMove(store, updateCurrentStore);
 
   const bookings = store.bookings ?? [];
   const todayStr = dayjs().format("YYYY-MM-DD");
@@ -734,10 +851,20 @@ export function BookingsSection({
                   {dayKeys.map((date) => {
                     const items = cell(staff, date);
                     const isToday = date === todayStr;
+                    const cellKey = `${staff}|${date}`;
                     return (
                       <div
                         key={date}
-                        className={`group relative min-h-[76px] space-y-1 border-b border-l border-slate-100 p-1.5 ${isToday ? "bg-brand-50/40" : ""}`}
+                        {...(date >= todayStr ? dnd.dropProps(cellKey, { date, staffName: staff === UNASSIGNED ? "" : staff }) : {})}
+                        className={`group relative min-h-[76px] space-y-1 border-b border-l border-slate-100 p-1.5 transition ${
+                          dnd.overKey === cellKey
+                            ? "bg-brand-100/70 ring-2 ring-inset ring-brand-400"
+                            : dnd.dragId && date < todayStr
+                              ? "bg-slate-50"
+                              : isToday
+                                ? "bg-brand-50/40"
+                                : ""
+                        }`}
                       >
                         {items.map((b) => (
                           <Popover
@@ -750,7 +877,11 @@ export function BookingsSection({
                           >
                             <button
                               type="button"
-                              className={`block w-full rounded-lg border px-1.5 py-1 text-left transition hover:shadow-sm ${STATUS_STYLE[b.status].chip}`}
+                              {...dnd.dragProps(b)}
+                              onDragStartCapture={() => setOpenChip(null)}
+                              className={`block w-full cursor-grab rounded-lg border px-1.5 py-1 text-left transition hover:shadow-sm active:cursor-grabbing ${STATUS_STYLE[b.status].chip} ${
+                                dnd.dragId === b.id ? "opacity-40" : ""
+                              }`}
                             >
                               <div className="flex items-center gap-1 text-xs font-bold">
                                 <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${STATUS_STYLE[b.status].dot}`} />
