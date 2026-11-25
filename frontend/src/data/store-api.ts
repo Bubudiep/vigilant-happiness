@@ -21,7 +21,29 @@ export interface StoreSliderItem {
   cta?: string;
 }
 
-export type ProductKind = "product" | "service";
+export type ProductKind = "product" | "service" | "material";
+
+/** Định mức nguyên liệu: dùng `quantity` (đơn vị của nguyên liệu) cho 1 đơn vị thành phẩm */
+export interface BomLine {
+  productId: string;
+  quantity: number;
+}
+/** Phân loại (size…) / bán kèm (topping…) */
+export interface OptionChoice {
+  id: string;
+  name: string;
+  price: number;
+  bom?: BomLine[];
+}
+export interface OptionGroup {
+  id: string;
+  name: string;
+  /** false = chọn 1 (size, phân loại); true = chọn nhiều (topping) */
+  multiple: boolean;
+  required: boolean;
+  max?: number | null;
+  choices: OptionChoice[];
+}
 
 export interface StoreProductItem {
   id: string;
@@ -37,12 +59,17 @@ export interface StoreProductItem {
   stock?: number;
   /** Thời lượng dịch vụ (phút) */
   durationMin?: number | null;
+  /** Giá vốn (đ / đơn vị) — món có BOM thì tính từ nguyên liệu */
+  costPrice?: number;
+  bom?: BomLine[] | null;
+  options?: OptionGroup[] | null;
   imageUrl?: string;
   description?: string;
   active: boolean;
 }
 
 export const isService = (p: Pick<StoreProductItem, "kind">) => p.kind === "service";
+export const isMaterial = (p: Pick<StoreProductItem, "kind">) => p.kind === "material";
 /** Ngưỡng "sắp hết hàng" của sản phẩm */
 export const LOW_STOCK = 10;
 
@@ -435,3 +462,37 @@ export const saveStampProgram = (storeId: string, data: StampProgram) =>
   api<StampProgram>(`/stores/${storeId}/data/stamp-program`, { method: "POST", body: JSON.stringify(data) });
 export const adjustCustomerStamps = (storeId: string, customerId: string, body: { action: "redeem" } | { action: "adjust"; delta: number }) =>
   api<{ id: string; stamps: number; stampRewards: number }>(`/stores/${storeId}/data/customers/${customerId}/stamps`, { method: "POST", body: JSON.stringify(body) });
+
+// ───────────── Kho: giá vốn, nhập kho ─────────────
+
+export interface InventorySummary {
+  /** Giá trị tồn kho theo giá vốn */
+  stockValue: number;
+  /** Giá trị tồn theo giá bán (chỉ hàng hoá) */
+  saleValue: number;
+  items: { id: string; unitCost: number; makeable: number | null }[];
+}
+export interface StockReceiptItem {
+  productId: string;
+  name: string;
+  quantity: number;
+  unitCost: number;
+}
+export interface StockReceipt {
+  id: string;
+  code: string;
+  supplier: string | null;
+  note: string | null;
+  receivedAt: string;
+  items: StockReceiptItem[];
+  total: number;
+  status: "active" | "cancelled";
+  cancelledAt: string | null;
+}
+type StockAfter = { id: string; stock: number; costPrice: number }[];
+export const fetchInventory = (storeId: string) => api<InventorySummary>(`/stores/${storeId}/inventory`);
+export const fetchStockReceipts = (storeId: string) => api<StockReceipt[]>(`/stores/${storeId}/stock-receipts`);
+export const createStockReceipt = (storeId: string, data: { supplier?: string; note?: string; receivedAt?: string; items: { productId: string; quantity: number; unitCost: number }[] }) =>
+  api<{ receipt: StockReceipt; products: StockAfter }>(`/stores/${storeId}/stock-receipts`, { method: "POST", body: JSON.stringify(data) });
+export const cancelStockReceipt = (storeId: string, id: string) =>
+  api<{ receipt: StockReceipt; products: StockAfter }>(`/stores/${storeId}/stock-receipts/${id}/cancel`, { method: "POST" });

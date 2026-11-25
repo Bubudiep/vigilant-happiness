@@ -31,6 +31,10 @@ export interface PosItem {
   name: string;
   unitPrice: number;
   quantity: number;
+  /** Tuỳ chọn đã chốt (máy chủ trả về) */
+  options?: { groupId: string; group: string; choiceId: string; name: string; price: number }[];
+  /** Lựa chọn vừa chọn trên web — máy chủ tính lại giá theo cấu hình món */
+  selections?: { groupId: string; choiceIds: string[] }[];
 }
 
 export interface PosSession {
@@ -108,6 +112,11 @@ export interface RevenueReport {
     customers: number;
     newCustomers: number;
     timeRevenue: number;
+    /** Giá vốn hàng bán, lợi nhuận gộp, biên lợi nhuận (%), giá trị tồn kho hiện tại */
+    cogs: number;
+    grossProfit: number;
+    margin: number;
+    stockValue: number;
     pendingOrders: number;
     pendingAmount: number;
     cancelledOrders: number;
@@ -119,7 +128,7 @@ export interface RevenueReport {
   byHour: { hour: number; revenue: number; orders: number }[];
   bySource: { key: string; revenue: number; orders: number }[];
   byPayment: { key: string; revenue: number; orders: number }[];
-  topProducts: { name: string; productId: string | null; quantity: number; revenue: number }[];
+  topProducts: { name: string; productId: string | null; quantity: number; revenue: number; cost: number; profit: number }[];
   tables: { tableId: string; name: string; kind: string; sessions: number; minutes: number; revenue: number; timeRevenue: number }[];
   bookings: Record<string, number>;
 }

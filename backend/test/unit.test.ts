@@ -221,3 +221,36 @@ test("stampsForOrder: theo món / theo đơn / sản phẩm áp dụng", () => {
   assert.throws(() => parseStampProgram({ required: 8, reward: " " }));
   assert.equal(parseStampProgram({ required: 8, reward: "Ly miễn phí", icon: "bad" }).icon, "coffee");
 });
+
+// ───────── Tuỳ chọn (size / topping) & định mức BOM ─────────
+import { applyOptions, parseOptions } from "../src/stores/options";
+import { makeableOf, unitCostOf } from "../src/stores/inventory";
+
+test("applyOptions: size bắt buộc mặc định, topping nhiều, giá cộng thêm", () => {
+  const groups = parseOptions(
+    [
+      { id: "size", name: "Size", multiple: false, required: true, choices: [{ id: "m", name: "M", price: 0 }, { id: "l", name: "L", price: 6000 }] },
+      { id: "top", name: "Topping", multiple: true, required: false, max: 2, choices: [{ id: "tc", name: "Trân châu", price: 5000 }, { id: "pd", name: "Pudding", price: 7000 }, { id: "kem", name: "Kem", price: 8000 }] },
+    ],
+    new Set(),
+  )!;
+  const def = applyOptions("Trà sữa", groups, []);
+  assert.equal(def.extra, 0);
+  assert.equal(def.label, "Trà sữa (M)");
+  const r = applyOptions("Trà sữa", groups, [{ groupId: "size", choiceIds: ["l"] }, { groupId: "top", choiceIds: ["tc", "pd"] }]);
+  assert.equal(r.extra, 18000);
+  assert.equal(r.label, "Trà sữa (L, Trân châu, Pudding)");
+  assert.throws(() => applyOptions("Trà sữa", groups, [{ groupId: "top", choiceIds: ["tc", "pd", "kem"] }]));
+  assert.throws(() => applyOptions("Trà sữa", groups, [{ groupId: "size", choiceIds: ["m", "l"] }]));
+});
+
+test("BOM: giá vốn = tổng nguyên liệu, số lượng làm được theo tồn", () => {
+  const caphe = { id: "cf", kind: "material", stock: 1000, costPrice: 300, bom: null }; // 300đ/g
+  const sua = { id: "sua", kind: "material", stock: 500, costPrice: 50, bom: null }; // 50đ/ml
+  const ly = { id: "ly", kind: "material", stock: 40, costPrice: 1500, bom: null };
+  const csd = { id: "csd", kind: "product", stock: 0, costPrice: 0, bom: [{ productId: "cf", quantity: 20 }, { productId: "sua", quantity: 30 }, { productId: "ly", quantity: 1 }] };
+  const by = new Map([caphe, sua, ly, csd].map((p) => [p.id, p]));
+  assert.equal(unitCostOf(csd, by), 20 * 300 + 30 * 50 + 1500);
+  assert.equal(makeableOf(csd, by), Math.min(50, 16, 40));
+  assert.equal(makeableOf(caphe, by), null);
+});

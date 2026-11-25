@@ -53,7 +53,6 @@ import {
   fetchStores,
   saveStoreConfig,
   StoreConfig,
-  isService,
   LOW_STOCK,
   StoreCustomerItem,
   StoreWithOwner,
@@ -493,7 +492,7 @@ export default function StoreConsole({
   const zaloPreviewUrl = getZaloStoreUrl(store.slug);
 
   // Số sản phẩm (không tính dịch vụ) sắp hết / hết hàng — hiện ở menu "Sản phẩm & Dịch vụ"
-  const lowStock = store.products.filter((p) => !isService(p) && (p.stock ?? 0) <= LOW_STOCK).length;
+  const lowStock = store.products.filter((p) => p.kind !== "service" && p.kind !== "material" && !p.bom?.length && (p.stock ?? 0) <= LOW_STOCK).length;
   const navItems: { key: StoreNavKey; label: string; icon: React.ReactNode; badge?: number; alert?: boolean }[] = [
     { key: "overview", label: "Tổng quan", icon: <LuLayoutDashboard size={17} /> },
     { key: "pos", label: "Bán hàng", icon: <LuLayoutGrid size={17} /> },
@@ -610,6 +609,8 @@ export default function StoreConsole({
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Trạng thái tự lưu nằm bên trái ô chọn cửa hàng */}
+            <SaveIndicator state={saveState} onRetry={() => store && void doSave(store)} />
             <StoreSwitcher
               stores={stores}
               current={store}
@@ -617,7 +618,6 @@ export default function StoreConsole({
               onSelect={setSelectedId}
               onCreate={() => setWizardOpen(true)}
             />
-            <SaveIndicator state={saveState} onRetry={() => store && void doSave(store)} />
             <UserMenu
               user={user}
               onLogout={onLogout}
@@ -696,7 +696,7 @@ export default function StoreConsole({
             <OrdersSection store={store} updateCurrentStore={updateCurrentStore} applyLocal={applyLocal} />
           )}
 
-          {activeNav === "pos" && <PosSection key={store.id} store={store} onCheckout={() => loadDetail(store.id)} />}
+          {activeNav === "pos" && <PosSection key={store.id} store={store} onCheckout={() => loadDetail(store.id)} onLocal={applyLocal} />}
           {activeNav === "reports" && <ReportsSection key={store.id} store={store} />}
           {activeNav === "staff" && <StaffSection key={store.id} store={store} updateCurrentStore={updateCurrentStore} applyLocal={applyLocal} />}
 

@@ -2,6 +2,7 @@ import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UseGuard
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { AppAuthGuard, RequireScopes, type AppRequest } from "../common/guards/app-auth.guard";
 import { PosService } from "./pos.service";
+import { InventoryService } from "./inventory.service";
 import { ReportsService } from "./reports.service";
 
 /** Bán hàng tại quầy: /stores/:id/pos/... và báo cáo /stores/:id/reports */
@@ -14,7 +15,32 @@ export class PosController {
   constructor(
     private readonly pos: PosService,
     private readonly reports: ReportsService,
+    private readonly inventory: InventoryService,
   ) {}
+
+  @Get("inventory")
+  @ApiOperation({ summary: "Giá trị tồn kho (theo giá vốn), giá vốn từng món (kể cả BOM), số lượng làm được" })
+  inventorySummary(@Req() req: AppRequest, @Param("id") id: string) {
+    return this.inventory.summary(req.auth!, id);
+  }
+
+  @Get("stock-receipts")
+  @ApiOperation({ summary: "Lịch sử phiếu nhập kho" })
+  receipts(@Req() req: AppRequest, @Param("id") id: string) {
+    return this.inventory.list(req.auth!, id);
+  }
+
+  @Post("stock-receipts")
+  @ApiOperation({ summary: "Nhập kho: { supplier?, note?, receivedAt?, items: [{ productId, quantity, unitCost }] }" })
+  createReceipt(@Req() req: AppRequest, @Param("id") id: string, @Body() body: { supplier?: string; note?: string; receivedAt?: string; items?: unknown }) {
+    return this.inventory.create(req.auth!, id, body ?? {});
+  }
+
+  @Post("stock-receipts/:receiptId/cancel")
+  @ApiOperation({ summary: "Huỷ phiếu nhập (trừ lại tồn kho)" })
+  cancelReceipt(@Req() req: AppRequest, @Param("id") id: string, @Param("receiptId") rid: string) {
+    return this.inventory.cancel(req.auth!, id, rid);
+  }
 
   @Get("pos")
   @ApiOperation({ summary: "Khu vực, bàn / phòng và các phiên đang mở" })

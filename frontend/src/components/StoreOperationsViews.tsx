@@ -396,7 +396,7 @@ export function OverviewSection({
   const todayStr = dayjs().format("YYYY-MM-DD");
   const todayBookings = bookings.filter((b) => b.date === todayStr);
   const pendingBookings = bookings.filter((b) => b.status === "pending").length;
-  const lowStockCount = store.products.filter((p) => !isService(p) && (p.stock ?? 0) <= LOW_STOCK).length;
+  const lowStockCount = store.products.filter((p) => p.kind !== "service" && p.kind !== "material" && !p.bom?.length && (p.stock ?? 0) <= LOW_STOCK).length;
   const serviceCount = store.products.filter(isService).length;
 
   const handleCreateBooking = (item: StoreBookingItem) => {

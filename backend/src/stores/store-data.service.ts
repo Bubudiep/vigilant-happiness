@@ -18,6 +18,8 @@ import {
 } from "./store-data";
 import { markVoucherUsed, quoteVoucher, reclaimVoucher, releaseVoucher } from "./voucher-redeem";
 import { parseStampProgram, readStampProgram, stampsForOrder } from "./stamps";
+import { loadWithIngredients, moveStockForOrder, unitCostOf } from "./inventory";
+import { applyOptions, readOptions, type OptionSelection } from "./options";
 import { StoresService } from "./stores.service";
 
 export const COLLECTIONS = ["bookings", "events", "documents", "member-tiers", "vouchers", "orders", "staff"] as const;
@@ -328,19 +330,34 @@ export class StoreDataService {
     if (!rawItems.length || rawItems.length > 100) throw new BadRequestException("Đơn cần ít nhất 1 sản phẩm");
 
     const productIds = rawItems.map((i) => i?.productId).filter((x): x is string => typeof x === "string" && !!x);
-    const products = productIds.length
-      ? await this.prisma.storeProduct.findMany({ where: { storeId, id: { in: productIds } } })
-      : [];
+    // Sản phẩm + nguyên liệu (BOM) để chốt giá vốn tại thời điểm bán
+    const byId = await loadWithIngredients(this.prisma, storeId, [...new Set(productIds)]);
     const lines = rawItems.map((i) => {
       const quantity = Math.min(9999, Math.max(1, Math.round(Number(i?.quantity) || 1)));
-      const p = i?.productId ? products.find((x) => x.id === i.productId) : undefined;
+      const p = i?.productId ? (byId.get(i.productId) as Prisma.StoreProductGetPayload<object> | undefined) : undefined;
       if (i?.productId && !p) throw new BadRequestException("Có sản phẩm không thuộc cửa hàng");
-      const name = (p?.name ?? String(i?.productName ?? "")).trim().slice(0, 200);
+      const baseName = (p?.name ?? String(i?.productName ?? "")).trim().slice(0, 200);
+      if (!baseName) throw new BadRequestException("Dòng sản phẩm thiếu tên");
+      // Tuỳ chọn (size, topping…): giá cộng thêm theo cấu hình sản phẩm; dòng đã có tuỳ chọn chốt sẵn (POS) giữ nguyên
+      const opt = p && i?.options ? applyOptions(baseName, readOptions(p.options), i.options) : null;
       const priceIn = i?.unitPrice === undefined || i?.unitPrice === null ? undefined : Number(i.unitPrice);
-      const unitPrice = Math.round(priceIn ?? p?.salePrice ?? p?.price ?? NaN);
-      if (!name) throw new BadRequestException("Dòng sản phẩm thiếu tên");
+      const unitPrice = Math.round(priceIn ?? (p ? (p.salePrice ?? p.price) + (opt?.extra ?? 0) : NaN));
+      const name = (opt?.label ?? baseName).slice(0, 200);
       if (!Number.isFinite(unitPrice) || unitPrice < 0) throw new BadRequestException(`Đơn giá của "${name}" không hợp lệ`);
-      return { productId: p?.id ?? null, productName: name, imageUrl: p?.imageUrl ?? null, unitPrice, quantity, lineTotal: unitPrice * quantity };
+      const optCost = (opt?.picked ?? []).reduce(
+        (s, o) => s + (o.bom ?? []).reduce((x, l) => x + (byId.get(l.productId)?.costPrice ?? 0) * l.quantity, 0),
+        0,
+      );
+      return {
+        productId: p?.id ?? null,
+        productName: name,
+        imageUrl: p?.imageUrl ?? null,
+        unitPrice,
+        quantity,
+        lineTotal: unitPrice * quantity,
+        unitCost: p ? unitCostOf(p, byId) + optCost : null,
+        options: opt?.picked.length ? (opt.picked as unknown as Prisma.InputJsonValue) : (i?.pickedOptions ?? undefined),
+      };
     });
     const subtotal = lines.reduce((sum, l) => sum + l.lineTotal, 0);
     const shippingFee = Math.max(0, Math.round(Number(body.shippingFee) || 0));
@@ -441,6 +458,8 @@ export class StoreDataService {
     else if (before.status === "cancelled") await reclaimVoucher(tx, storeId, order);
     const wasDone = before.status === "completed";
     const isDone = order.status === "completed";
+    // Hoàn thành → xuất kho (nguyên liệu theo BOM); rời hoàn thành → trả lại kho
+    if (wasDone !== isDone) await moveStockForOrder(tx, storeId, order.items, isDone ? -1 : 1);
     if (order.customerId && wasDone !== isDone) {
       const sign = isDone ? 1 : -1;
       const customer = await tx.storeCustomer.findUnique({ where: { id: order.customerId } });
@@ -492,5 +511,14 @@ export type AdminOrderInput = {
   voucherCode?: string;
   shippingFee?: number;
   extraDiscount?: number;
-  items?: { productId?: string | null; productName?: string; unitPrice?: number | null; quantity?: number }[];
+  items?: {
+    productId?: string | null;
+    productName?: string;
+    unitPrice?: number | null;
+    quantity?: number;
+    /** Lựa chọn của khách: [{ groupId, choiceIds }] */
+    options?: OptionSelection[];
+    /** Tuỳ chọn đã chốt sẵn (bán tại bàn) — lưu nguyên vào dòng đơn */
+    pickedOptions?: Prisma.InputJsonValue;
+  }[];
 };

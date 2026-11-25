@@ -5,6 +5,7 @@ import { PrismaService } from "../prisma/prisma.service";
 import { pickFields, PAYMENT_METHODS, type FieldSpec } from "../stores/store-data";
 import { StoreDataService } from "../stores/store-data.service";
 import { StoresService } from "../stores/stores.service";
+import { applyOptions, readOptions, type OptionSelection, type PickedOption } from "../stores/options";
 
 export const TABLE_KINDS = ["table", "billiards", "karaoke", "room", "other"] as const;
 export const TABLE_STATES = ["ready", "reserved", "cleaning"] as const;
@@ -24,7 +25,14 @@ const TABLE_SPEC: FieldSpec = {
   sortOrder: "int",
 };
 
-type SessionItem = { productId: string | null; name: string; unitPrice: number; quantity: number };
+type SessionItem = {
+  productId: string | null;
+  name: string;
+  unitPrice: number;
+  quantity: number;
+  /** Tuỳ chọn đã chọn (size, topping…) — giá đã cộng vào unitPrice */
+  options?: PickedOption[];
+};
 
 /**
  * Tiền giờ: số phút đã dùng làm tròn LÊN theo block (VD block 30′: 41′ → 60′), tối thiểu `minMinutes`.
@@ -185,7 +193,7 @@ export class PosService {
     await this.stores.ensureAccess(auth, storeId);
     const s = await this.openSession(storeId, id);
     const data: Prisma.StoreTableSessionUpdateInput = {};
-    if (body?.items !== undefined) data.items = await this.items(storeId, body.items);
+    if (body?.items !== undefined) data.items = (await this.items(storeId, body.items)) as unknown as Prisma.InputJsonValue;
     if (body?.guestCount !== undefined) data.guestCount = body.guestCount === null ? null : Math.max(0, Math.round(Number(body.guestCount) || 0));
     if (body?.note !== undefined) data.note = body.note?.trim() || null;
     if (body?.discount !== undefined) data.discount = Math.max(0, Math.round(Number(body.discount) || 0));
@@ -235,7 +243,7 @@ export class PosService {
     const paymentMethod = (PAYMENT_METHODS as readonly string[]).includes(String(body?.paymentMethod)) ? String(body.paymentMethod) : "cash";
     const endedAt = new Date();
     const t = timeCharge(s.startedAt, endedAt, s.pricePerHour, s.blockMinutes, s.minMinutes);
-    const items = (s.items as SessionItem[]) ?? [];
+    const items = (s.items as unknown as SessionItem[]) ?? [];
     const itemsTotal = items.reduce((sum, i) => sum + i.unitPrice * i.quantity, 0);
     const discount = Math.min(itemsTotal + t.charge, Math.max(0, Math.round(Number(body?.discount ?? s.discount) || 0)));
     if (!items.length && !t.charge) throw new BadRequestException("Phiên chưa có món và không tính giờ — dùng “Huỷ phiên” nếu khách không dùng gì");
@@ -244,7 +252,13 @@ export class PosService {
       ...(t.charge
         ? [{ productId: null, productName: `Giờ ${table.name} (${fmtDuration(t.billedMinutes)})`, unitPrice: t.charge, quantity: 1 }]
         : []),
-      ...items.map((i) => ({ productId: i.productId, productName: i.name, unitPrice: i.unitPrice, quantity: i.quantity })),
+      ...items.map((i) => ({
+        productId: i.productId,
+        productName: i.name,
+        unitPrice: i.unitPrice,
+        quantity: i.quantity,
+        pickedOptions: i.options?.length ? (i.options as unknown as Prisma.InputJsonValue) : undefined,
+      })),
     ];
     const order = (await this.storeData.createPosOrder(storeId, {
       customerId: s.customerId ?? undefined,
@@ -299,15 +313,20 @@ export class PosService {
     const ids = raw.map((i) => (i as { productId?: unknown })?.productId).filter((x): x is string => typeof x === "string" && !!x);
     const products = ids.length ? await this.prisma.storeProduct.findMany({ where: { storeId, id: { in: ids } } }) : [];
     return raw.map((r) => {
-      const i = (r ?? {}) as Partial<SessionItem>;
+      const i = (r ?? {}) as Partial<SessionItem> & { selections?: OptionSelection[] };
       const p = i.productId ? products.find((x) => x.id === i.productId) : undefined;
       if (i.productId && !p) throw new BadRequestException("Có món không thuộc cửa hàng");
-      const name = String(p?.name ?? i.name ?? "").trim().slice(0, 200);
-      const unitPrice = Math.round(Number(i.unitPrice ?? p?.salePrice ?? p?.price));
       const quantity = Math.min(9999, Math.max(1, Math.round(Number(i.quantity) || 1)));
+      // Món mới chọn tuỳ chọn → tính lại giá theo cấu hình; món đã có tuỳ chọn chốt sẵn → giữ nguyên
+      if (p && i.selections) {
+        const opt = applyOptions(p.name, readOptions(p.options), i.selections);
+        return { productId: p.id, name: opt.label, unitPrice: (p.salePrice ?? p.price) + opt.extra, quantity, ...(opt.picked.length ? { options: opt.picked } : {}) };
+      }
+      const name = String(i.name ?? p?.name ?? "").trim().slice(0, 200);
+      const unitPrice = Math.round(Number(i.unitPrice ?? p?.salePrice ?? p?.price));
       if (!name) throw new BadRequestException("Món thiếu tên");
       if (!Number.isFinite(unitPrice) || unitPrice < 0) throw new BadRequestException(`Đơn giá "${name}" không hợp lệ`);
-      return { productId: p?.id ?? null, name, unitPrice, quantity };
+      return { productId: p?.id ?? null, name, unitPrice, quantity, ...(Array.isArray(i.options) && i.options.length ? { options: i.options } : {}) };
     });
   }
 
@@ -329,7 +348,7 @@ export class PosService {
   });
 
   private serializeSession(s: StoreTableSession, now: Date) {
-    const items = (s.items as SessionItem[]) ?? [];
+    const items = (s.items as unknown as SessionItem[]) ?? [];
     const itemsTotal = items.reduce((sum, i) => sum + i.unitPrice * i.quantity, 0);
     const t = s.status === "open" ? timeCharge(s.startedAt, now, s.pricePerHour, s.blockMinutes, s.minMinutes) : null;
     const charge = t ? t.charge : s.timeCharge;

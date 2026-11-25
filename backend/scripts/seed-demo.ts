@@ -328,6 +328,7 @@ async function seedStore(spec: StoreSpec, owner: { id: string }, subscriptionId:
       price,
       salePrice: sale ?? null,
       stock: duration ? 0 : i % 5 === 3 ? int(0, 6) : int(15, 120),
+      costPrice: Math.round(((sale ?? price) * (duration ? 0.25 : 0.38 + rnd() * 0.12)) / 500) * 500,
       imageUrl: `/stock/${spec.stock}/prod-${(i % 6) + 1}.jpg`,
       active: i !== spec.products.length - 1,
       sortOrder: i,
@@ -791,6 +792,73 @@ async function main() {
     await prisma.project.updateMany({ where: { customerId: customers[s.customerIdx].id }, data: { storeId: r.id } });
     results.push(r);
   }
+  // Quán cà phê: nguyên liệu + định mức (BOM) + size / topping + phiếu nhập kho
+  const cafeStore = results.find((x) => x.slug === "demo-mochuong");
+  if (cafeStore) {
+    const sid = cafeStore.id;
+    const MATS: [string, string, number, number][] = [
+      ["Cà phê hạt rang xay", "g", 320, 4200],
+      ["Sữa đặc", "ml", 45, 6000],
+      ["Sữa tươi", "ml", 32, 9000],
+      ["Đường nước", "ml", 18, 3000],
+      ["Trà đen", "g", 260, 1500],
+      ["Đào ngâm", "miếng", 2500, 180],
+      ["Trân châu đen", "g", 60, 2500],
+      ["Ly nhựa 500ml + nắp", "cái", 1200, 600],
+      ["Bột matcha", "g", 900, 400],
+    ];
+    const mat: Record<string, string> = {};
+    for (const [i, [name, unit, costPrice, stock]] of MATS.entries()) {
+      const m = await prisma.storeProduct.create({
+        data: { storeId: sid, kind: "material", name, unit, category: "Nguyên liệu", price: 0, costPrice, stock, active: false, sortOrder: 100 + i, sku: `NL-${String(i + 1).padStart(3, "0")}` },
+      });
+      mat[name] = m.id;
+    }
+    const prods = await prisma.storeProduct.findMany({ where: { storeId: sid, kind: "product" } });
+    const byName = (n: string) => prods.find((x) => x.name === n);
+    const BOM: Record<string, [string, number][]> = {
+      "Cà phê sữa đá": [["Cà phê hạt rang xay", 20], ["Sữa đặc", 30], ["Ly nhựa 500ml + nắp", 1]],
+      "Bạc xỉu": [["Cà phê hạt rang xay", 10], ["Sữa đặc", 25], ["Sữa tươi", 80], ["Ly nhựa 500ml + nắp", 1]],
+      "Cà phê muối": [["Cà phê hạt rang xay", 20], ["Sữa tươi", 60], ["Đường nước", 15], ["Ly nhựa 500ml + nắp", 1]],
+      "Trà đào cam sả": [["Trà đen", 8], ["Đào ngâm", 3], ["Đường nước", 25], ["Ly nhựa 500ml + nắp", 1]],
+      "Matcha latte": [["Bột matcha", 6], ["Sữa tươi", 150], ["Đường nước", 15], ["Ly nhựa 500ml + nắp", 1]],
+    };
+    const SIZE = { id: "size", name: "Size", multiple: false, required: true, max: null, choices: [{ id: "m", name: "M", price: 0 }, { id: "l", name: "L", price: 6000, bom: [{ productId: mat["Sữa tươi"], quantity: 40 }] }] };
+    const TOPPING = {
+      id: "topping",
+      name: "Topping",
+      multiple: true,
+      required: false,
+      max: 3,
+      choices: [
+        { id: "tc", name: "Trân châu đen", price: 5000, bom: [{ productId: mat["Trân châu đen"], quantity: 40 }] },
+        { id: "shot", name: "Thêm shot cà phê", price: 8000, bom: [{ productId: mat["Cà phê hạt rang xay"], quantity: 10 }] },
+        { id: "kem", name: "Kem cheese", price: 10000 },
+      ],
+    };
+    const SUGAR = { id: "duong", name: "Đường", multiple: false, required: false, max: null, choices: [{ id: "it", name: "Ít đường", price: 0 }, { id: "nhieu", name: "Nhiều đường", price: 0 }] };
+    for (const [name, lines] of Object.entries(BOM)) {
+      const p = byName(name);
+      if (!p) continue;
+      await prisma.storeProduct.update({
+        where: { id: p.id },
+        data: { bom: lines.map(([m, q]) => ({ productId: mat[m], quantity: q })), options: [SIZE, TOPPING, SUGAR], stock: 0 },
+      });
+    }
+    // 3 phiếu nhập kho gần đây
+    const SUP = ["Đại lý cà phê Cầu Đất", "Siêu thị Mega Market", "Bao bì Minh Phát"];
+    for (let k = 0; k < 3; k++) {
+      const picks = Object.values(mat).filter((_, i) => i % 3 === k);
+      const items = picks.map((id) => {
+        const m = MATS.find(([n]) => mat[n] === id)!;
+        return { productId: id, name: m[0], quantity: Math.round(m[3] / 3), unitCost: m[2] };
+      });
+      await prisma.storeStockReceipt.create({
+        data: { storeId: sid, code: `PN${String(k + 1).padStart(5, "0")}`, supplier: SUP[k], receivedAt: daysFromNow(-10 + k * 4, 9), items, total: items.reduce((x, i) => x + i.quantity * i.unitCost, 0) },
+      });
+    }
+  }
+
   // Thẻ tích tem cho quán cà phê: 8 tem (mỗi ly cà phê / trà 1 tem) đổi 1 ly bất kỳ
   const cafe = results.find((x) => x.slug === "demo-mochuong");
   if (cafe) {

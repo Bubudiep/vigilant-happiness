@@ -2,6 +2,7 @@ import { BadRequestException, Injectable } from "@nestjs/common";
 import type { AuthContext } from "../common/guards/app-auth.guard";
 import { PrismaService } from "../prisma/prisma.service";
 import { StoresService } from "../stores/stores.service";
+import { InventoryService } from "./inventory.service";
 
 const VN = 7 * 3_600_000;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -17,6 +18,7 @@ export class ReportsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly stores: StoresService,
+    private readonly inventory: InventoryService,
   ) {}
 
   async revenue(auth: AuthContext, storeId: string, from: string, to: string) {
@@ -33,7 +35,7 @@ export class ReportsService {
     const [orders, prev, sessions, bookings, newCustomers] = await Promise.all([
       this.prisma.storeOrder.findMany({
         where: { storeId, createdAt: { gte: start, lt: end } },
-        select: { id: true, status: true, source: true, paymentMethod: true, totalAmount: true, discountAmount: true, createdAt: true, customerId: true, items: { select: { productId: true, productName: true, quantity: true, lineTotal: true } } },
+        select: { id: true, status: true, source: true, paymentMethod: true, totalAmount: true, discountAmount: true, createdAt: true, customerId: true, items: { select: { productId: true, productName: true, quantity: true, lineTotal: true, unitCost: true } } },
       }),
       this.prisma.storeOrder.aggregate({ where: { storeId, status: "completed", createdAt: { gte: prevStart, lt: start } }, _sum: { totalAmount: true }, _count: { _all: true } }),
       this.prisma.storeTableSession.findMany({
@@ -77,22 +79,35 @@ export class ReportsService {
       return [...m.values()].sort((a, b) => b.revenue - a.revenue);
     };
 
-    // Sản phẩm bán chạy (gộp theo tên; dòng tiền giờ bàn tách riêng)
-    const prod = new Map<string, { name: string; productId: string | null; quantity: number; revenue: number }>();
+    // Giá vốn: dùng giá vốn chốt lúc bán; đơn cũ chưa có thì lấy giá vốn hiện tại
+    const missing = [...new Set(done.flatMap((o) => o.items.filter((i) => i.productId && i.unitCost == null).map((i) => i.productId!)))];
+    const current = missing.length ? await this.inventory.currentCosts(storeId, missing) : new Map<string, number>();
+    const costOf = (i: { productId: string | null; unitCost: number | null }) => (i.unitCost ?? (i.productId ? (current.get(i.productId) ?? 0) : 0));
+
+    // Sản phẩm bán chạy (gộp theo sản phẩm; dòng tiền giờ bàn tách riêng)
+    const prod = new Map<string, { name: string; productId: string | null; quantity: number; revenue: number; cost: number; profit: number }>();
     let timeRevenue = 0;
+    let cogs = 0;
     for (const o of done) {
       for (const i of o.items) {
         if (!i.productId && /^Giờ /.test(i.productName)) {
           timeRevenue += i.lineTotal;
           continue;
         }
+        const cost = costOf(i) * i.quantity;
+        cogs += cost;
         const k = i.productId ?? `name:${i.productName}`;
-        const g = prod.get(k) ?? { name: i.productName, productId: i.productId, quantity: 0, revenue: 0 };
+        const g = prod.get(k) ?? { name: i.productName.replace(/ \(.*\)$/, ""), productId: i.productId, quantity: 0, revenue: 0, cost: 0, profit: 0 };
         g.quantity += i.quantity;
         g.revenue += i.lineTotal;
+        g.cost += cost;
+        g.profit = g.revenue - g.cost;
         prod.set(k, g);
       }
     }
+    // Lợi nhuận gộp = doanh thu (sau giảm giá) − giá vốn hàng bán
+    const grossProfit = revenue - cogs;
+    const inv = await this.inventory.summary(auth, storeId);
 
     // Bàn / phòng
     const tableMap = new Map<string, { tableId: string; name: string; kind: string; sessions: number; minutes: number; revenue: number; timeRevenue: number }>();
@@ -118,6 +133,10 @@ export class ReportsService {
         customers: new Set(done.map((o) => o.customerId).filter(Boolean)).size,
         newCustomers,
         timeRevenue,
+        cogs,
+        grossProfit,
+        margin: revenue ? Math.round((grossProfit / revenue) * 1000) / 10 : 0,
+        stockValue: inv.stockValue,
         pendingOrders: pending.length,
         pendingAmount: pending.reduce((s, o) => s + o.totalAmount, 0),
         cancelledOrders: cancelled.length,

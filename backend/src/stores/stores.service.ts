@@ -1,3 +1,5 @@
+import { parseBom } from "./inventory";
+import { parseOptions } from "./options";
 import { ConflictException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import type { AuthContext } from "../common/guards/app-auth.guard";
@@ -144,7 +146,7 @@ export class StoresService {
         stampProgram: true,
         updatedAt: true,
         products: {
-          where: { active: true },
+          where: { active: true, kind: { not: "material" } },
           orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
           select: {
             id: true,
@@ -153,6 +155,7 @@ export class StoresService {
             category: true,
             description: true,
             durationMin: true,
+            options: true,
             price: true,
             salePrice: true,
             unit: true,
@@ -270,13 +273,34 @@ export class StoresService {
 
   async addProduct(auth: AuthContext, storeId: string, dto: UpsertProductDto) {
     await this.assertAccess(auth, storeId);
-    return this.prisma.storeProduct.create({ data: { storeId, ...dto } });
+    return this.prisma.storeProduct.create({ data: { storeId, ...(await this.productData(storeId, null, dto)) } as Prisma.StoreProductUncheckedCreateInput });
+  }
+
+  /** Kiểm tra định mức BOM & tuỳ chọn; trả dữ liệu ghi vào DB */
+  private async productData(storeId: string, productId: string | null, dto: UpdateProductDto) {
+    const { bom, options, ...rest } = dto;
+    const data: Record<string, unknown> = { ...rest };
+    if (bom !== undefined) {
+      const lines = await parseBom(this.prisma, storeId, productId, bom);
+      data.bom = lines && lines.length ? lines : Prisma.DbNull;
+    }
+    if (options !== undefined) {
+      const ids = new Set(
+        (await this.prisma.storeProduct.findMany({ where: { storeId, kind: { not: "service" } }, select: { id: true } })).map((p) => p.id),
+      );
+      const groups = parseOptions(options, ids);
+      data.options = groups && groups.length ? groups : Prisma.DbNull;
+    }
+    return data;
   }
 
   /** Luôn lọc theo storeId để không sửa / xoá được sản phẩm của store khác. */
   async updateProduct(auth: AuthContext, storeId: string, productId: string, dto: UpdateProductDto) {
     await this.assertAccess(auth, storeId);
-    const res = await this.prisma.storeProduct.updateMany({ where: { id: productId, storeId }, data: dto });
+    const res = await this.prisma.storeProduct.updateMany({
+      where: { id: productId, storeId },
+      data: (await this.productData(storeId, productId, dto)) as Prisma.StoreProductUpdateManyMutationInput,
+    });
     if (!res.count) throw new NotFoundException("Không tìm thấy sản phẩm");
     return this.prisma.storeProduct.findUniqueOrThrow({ where: { id: productId } });
   }

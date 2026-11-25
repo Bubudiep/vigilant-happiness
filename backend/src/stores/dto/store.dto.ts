@@ -143,10 +143,26 @@ export class UpsertProductDto {
   @MaxLength(60)
   sku?: string;
 
-  /** product = hàng hoá (có tồn kho) | service = dịch vụ (không quản lý kho) */
+  /** product = hàng hoá (có tồn kho) | service = dịch vụ (không quản lý kho) | material = nguyên liệu */
   @IsOptional()
-  @IsIn(["product", "service"])
-  kind?: "product" | "service";
+  @IsIn(["product", "service", "material"])
+  kind?: "product" | "service" | "material";
+
+  /** Giá vốn (đ / đơn vị) — bỏ qua nếu có định mức BOM */
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  costPrice?: number;
+
+  /** Định mức nguyên liệu: [{ productId, quantity }] */
+  @IsOptional()
+  @IsArray()
+  bom?: { productId: string; quantity: number }[] | null;
+
+  /** Phân loại & bán kèm (size, topping…) */
+  @IsOptional()
+  @IsArray()
+  options?: unknown[] | null;
 
   @IsString()
   @MaxLength(140)

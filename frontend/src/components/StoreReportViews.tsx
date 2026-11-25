@@ -159,6 +159,16 @@ export function ReportsSection({ store }: { store: StoreConfig }) {
             <StatCard label="Khách mua" icon={<LuUsers size={16} className="text-sky-600" />} value={s.customers} hint={`${s.newCustomers} khách mới trong kỳ`} />
             <StatCard label="Tiền giờ bàn / phòng" icon={<LuReceipt size={16} className="text-amber-600" />} value={money(s.timeRevenue)} hint={`Đã giảm giá ${money(s.discount)}`} />
           </StatGrid>
+          <StatGrid cols={3}>
+            <StatCard label="Giá vốn hàng bán" value={money(s.cogs)} hint="Theo giá vốn lúc bán (BOM, nhập kho)" />
+            <StatCard
+              label="Lợi nhuận gộp"
+              tone={s.grossProfit < 0 ? "danger" : "success"}
+              value={money(s.grossProfit)}
+              hint={`Biên lợi nhuận ${s.margin.toLocaleString("vi-VN")}% · chưa trừ chi phí khác`}
+            />
+            <StatCard label="Giá trị tồn kho hiện tại" value={money(s.stockValue)} hint="Hàng hoá & nguyên liệu, theo giá vốn" />
+          </StatGrid>
           <div className="flex flex-wrap gap-x-6 gap-y-1 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs text-slate-600">
             <span>
               Đơn chưa hoàn thành: <b className="tabular-nums text-slate-900">{s.pendingOrders}</b> ({money(s.pendingAmount)})
@@ -255,7 +265,7 @@ export function ReportsSection({ store }: { store: StoreConfig }) {
 
           <div className="grid gap-4 lg:grid-cols-2">
             <div className="rounded-xl border border-slate-200 bg-white p-4">
-              <div className="mb-2 text-sm font-semibold text-slate-900">Sản phẩm / dịch vụ bán chạy</div>
+              <div className="mb-2 text-sm font-semibold text-slate-900">Sản phẩm / dịch vụ bán chạy & lãi gộp</div>
               <Table
                 rowKey={(x) => x.productId ?? x.name}
                 size="small"
@@ -266,7 +276,20 @@ export function ReportsSection({ store }: { store: StoreConfig }) {
                   { title: "#", width: 36, render: (_, __, i) => <span className="text-slate-400">{i + 1}</span> },
                   { title: "Tên", dataIndex: "name", ellipsis: true },
                   { title: "SL", dataIndex: "quantity", align: "right", width: 56, className: "tabular-nums" },
-                  { title: "Doanh thu", align: "right", width: 120, render: (_, x) => <span className="tabular-nums">{money(x.revenue)}</span> },
+                  { title: "Doanh thu", align: "right", width: 110, render: (_, x) => <span className="tabular-nums">{money(x.revenue)}</span> },
+                  {
+                    title: "Lãi gộp",
+                    align: "right",
+                    width: 110,
+                    render: (_, x) =>
+                      x.cost ? (
+                        <span className={`tabular-nums ${x.profit < 0 ? "text-red-600" : "text-emerald-700"}`}>{money(x.profit)}</span>
+                      ) : (
+                        <Tooltip title="Chưa có giá vốn — nhập kho hoặc điền giá vốn ở Sản phẩm">
+                          <span className="text-slate-400">—</span>
+                        </Tooltip>
+                      ),
+                  },
                 ]}
               />
             </div>

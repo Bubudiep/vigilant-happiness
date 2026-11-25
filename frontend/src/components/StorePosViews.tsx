@@ -35,6 +35,7 @@ import {
   LuSettings2,
   LuSparkles,
   LuTrash2,
+  LuUserPlus,
   LuUsers,
 } from "react-icons/lu";
 import { ApiError } from "../data/platform-api";
@@ -60,7 +61,8 @@ import {
   updateSession,
   updateTable,
 } from "../data/pos-api";
-import type { PaymentMethod, StoreConfig, StoreProductItem } from "../data/store-api";
+import { addStoreCustomer, type PaymentMethod, type StoreConfig, type StoreCustomerItem, type StoreProductItem } from "../data/store-api";
+import { OptionPickerModal } from "./StoreInventoryViews";
 import { FilterBar, FORM_PROPS, FormFooter, FormGrid, PageHeader } from "./ui";
 
 // ───────────────────────── hằng số ─────────────────────────
@@ -118,7 +120,17 @@ const sessionTotal = (s: PosSession, now: Date) => {
  * Bán hàng tại quầy: sơ đồ bàn / phòng theo khu vực (tầng), mở bàn, gọi món, tính giờ (bida, karaoke…),
  * chuyển bàn, thanh toán → tạo đơn nguồn "Bán tại quầy" (vào Báo cáo, cộng điểm khách).
  */
-export function PosSection({ store, onCheckout }: { store: StoreConfig; onCheckout?: () => void }) {
+export function PosSection({
+  store,
+  onCheckout,
+  onLocal,
+}: {
+  store: StoreConfig;
+  onCheckout?: () => void;
+  /** Cập nhật danh sách trên giao diện (VD khách mới tạo nhanh) */
+  onLocal?: (updater: (s: StoreConfig) => StoreConfig) => void;
+}) {
+  const addCustomer = (c: StoreCustomerItem) => onLocal?.((s) => ({ ...s, customers: [c, ...s.customers] }));
   const { message } = AntApp.useApp();
   const now = useNow();
   const [data, setData] = useState<PosOverview | null>(null);
@@ -279,6 +291,7 @@ export function PosSection({ store, onCheckout }: { store: StoreConfig; onChecko
 
       <OpenTableModal
         store={store}
+        onCustomerCreated={addCustomer}
         table={openFor}
         onClose={() => setOpenFor(null)}
         onOpened={(s) => {
@@ -291,6 +304,7 @@ export function PosSection({ store, onCheckout }: { store: StoreConfig; onChecko
 
       <SessionDrawer
         store={store}
+        onCustomerCreated={addCustomer}
         session={session}
         table={session ? (data.tables.find((t) => t.id === session.tableId) ?? null) : null}
         freeTables={tables.filter((t) => statusOf(t) !== "busy")}
@@ -408,8 +422,10 @@ function OpenTableModal({
   onClose,
   onOpened,
   onTableChange,
+  onCustomerCreated,
 }: {
   store: StoreConfig;
+  onCustomerCreated: (c: StoreCustomerItem) => void;
   table: PosTable | null;
   onClose: () => void;
   onOpened: (s: PosSession) => void;
@@ -475,13 +491,7 @@ function OpenTableModal({
             </Form.Item>
           </FormGrid>
           <Form.Item label="Khách hàng (tuỳ chọn — để tích điểm)" name="customerId">
-            <Select
-              allowClear
-              showSearch
-              optionFilterProp="label"
-              placeholder="Tìm theo tên / SĐT"
-              options={store.customers.map((c) => ({ value: c.id, label: `${c.name} · ${c.phone}` }))}
-            />
+            <CustomerPicker store={store} onCreated={onCustomerCreated} />
           </Form.Item>
           <Form.Item label="Ghi chú" name="note">
             <Input placeholder="VD: khách quen, sinh nhật…" />
@@ -518,6 +528,7 @@ function OpenTableModal({
 
 function SessionDrawer({
   store,
+  onCustomerCreated,
   session,
   table,
   freeTables,
@@ -528,6 +539,7 @@ function SessionDrawer({
   onCheckout,
 }: {
   store: StoreConfig;
+  onCustomerCreated: (c: StoreCustomerItem) => void;
   session: PosSession | null;
   table: PosTable | null;
   freeTables: PosTable[];
@@ -545,7 +557,8 @@ function SessionDrawer({
   const [paying, setPaying] = useState(false);
   const saveTimer = useRef<number>();
 
-  const products = store.products.filter((p) => p.active);
+  const products = store.products.filter((p) => p.active && p.kind !== "material");
+  const [optFor, setOptFor] = useState<StoreProductItem | null>(null);
   const cats = useMemo(() => [...new Set(products.map((p) => p.category).filter(Boolean))], [products]);
   const kw = q.trim().toLowerCase();
   const shown = products.filter((p) => (cat === "all" || p.category === cat) && (!kw || p.name.toLowerCase().includes(kw)));
@@ -566,10 +579,17 @@ function SessionDrawer({
   };
   const add = (p: StoreProductItem) => {
     if (!session) return;
+    // Món có size / topping → chọn tuỳ chọn trước
+    if (p.options?.length) return setOptFor(p);
+    pushItem({ productId: p.id, name: p.name, unitPrice: p.salePrice ?? p.price, quantity: 1 });
+  };
+  const pushItem = (item: PosItem) => {
+    if (!session) return;
     const items = [...session.items];
-    const i = items.findIndex((x) => x.productId === p.id);
+    // Cùng món + cùng tuỳ chọn (cùng tên hiển thị) → cộng số lượng
+    const i = items.findIndex((x) => x.productId === item.productId && x.name === item.name);
     if (i >= 0) items[i] = { ...items[i], quantity: items[i].quantity + 1 };
-    else items.push({ productId: p.id, name: p.name, unitPrice: p.salePrice ?? p.price, quantity: 1 });
+    else items.push(item);
     setItems(items);
   };
   const qty = (idx: number, d: number) => {
@@ -646,7 +666,7 @@ function SessionDrawer({
       </div>
       <div className="mt-2 grid min-h-0 flex-1 auto-rows-min grid-cols-2 gap-2 overflow-y-auto pr-1 lg:grid-cols-3">
         {shown.map((p) => {
-          const inBill = session?.items.find((x) => x.productId === p.id)?.quantity ?? 0;
+          const inBill = (session?.items ?? []).filter((x) => x.productId === p.id).reduce((n, x) => n + x.quantity, 0);
           return (
             <button
               key={p.id}
@@ -686,18 +706,16 @@ function SessionDrawer({
             />
           </span>
         </div>
-        <Select
-          size="small"
-          allowClear
-          showSearch
-          variant="borderless"
-          optionFilterProp="label"
-          placeholder="+ Gắn khách hàng (tích điểm)"
-          className="!-mx-2 mt-1 !w-[calc(100%+16px)]"
-          value={session.customerId ?? undefined}
-          onChange={(v) => patch({ customerId: v ?? null })}
-          options={store.customers.map((c) => ({ value: c.id, label: `${c.name} · ${c.phone}` }))}
-        />
+        <div className="mt-1">
+          <CustomerPicker
+            store={store}
+            size="small"
+            placeholder="+ Gắn khách hàng (tích điểm)"
+            value={session.customerId ?? undefined}
+            onChange={(v) => patch({ customerId: v ?? null })}
+            onCreated={onCustomerCreated}
+          />
+        </div>
       </div>
 
       <div className="mt-2 min-h-0 flex-1 divide-y divide-slate-100 overflow-y-auto">
@@ -800,6 +818,14 @@ function SessionDrawer({
           <div className={wide ? "flex min-h-0 w-[330px] shrink-0 flex-col border-l border-slate-100 pl-3" : ""}>{bill}</div>
         </div>
       )}
+      <OptionPickerModal
+        product={optFor}
+        onClose={() => setOptFor(null)}
+        onPick={(selections, label, price) => {
+          if (optFor) pushItem({ productId: optFor.id, name: label, unitPrice: price, quantity: 1, selections });
+          setOptFor(null);
+        }}
+      />
       <Modal
         open={pay.open}
         title={`Thanh toán ${table?.name ?? ""}`}
@@ -1133,5 +1159,102 @@ function SetupDrawer({
         </Form>
       </Modal>
     </Drawer>
+  );
+}
+
+// ───────────────────────── chọn / tạo nhanh khách hàng ─────────────────────────
+
+/** Select khách hàng + nút "Khách mới" mở form tạo nhanh (tên, SĐT); tạo xong tự chọn khách đó */
+function CustomerPicker({
+  store,
+  value,
+  onChange,
+  onCreated,
+  size,
+  placeholder = "Tìm theo tên / SĐT",
+}: {
+  store: StoreConfig;
+  value?: string;
+  onChange?: (v: string | undefined) => void;
+  onCreated: (c: StoreCustomerItem) => void;
+  size?: "small";
+  placeholder?: string;
+}) {
+  const { message } = AntApp.useApp();
+  const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [form] = Form.useForm<{ name: string; phone: string; note?: string }>();
+  const [search, setSearch] = useState("");
+
+  const create = async (v: { name: string; phone: string; note?: string }) => {
+    setSaving(true);
+    try {
+      const c = await addStoreCustomer(store.id, { name: v.name.trim(), phone: v.phone.trim(), note: v.note?.trim() || undefined } as never);
+      onCreated(c);
+      onChange?.(c.id);
+      message.success(`Đã tạo khách ${c.name}`);
+      setOpen(false);
+    } catch (e) {
+      message.error(errMsg(e));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const openCreate = () => {
+    form.resetFields();
+    // Đang gõ số điện thoại / tên trong ô tìm → điền sẵn
+    const q = search.trim();
+    form.setFieldsValue(/^[+\d\s.]{6,}$/.test(q) ? { phone: q.replace(/[\s.]/g, "") } : q ? { name: q } : {});
+    setOpen(true);
+  };
+
+  return (
+    <>
+      <div className="flex gap-1.5">
+        <Select
+          size={size}
+          allowClear
+          showSearch
+          optionFilterProp="label"
+          placeholder={placeholder}
+          className="min-w-0 flex-1"
+          value={value}
+          onChange={(v) => onChange?.(v)}
+          onSearch={setSearch}
+          notFoundContent={
+            <div className="py-2 text-center text-xs text-slate-500">
+              Không thấy khách.{" "}
+              <button type="button" className="font-semibold text-brand-600 hover:underline" onClick={openCreate}>
+                Tạo khách mới
+              </button>
+            </div>
+          }
+          options={store.customers.map((c) => ({ value: c.id, label: `${c.name} · ${c.phone}` }))}
+        />
+        <Tooltip title="Tạo khách mới">
+          <Button size={size} icon={<LuUserPlus size={size ? 13 : 14} />} onClick={openCreate} aria-label="Tạo khách mới" />
+        </Tooltip>
+      </div>
+      <Modal open={open} title="Khách hàng mới" onCancel={() => setOpen(false)} footer={null} width={400} destroyOnHidden>
+        <Form form={form} {...FORM_PROPS} onFinish={create}>
+          <Form.Item label="Họ tên" name="name" rules={[{ required: true, whitespace: true, message: "Nhập tên khách" }]}>
+            <Input autoFocus placeholder="VD: Anh Nam" />
+          </Form.Item>
+          <Form.Item label="Số điện thoại" name="phone" rules={[{ required: true, message: "Nhập SĐT" }, { pattern: /^[+\d][\d\s.]{7,14}$/, message: "SĐT không hợp lệ" }]}>
+            <Input inputMode="tel" placeholder="09xx xxx xxx" />
+          </Form.Item>
+          <Form.Item label="Ghi chú" name="note">
+            <Input placeholder="Tuỳ chọn" />
+          </Form.Item>
+          <FormFooter>
+            <Button onClick={() => setOpen(false)}>Huỷ</Button>
+            <Button type="primary" htmlType="submit" loading={saving}>
+              Tạo & gắn vào bàn
+            </Button>
+          </FormFooter>
+        </Form>
+      </Modal>
+    </>
   );
 }

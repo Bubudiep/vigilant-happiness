@@ -98,6 +98,11 @@ Quota Zalo: Development 11/300, Testing 19/60.
 | T59 Tin nhắn ở Trang điều hành tải lại liên tục (vòng lặp `onUnreadChange` → render lại → tải lại hội thoại), phản hồi cũ đè hội thoại mới, cuộn cả trang | `demo-88` | [x] |
 | T60 Gói dịch vụ Free (0đ) & Bắt đầu (99.000đ/tháng) — migration chèn sẵn, có gói cùng mã thì giữ nguyên | `demo-88` | [x] hạn mức tạm đặt, sửa ở Gói dịch vụ |
 | T61 Thẻ tích tem thật: số tem, sản phẩm áp dụng, mỗi món / mỗi đơn, quà, biểu tượng; tự cộng khi đơn hoàn thành; đổi quà / cộng trừ tay; Mini App hiện tem thật của khách | `demo-88` | [x] Mini App cần deploy lại để thấy |
+| T62 Kho: giá vốn bình quân, phiếu nhập kho (huỷ được), giá trị tồn kho; tự trừ kho khi đơn hoàn thành / trả lại khi mở lại | `demo-88` | [x] |
+| T63 BOM (định mức nguyên liệu) + loại "Nguyên liệu"; giá vốn món = tổng nguyên liệu, "làm được N" | `demo-88` | [x] số lượng định mức là số nguyên (dùng g / ml / cái) |
+| T64 Phân loại & bán kèm (size / topping, chọn 1 / nhiều, giá cộng thêm, nguyên liệu thêm) — web quản trị & bán tại bàn | `demo-88` | [x] Mini App chưa có màn chọn tuỳ chọn (cần làm + deploy) |
+| T65 Báo cáo: giá vốn hàng bán, lợi nhuận gộp, biên LN, lãi từng món | `demo-88` | [x] |
+| T66 Bán hàng: tạo nhanh khách mới khi gắn khách vào bàn | `demo-88` | [x] |
 | T55 Thang chữ quản trị 9/10/11px (`ui/AdminTheme.tsx` + `index.css`) | `demo-88` | [x] người dùng đang thử |
 | T45 Nhãn tiếng Việt cho action audit mới | `frontend-2b` | [x] test 45/45 (`data/audit-labels.ts`) |
 | T44b Thư viện ảnh dùng cờ `inUse/usedIn` + xử lý 409 | `frontend-2b` | [x] test 53/53 |
