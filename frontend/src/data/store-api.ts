@@ -202,6 +202,9 @@ export interface StoreCustomerItem {
   avatarUrl?: string | null;
   address?: string | null;
   lastLoginAt?: string | null;
+  /** Thẻ tích tem: số tem hiện có / số lần đã đổi quà */
+  stamps?: number;
+  stampRewards?: number;
 }
 
 export interface StoreConfig {
@@ -226,6 +229,7 @@ export interface StoreConfig {
   memberTiers?: StoreMemberTierItem[];
   vouchers?: StoreVoucherItem[];
   staff?: StoreStaffItem[];
+  stampProgram?: StampProgram | null;
   tickets?: StoreSupportTicket[];
   builder?: BuilderSchema;
   /** Đã lưu App Secret Mini App riêng của store (không đọc lại được) */
@@ -416,3 +420,18 @@ export interface StorePlanInfo {
   usage: { products: number; staff: number; usedBytes: number; quotaBytes: number | null };
 }
 export const fetchStorePlan = (storeId: string) => api<StorePlanInfo>(`/stores/${storeId}/plan`);
+
+/** Thẻ tích tem của gian hàng */
+export interface StampProgram {
+  enabled: boolean;
+  required: number;
+  /** Rỗng = mọi sản phẩm & dịch vụ */
+  productIds: string[];
+  countBy: "item" | "order";
+  reward: string;
+  icon: string;
+}
+export const saveStampProgram = (storeId: string, data: StampProgram) =>
+  api<StampProgram>(`/stores/${storeId}/data/stamp-program`, { method: "POST", body: JSON.stringify(data) });
+export const adjustCustomerStamps = (storeId: string, customerId: string, body: { action: "redeem" } | { action: "adjust"; delta: number }) =>
+  api<{ id: string; stamps: number; stampRewards: number }>(`/stores/${storeId}/data/customers/${customerId}/stamps`, { method: "POST", body: JSON.stringify(body) });

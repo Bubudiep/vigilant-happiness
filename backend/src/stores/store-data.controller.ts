@@ -30,6 +30,18 @@ export class StoreDataController {
     return this.data.previewVoucher(req.auth!, id, body ?? {});
   }
 
+  @Post("stamp-program")
+  @ApiOperation({ summary: "Lưu thẻ tích tem: { enabled, required, productIds[], countBy, reward, icon }" })
+  saveStampProgram(@Req() req: AppRequest, @Param("id") id: string, @Body() body: unknown) {
+    return this.data.saveStampProgram(req.auth!, id, body);
+  }
+
+  @Post("customers/:customerId/stamps")
+  @ApiOperation({ summary: "Tem của khách: { action: redeem } đổi quà | { action: adjust, delta }" })
+  customerStamps(@Req() req: AppRequest, @Param("id") id: string, @Param("customerId") cid: string, @Body() body: { action?: string; delta?: number }) {
+    return this.data.customerStamps(req.auth!, id, cid, body ?? {});
+  }
+
   @Get("vouchers/:voucherId/codes")
   @ApiOperation({ summary: "Danh sách mã thẻ (dùng 1 lần) của voucher" })
   listCodes(@Req() req: AppRequest, @Param("id") id: string, @Param("voucherId") voucherId: string) {

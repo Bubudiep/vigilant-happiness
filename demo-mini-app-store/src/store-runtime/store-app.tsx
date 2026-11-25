@@ -10,6 +10,7 @@ import { BlockRenderer, DocumentLike, ProductLike, RenderCtx, VoucherLike } from
 import { Icon } from "./builder/icons";
 import { BuilderAuthConfig, BuilderPage, BuilderSchema, DEFAULT_BUILDER_AUTH } from "./builder/types";
 import { ShopAccountButton } from "./ShopAccount";
+import { getShopSession, shopFetch } from "./shop-session";
 import { setStockBase } from "./stock";
 
 /**
@@ -97,6 +98,19 @@ function StoreScreen({ store, schema }: { store: PublicStore; schema: BuilderSch
   const [authSheet, setAuthSheet] = useState<{ open: boolean; tab: "login" | "register"; reason?: string }>({ open: false, tab: "login" });
   const [toast, setToast] = useState<string | null>(null);
   const authConfig: BuilderAuthConfig = schema.auth ?? DEFAULT_BUILDER_AUTH;
+
+  // Thẻ tích tem: khách đã đăng nhập Zalo → tem thật từ /me; chưa đăng nhập → khung tem theo cấu hình của quán
+  const program = store.stampProgram?.enabled ? store.stampProgram : null;
+  const [memberStamps, setMemberStamps] = useState<RenderCtx["memberStamps"]>(null);
+  useEffect(() => {
+    if (!program) return setMemberStamps(null);
+    setMemberStamps({ count: 0, required: program.required, reward: program.reward, icon: program.icon });
+    if (!getShopSession(store.slug)) return;
+    shopFetch<{ stamps?: RenderCtx["memberStamps"] }>(store.slug, "/me")
+      .then((me) => me.stamps && setMemberStamps(me.stamps))
+      .catch(() => undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [store.slug, program?.required, memberLoggedIn]);
 
   useEffect(() => {
     if (!toast) return;
@@ -188,6 +202,7 @@ function StoreScreen({ store, schema }: { store: PublicStore; schema: BuilderSch
               vouchers,
               auth: authConfig,
               isMemberLoggedIn: memberLoggedIn,
+              memberStamps,
               onRequireMemberAuth: requireAuth,
               onOpenMemberAuth: (tab = "login") => setAuthSheet({ open: true, tab }),
               onMemberLogout: () => {

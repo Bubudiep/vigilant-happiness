@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import { AuthService } from "../auth/auth.service";
 import { normalizeVnPhone, ZaloService } from "../oauth/zalo.service";
+import { readStampProgram } from "../stores/stamps";
 import { PrismaService } from "../prisma/prisma.service";
 import { makeCode, serializeBooking, serializeOrder, serializeVoucher } from "../stores/store-data";
 import { StoresService } from "../stores/stores.service";
@@ -78,13 +79,15 @@ export class ShopService {
   async me(customerId: string) {
     const c = await this.prisma.storeCustomer.findUniqueOrThrow({ where: { id: customerId } });
     const now = new Date();
-    const [tiers, vouchers] = await Promise.all([
+    const [tiers, vouchers, store] = await Promise.all([
       this.prisma.storeMemberTier.findMany({ where: { storeId: c.storeId }, orderBy: { minSpent: "asc" } }),
       this.prisma.storeVoucher.findMany({
         where: { storeId: c.storeId, active: true, startDate: { lte: now }, endDate: { gte: now } },
         orderBy: { endDate: "asc" },
       }),
+      this.prisma.store.findUnique({ where: { id: c.storeId }, select: { stampProgram: true } }),
     ]);
+    const program = readStampProgram(store?.stampProgram);
     const tierIdx = tiers.findIndex((t) => t.name === c.tier);
     const tier = tiers[tierIdx] ?? null;
     const nextTier = tierIdx >= 0 ? (tiers[tierIdx + 1] ?? null) : (tiers[0] ?? null);
@@ -98,6 +101,8 @@ export class ShopService {
       points: c.points,
       totalOrders: c.totalOrders,
       totalSpent: c.totalSpent,
+      // Thẻ tích tem: số tem hiện có / cần để đổi quà
+      stamps: program?.enabled ? { count: c.stamps, required: program.required, reward: program.reward, icon: program.icon, redeemed: c.stampRewards } : null,
       tierInfo: tier && { code: tier.code, name: tier.name, color: tier.color, discountPercent: tier.discountPercent, benefits: tier.benefits },
       nextTier: nextTier && { name: nextTier.name, minSpent: nextTier.minSpent, remaining: Math.max(0, nextTier.minSpent - c.totalSpent) },
       vouchers: vouchers

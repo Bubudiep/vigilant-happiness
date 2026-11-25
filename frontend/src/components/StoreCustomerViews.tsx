@@ -36,6 +36,7 @@ import { ApiError } from "../data/platform-api";
 import type { StoreBookingItem, StoreConfig, StoreCustomerItem, StoreOrderItem } from "../data/store-api";
 import { AlbumDrawer, AlbumKindsModal, CustomerThread, guessProvider, PROVIDERS, useAlbumKinds } from "./AlbumViews";
 import { BookingCreateModal } from "./StoreOperationsViews";
+import { StampGrid } from "./StoreStampViews";
 import { FilterBar, PageHeader } from "./ui";
 
 const ORDER_STATUS: Record<string, { label: string; color: string }> = {
@@ -822,6 +823,18 @@ function CustomerProfile({
                   <InfoRow icon={<LuMapPin size={13} />} value={customer.address || "Chưa có địa chỉ"} />
                   <InfoRow icon={<LuCalendarCheck size={13} />} value={`Khách từ ${dayjs(customer.createdAt).format("DD/MM/YYYY")}`} />
                 </div>
+                {store.stampProgram?.enabled && (
+                  <div className="rounded-xl border border-dashed border-slate-200 px-3 py-2.5">
+                    <div className="mb-1.5 flex items-center justify-between text-xs">
+                      <span className="font-semibold text-slate-700">Thẻ tích tem</span>
+                      <span className="tabular-nums text-slate-500">
+                        {customer.stamps ?? 0}/{store.stampProgram.required} · đã đổi {customer.stampRewards ?? 0}
+                      </span>
+                    </div>
+                    <StampGrid program={store.stampProgram} filled={Math.min(store.stampProgram.required, customer.stamps ?? 0)} color={store.theme?.primary} size={20} />
+                    <div className="mt-1.5 text-xs text-slate-500">Quà: {store.stampProgram.reward} · đổi quà ở Hạng & Voucher → Thẻ tích tem</div>
+                  </div>
+                )}
                 {customer.note && (
                   <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
                     <b>Ghi chú:</b> {customer.note}

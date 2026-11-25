@@ -58,6 +58,9 @@ export interface BlockProps {
   source?: "store" | "manual";
   endsInMinutes?: number;
   autoplay?: boolean;
+  /** Thẻ tích tem: số ô tem & biểu tượng (khi cửa hàng đã bật thẻ tích tem, Mini App dùng cấu hình thật) */
+  stampCount?: number;
+  stampIcon?: string;
   items?: BlockItem[];
 }
 

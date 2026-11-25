@@ -1,5 +1,5 @@
 import { Badge, Button, Drawer, Spin, Tabs, Tooltip } from "antd";
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import {
   LuBookOpen,
   LuGauge,
@@ -103,9 +103,11 @@ export default function PlatformConsole({
   const [mobileOpen, setMobileOpen] = useState(false);
   const [summary, setSummary] = useState<InboxSummary | null>(null);
 
-  const refreshSummary = () => {
-    fetchInboxSummary().then(setSummary).catch(() => undefined);
-  };
+  const refreshSummary = useCallback(() => {
+    fetchInboxSummary()
+      .then((d) => setSummary((cur) => (JSON.stringify(cur) === JSON.stringify(d) ? cur : d)))
+      .catch(() => undefined);
+  }, []);
   useEffect(() => {
     refreshSummary();
     const t = setInterval(() => !document.hidden && refreshSummary(), 30000);

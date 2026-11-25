@@ -200,3 +200,24 @@ test("timeCharge: làm tròn lên theo block, tối thiểu, giá giờ", () => 
   // Không tính giờ
   assert.equal(timeCharge(t0, at(90), 0, 30, 0).charge, 0);
 });
+
+// ───────── Thẻ tích tem ─────────
+import { parseStampProgram, stampsForOrder } from "../src/stores/stamps";
+
+test("stampsForOrder: theo món / theo đơn / sản phẩm áp dụng", () => {
+  const items = [
+    { productId: "a", quantity: 2 },
+    { productId: "b", quantity: 1 },
+    { productId: null, quantity: 1 }, // dòng tiền giờ / món ngoài danh mục: không tính
+  ];
+  const base = { enabled: true, required: 10, productIds: [] as string[], countBy: "item" as const, reward: "Quà", icon: "coffee" };
+  assert.equal(stampsForOrder(base, items), 3);
+  assert.equal(stampsForOrder({ ...base, productIds: ["a"] }, items), 2);
+  assert.equal(stampsForOrder({ ...base, countBy: "order" }, items), 1);
+  assert.equal(stampsForOrder({ ...base, productIds: ["z"] }, items), 0);
+  assert.equal(stampsForOrder({ ...base, enabled: false }, items), 0);
+  assert.equal(stampsForOrder(null, items), 0);
+  assert.throws(() => parseStampProgram({ required: 1, reward: "x" }));
+  assert.throws(() => parseStampProgram({ required: 8, reward: " " }));
+  assert.equal(parseStampProgram({ required: 8, reward: "Ly miễn phí", icon: "bad" }).icon, "coffee");
+});

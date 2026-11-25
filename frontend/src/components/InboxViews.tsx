@@ -156,7 +156,12 @@ export function InboxSection({ onUnreadChange, storeId }: { onUnreadChange?: () 
   const [sending, setSending] = useState(false);
   const [care, setCare] = useState<{ title: string; dueAt: Dayjs | null; note: string } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
-  const endRef = useRef<HTMLDivElement>(null);
+  const boxRef = useRef<HTMLDivElement>(null);
+  // Giữ callback của cha trong ref: cha render lại (VD cập nhật số chưa đọc) không làm tải lại hội thoại
+  const unreadRef = useRef(onUnreadChange);
+  unreadRef.current = onUnreadChange;
+  // Hội thoại đang mở — bỏ qua phản hồi đến muộn của hội thoại cũ khi bấm chuyển nhanh
+  const openRef = useRef<string | null>(null);
 
   const loadList = useCallback(async () => {
     setLoading(true);
@@ -171,34 +176,54 @@ export function InboxSection({ onUnreadChange, storeId }: { onUnreadChange?: () 
   }, [ops, status, channel, q]);
 
   const loadDetail = useCallback(
-    async (id: string) => {
+    async (id: string, silent = false) => {
       try {
         const d = await ops.get(id);
-        setDetail((cur) => (cur?.id === id && cur.messages.length === d.messages.length && cur.status === d.status ? cur : d));
-        onUnreadChange?.();
+        if (openRef.current !== id) return;
+        let changed = true;
+        setDetail((cur) => {
+          if (cur?.id === id && cur.messages.length === d.messages.length && cur.status === d.status && cur.customerId === d.customerId) {
+            changed = false;
+            return cur;
+          }
+          return d;
+        });
+        // Chỉ báo cha cập nhật số chưa đọc khi mở hội thoại hoặc có tin mới
+        if (changed) unreadRef.current?.();
       } catch (e) {
-        message.error(errMsg(e));
+        if (!silent) message.error(errMsg(e));
       }
     },
-    [ops, message, onUnreadChange],
+    [ops, message],
   );
 
   useEffect(() => {
     loadList();
-    const t = setInterval(loadList, 15000);
+    // Tự làm mới ngầm (không hiện vòng quay) khi tab đang mở
+    const t = setInterval(() => {
+      if (document.hidden) return;
+      ops
+        .list({ status: status === "all" ? undefined : status, channel: channel || undefined, q: q || undefined })
+        .then((l) => setList((cur) => (JSON.stringify(cur) === JSON.stringify(l) ? cur : l)))
+        .catch(() => undefined);
+    }, 15000);
     return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadList]);
 
   useEffect(() => {
+    openRef.current = openId;
     setDetail(null);
     if (!openId) return;
     loadDetail(openId);
-    const t = setInterval(() => loadDetail(openId), 8000);
+    const t = setInterval(() => !document.hidden && loadDetail(openId, true), 8000);
     return () => clearInterval(t);
   }, [openId, loadDetail]);
 
+  // Cuộn khung tin xuống cuối (chỉ khung tin, không cuộn cả trang)
   useEffect(() => {
-    endRef.current?.scrollIntoView({ block: "end" });
+    const el = boxRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
   }, [detail?.messages.length, detail?.id]);
 
   const preview = useMemo(() => (file ? URL.createObjectURL(file) : null), [file]);
@@ -349,12 +374,11 @@ export function InboxSection({ onUnreadChange, storeId }: { onUnreadChange?: () 
                 </Button>
               </div>
 
-              <div className="min-h-0 flex-1 space-y-2 overflow-y-auto bg-slate-50 p-3">
+              <div ref={boxRef} className="min-h-0 flex-1 space-y-2 overflow-y-auto bg-slate-50 p-3">
                 {detail.messages.map((m) => (
                   <Bubble key={m.id} m={m} />
                 ))}
                 {detail.messages.length === 0 && <div className="py-8 text-center text-xs text-slate-400">Chưa có tin nhắn</div>}
-                <div ref={endRef} />
               </div>
 
               <div className="border-t border-slate-100 p-3">

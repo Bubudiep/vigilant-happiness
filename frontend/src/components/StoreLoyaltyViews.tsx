@@ -1,3 +1,4 @@
+import { StampProgramPanel } from "./StoreStampViews";
 import {
   App as AntApp,
   Button,
@@ -16,7 +17,7 @@ import {
 } from "antd";
 import dayjs from "dayjs";
 import { lazy, Suspense, useState } from "react";
-import { LuCrown, LuPlus, LuPrinter, LuTicket, LuTrash2, LuUsers } from "react-icons/lu";
+import { LuCrown, LuPlus, LuPrinter, LuStamp, LuTicket, LuTrash2, LuUsers } from "react-icons/lu";
 import { StoreConfig, StoreMemberTierItem, StoreVoucherItem } from "../data/store-api";
 
 // Mã thẻ / in thẻ / xuất Excel — tải khi mở (kèm thư viện QR & Excel)
@@ -279,6 +280,15 @@ export function LoyaltySection({
                 </div>
               </div>
             ),
+          },
+          {
+            key: "stamps",
+            label: (
+              <span className="inline-flex items-center gap-1.5 font-semibold">
+                <LuStamp size={15} /> Thẻ tích tem{store.stampProgram?.enabled ? ` (${store.stampProgram.required} tem)` : ""}
+              </span>
+            ),
+            children: <StampProgramPanel store={store} applyLocal={applyLocal} />,
           },
           {
             key: "vouchers",

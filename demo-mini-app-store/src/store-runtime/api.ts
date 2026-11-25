@@ -16,6 +16,8 @@ export interface PublicStore {
   builderSchema?: BuilderSchema | null;
   assetBase?: string;
   updatedAt: string;
+  /** Thẻ tích tem của quán (null = chưa bật) */
+  stampProgram?: { enabled: boolean; required: number; reward: string; icon: string } | null;
   products: {
     id: string;
     name: string;

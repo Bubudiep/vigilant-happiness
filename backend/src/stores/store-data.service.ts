@@ -17,6 +17,7 @@ import {
   SPECS,
 } from "./store-data";
 import { markVoucherUsed, quoteVoucher, reclaimVoucher, releaseVoucher } from "./voucher-redeem";
+import { parseStampProgram, readStampProgram, stampsForOrder } from "./stamps";
 import { StoresService } from "./stores.service";
 
 export const COLLECTIONS = ["bookings", "events", "documents", "member-tiers", "vouchers", "orders", "staff"] as const;
@@ -181,6 +182,44 @@ export class StoreDataService {
                   : await this.prisma.storeOrder.deleteMany({ where });
     if (!res.count) throw new NotFoundException("Không tìm thấy dữ liệu");
     return { id, deleted: true };
+  }
+
+  // ───────────── Thẻ tích tem ─────────────
+
+  async saveStampProgram(auth: AuthContext, storeId: string, body: unknown) {
+    await this.stores.ensureAccess(auth, storeId);
+    const program = parseStampProgram(body);
+    if (program.productIds.length) {
+      const n = await this.prisma.storeProduct.count({ where: { storeId, id: { in: program.productIds } } });
+      if (n !== program.productIds.length) throw new BadRequestException("Có sản phẩm không thuộc cửa hàng");
+    }
+    await this.prisma.store.update({ where: { id: storeId }, data: { stampProgram: program as unknown as Prisma.InputJsonValue } });
+    return program;
+  }
+
+  /**
+   * Tem của 1 khách: { action: "redeem" } đổi quà (trừ đủ số tem), { action: "adjust", delta } cộng / trừ tay.
+   */
+  async customerStamps(auth: AuthContext, storeId: string, customerId: string, body: { action?: string; delta?: number }) {
+    await this.stores.ensureAccess(auth, storeId);
+    const [store, c] = await Promise.all([
+      this.prisma.store.findUnique({ where: { id: storeId }, select: { stampProgram: true } }),
+      this.prisma.storeCustomer.findFirst({ where: { id: customerId, storeId } }),
+    ]);
+    if (!c) throw new NotFoundException("Không tìm thấy khách hàng");
+    const program = readStampProgram(store?.stampProgram);
+    if (!program) throw new BadRequestException("Cửa hàng chưa thiết lập thẻ tích tem");
+    let data: Prisma.StoreCustomerUpdateInput;
+    if (body?.action === "redeem") {
+      if (c.stamps < program.required) throw new BadRequestException(`Khách mới có ${c.stamps}/${program.required} tem`);
+      data = { stamps: c.stamps - program.required, stampRewards: c.stampRewards + 1 };
+    } else if (body?.action === "adjust") {
+      const delta = Math.round(Number(body.delta));
+      if (!Number.isFinite(delta) || !delta || Math.abs(delta) > 500) throw new BadRequestException("Số tem điều chỉnh không hợp lệ");
+      data = { stamps: Math.max(0, c.stamps + delta) };
+    } else throw new BadRequestException("Thao tác không hợp lệ");
+    const saved = await this.prisma.storeCustomer.update({ where: { id: c.id }, data });
+    return { id: saved.id, stamps: saved.stamps, stampRewards: saved.stampRewards };
   }
 
   // ───────────── Mã voucher dùng 1 lần (in thẻ) ─────────────
@@ -406,6 +445,8 @@ export class StoreDataService {
       const sign = isDone ? 1 : -1;
       const customer = await tx.storeCustomer.findUnique({ where: { id: order.customerId } });
       const tiers = await tx.storeMemberTier.findMany({ where: { storeId }, orderBy: { minSpent: "asc" } });
+      const program = readStampProgram((await tx.store.findUnique({ where: { id: storeId }, select: { stampProgram: true } }))?.stampProgram);
+      const stampDelta = stampsForOrder(program, order.items);
       if (customer) {
         const multiplier = tiers.find((t) => t.name === customer.tier)?.pointMultiplier ?? 1;
         const totalSpent = Math.max(0, customer.totalSpent + sign * order.totalAmount);
@@ -414,7 +455,13 @@ export class StoreDataService {
         const tier = tiers.filter((t) => totalSpent >= t.minSpent || (t.minPoints > 0 && points >= t.minPoints)).pop();
         await tx.storeCustomer.update({
           where: { id: customer.id },
-          data: { totalSpent, points, totalOrders, ...(tier ? { tier: tier.name } : {}) },
+          data: {
+            totalSpent,
+            points,
+            totalOrders,
+            ...(stampDelta ? { stamps: Math.max(0, customer.stamps + sign * stampDelta) } : {}),
+            ...(tier ? { tier: tier.name } : {}),
+          },
         });
       }
     }

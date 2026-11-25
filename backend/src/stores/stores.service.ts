@@ -141,6 +141,7 @@ export class StoresService {
         theme: true,
         sliders: true,
         builderSchema: true,
+        stampProgram: true,
         updatedAt: true,
         products: {
           where: { active: true },

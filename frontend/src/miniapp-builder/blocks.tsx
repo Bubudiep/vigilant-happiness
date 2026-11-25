@@ -43,6 +43,8 @@ export interface RenderCtx {
   onRequireMemberAuth?: (action: keyof BuilderAuthConfig["protectedActions"], reason: string) => boolean;
   onOpenMemberAuth?: (tab?: "login" | "register") => void;
   onMemberLogout?: () => void;
+  /** Tem thật của khách đang đăng nhập (Mini App) — có thì ưu tiên hơn số tem trong thiết kế */
+  memberStamps?: { count: number; required: number; reward: string; icon: string } | null;
   /** Block này đang được chọn và đang ở chế độ chỉnh sửa → cho phép sửa text trực tiếp */
   editable: boolean;
   topInset?: number;
@@ -677,6 +679,11 @@ function MemberCardBlock({ block, ctx }: { block: Block; ctx: RenderCtx }) {
   const v = block.props.variant ?? "vip";
   const { theme } = ctx;
   if (v === "stamp") {
+    const real = ctx.memberStamps;
+    const total = Math.min(50, Math.max(2, real?.required ?? block.props.stampCount ?? 10));
+    const filled = real ? Math.min(total, real.count) : Math.round(total * 0.6);
+    const icon = real?.icon === "cup" ? "coffee" : (real?.icon ?? block.props.stampIcon ?? "coffee");
+    const cols = total <= 6 ? total : total <= 12 ? Math.ceil(total / 2) : 8;
     return (
       <div className="px-4 py-2">
         <div className="rounded-2xl border border-dashed bg-white p-3.5" style={{ borderColor: `${theme.primary}55` }}>
@@ -689,17 +696,23 @@ function MemberCardBlock({ block, ctx }: { block: Block; ctx: RenderCtx }) {
               <EditableText value={block.props.ctaLabel} editable={ctx.editable} onCommit={(x) => ctx.onEditProp("ctaLabel", x)} />
             </span>
           </div>
-          <div className="mt-3 grid grid-cols-5 gap-2">
-            {Array.from({ length: 10 }).map((_, i) => (
+          <div className="mt-3 grid gap-2" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
+            {Array.from({ length: total }).map((_, i) => (
               <div
                 key={i}
                 className="flex aspect-square items-center justify-center rounded-full text-white"
-                style={i < 6 ? { background: theme.primary } : { background: "#f1f5f9", color: "#cbd5e1" }}
+                style={i < filled ? { background: theme.primary } : { background: "#f1f5f9", color: "#cbd5e1" }}
               >
-                <Icon name="coffee" size={14} />
+                <Icon name={i === total - 1 ? "gift" : icon} size={14} />
               </div>
             ))}
           </div>
+          {real && (
+            <div className="mt-2 text-[11px] text-slate-500">
+              {real.count >= total ? "Đủ tem — báo nhân viên để nhận: " : `Còn ${total - real.count} tem nữa để nhận: `}
+              <b className="text-slate-700">{real.reward}</b>
+            </div>
+          )}
         </div>
       </div>
     );

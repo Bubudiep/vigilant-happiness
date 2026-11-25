@@ -133,23 +133,23 @@ model PlatformCustomer {
 
 /// Danh mục gói đăng ký dịch vụ (Starter, Pro, Enterprise...)
 model SubscriptionPlan {
-  id            String         @id @default(cuid())
-  code          String         @unique
-  name          String
-  description   String?
-  priceMonthly  Int
-  priceYearly   Int
-  maxStores     Int            @default(1)
-  maxProducts   Int            @default(100)
-  maxStaff      Int            @default(5)
+  id             String         @id @default(cuid())
+  code           String         @unique
+  name           String
+  description    String?
+  priceMonthly   Int
+  priceYearly    Int
+  maxStores      Int            @default(1)
+  maxProducts    Int            @default(100)
+  maxStaff       Int            @default(5)
   /// Hạn mức dung lượng ảnh của mỗi gian hàng thuộc gói (MB); null = không giới hạn
   storageQuotaMb Int?
-  features      Json
-  isActive      Boolean        @default(true)
-  sortOrder     Int            @default(0)
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  subscriptions Subscription[]
+  features       Json
+  isActive       Boolean        @default(true)
+  sortOrder      Int            @default(0)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  subscriptions  Subscription[]
 
   @@index([isActive, sortOrder])
 }
@@ -253,6 +253,8 @@ model Store {
   builderSchema    Json?
   /// Loại album do shop tự đặt: [{ key, label, color, icon, hint }] — null = mặc định
   albumKinds       Json?
+  /// Thẻ tích tem: { enabled, required, productIds[], countBy: item|order, reward, icon } — null = chưa bật
+  stampProgram     Json?
   active           Boolean             @default(true)
   createdAt        DateTime            @default(now())
   updatedAt        DateTime            @updatedAt
@@ -354,9 +356,9 @@ model StoreProduct {
 
 /// Nhân sự của gian hàng (quản lý hồ sơ, ca làm, lương) — khác CustomerStaff (tài khoản đăng nhập cổng khách hàng)
 model StoreStaff {
-  id                String    @id @default(cuid())
+  id                String            @id @default(cuid())
   storeId           String
-  store             Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  store             Store             @relation(fields: [storeId], references: [id], onDelete: Cascade)
   code              String?
   /// Mã nhân viên trên máy chấm công (để nhận dữ liệu từ máy) — duy nhất trong store
   attendanceCode    String?
@@ -368,9 +370,9 @@ model StoreStaff {
   department        String?
   avatarUrl         String?
   /// active = đang làm | leave = nghỉ phép | quit = đã nghỉ việc
-  status            String    @default("active")
+  status            String            @default("active")
   /// full_time | part_time | probation | freelance
-  employmentType    String    @default("full_time")
+  employmentType    String            @default("full_time")
   startDate         DateTime?
   birthday          DateTime?
   baseSalary        Int?
@@ -382,9 +384,9 @@ model StoreStaff {
   /// Tên các dịch vụ nhân viên làm được (để phân lịch hẹn)
   services          Json?
   note              String?
-  sortOrder         Int       @default(0)
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  sortOrder         Int               @default(0)
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
   attendance        StoreAttendance[]
 
   @@unique([storeId, attendanceCode])
@@ -420,26 +422,29 @@ model StoreAttendance {
 /// Tệp khách hàng của từng Store — cũng là tài khoản của khách trong Mini App của store đó.
 /// Mỗi store giữ dữ liệu khách riêng: cùng một người Zalo mua ở 2 store là 2 bản ghi khác nhau.
 model StoreCustomer {
-  id          String         @id @default(cuid())
-  storeId     String
-  store       Store          @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  name        String
-  phone       String
-  zaloUserId  String?
-  avatarUrl   String?
-  address     String?
-  lastLoginAt DateTime?
-  tier        String         @default("Thành viên")
-  points      Int            @default(0)
-  totalOrders Int            @default(0)
-  totalSpent  Int            @default(0)
-  note        String?
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
-  orders      StoreOrder[]
-  bookings    StoreBooking[]
-  albums      StoreAlbum[]
-  messages    StoreMessage[]
+  id           String         @id @default(cuid())
+  storeId      String
+  store        Store          @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  name         String
+  phone        String
+  zaloUserId   String?
+  avatarUrl    String?
+  address      String?
+  lastLoginAt  DateTime?
+  tier         String         @default("Thành viên")
+  points       Int            @default(0)
+  /// Số tem đang có (thẻ tích tem) & số lần đã đổi quà
+  stamps       Int            @default(0)
+  stampRewards Int            @default(0)
+  totalOrders  Int            @default(0)
+  totalSpent   Int            @default(0)
+  note         String?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  orders       StoreOrder[]
+  bookings     StoreBooking[]
+  albums       StoreAlbum[]
+  messages     StoreMessage[]
 
   @@unique([storeId, zaloUserId])
   @@index([storeId, phone])

@@ -791,6 +791,18 @@ async function main() {
     await prisma.project.updateMany({ where: { customerId: customers[s.customerIdx].id }, data: { storeId: r.id } });
     results.push(r);
   }
+  // Thẻ tích tem cho quán cà phê: 8 tem (mỗi ly cà phê / trà 1 tem) đổi 1 ly bất kỳ
+  const cafe = results.find((x) => x.slug === "demo-mochuong");
+  if (cafe) {
+    const drinks = await prisma.storeProduct.findMany({ where: { storeId: cafe.id, category: { in: ["Cà phê", "Trà"] } }, select: { id: true } });
+    await prisma.store.update({
+      where: { id: cafe.id },
+      data: { stampProgram: { enabled: true, required: 8, productIds: drinks.map((d) => d.id), countBy: "item", reward: "Tặng 1 ly bất kỳ", icon: "coffee" } },
+    });
+    const cs = await prisma.storeCustomer.findMany({ where: { storeId: cafe.id }, select: { id: true } });
+    for (const c of cs) await prisma.storeCustomer.update({ where: { id: c.id }, data: { stamps: int(0, 9), stampRewards: int(0, 3) } });
+  }
+
   console.log("Đã tạo dữ liệu mẫu:", { khachNenTang: customers.length, goiDangKy: subs.filter(Boolean).length, gianHang: results });
   console.log("Xoá: npm run seed:demo -- --clean");
 }

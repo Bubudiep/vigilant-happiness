@@ -95,6 +95,9 @@ Quota Zalo: Development 11/300, Testing 19/60.
 | T56 Kéo thả lịch hẹn: đổi ngày / người phụ trách (Lịch nhóm + board Tổng quan), cảnh báo trùng giờ / nghỉ phép / không có ca, nút Hoàn tác | `demo-88` | [x] |
 | T57 Bán hàng tại quầy (`/stores/:id/pos`): khu vực / tầng, bàn / phòng, tính giờ (block, tối thiểu), mở bàn, gọi món, chuyển bàn, đặt trước, đang dọn, thanh toán → đơn nguồn `pos` | `demo-88` | [x] |
 | T58 Trang Báo cáo (`GET /stores/:id/reports`): doanh thu theo ngày / giờ / kênh / thanh toán, bán chạy, bàn / phòng; bỏ doanh thu khỏi Tổng quan | `demo-88` | [x] chưa phân quyền nhân viên không xem báo cáo |
+| T59 Tin nhắn ở Trang điều hành tải lại liên tục (vòng lặp `onUnreadChange` → render lại → tải lại hội thoại), phản hồi cũ đè hội thoại mới, cuộn cả trang | `demo-88` | [x] |
+| T60 Gói dịch vụ Free (0đ) & Bắt đầu (99.000đ/tháng) — migration chèn sẵn, có gói cùng mã thì giữ nguyên | `demo-88` | [x] hạn mức tạm đặt, sửa ở Gói dịch vụ |
+| T61 Thẻ tích tem thật: số tem, sản phẩm áp dụng, mỗi món / mỗi đơn, quà, biểu tượng; tự cộng khi đơn hoàn thành; đổi quà / cộng trừ tay; Mini App hiện tem thật của khách | `demo-88` | [x] Mini App cần deploy lại để thấy |
 | T55 Thang chữ quản trị 9/10/11px (`ui/AdminTheme.tsx` + `index.css`) | `demo-88` | [x] người dùng đang thử |
 | T45 Nhãn tiếng Việt cho action audit mới | `frontend-2b` | [x] test 45/45 (`data/audit-labels.ts`) |
 | T44b Thư viện ảnh dùng cờ `inUse/usedIn` + xử lý 409 | `frontend-2b` | [x] test 53/53 |
