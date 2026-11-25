@@ -1,7 +1,6 @@
 import { App as AntApp, Badge, Button, Drawer, Dropdown, Empty, Grid, Input, Modal, Progress, Select, Spin, Table, Tabs, Tag, Tooltip } from "antd";
 import dayjs from "dayjs";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import {
   LuCalendarCheck,
   LuCalendarPlus,
@@ -121,7 +120,6 @@ export function CustomersSection({
   const [q, setQ] = useState("");
   const [convs, setConvs] = useState<Record<string, Conversation>>({});
   const [profile, setProfile] = useState<{ id: string; tab: string } | null>(null);
-  const [chatWith, setChatWith] = useState<StoreCustomerItem | null>(null);
   const wide = !!Grid.useBreakpoint().lg;
   const [bookingFor, setBookingFor] = useState<StoreCustomerItem | null>(null);
   const [sendTo, setSendTo] = useState<DropPayload | null>(null);
@@ -314,7 +312,7 @@ export function CustomersSection({
                   Đặt lịch
                 </Button>
                 <Badge count={unreadMap[c.id] ?? 0} size="small">
-                  <Button size="small" icon={<LuMessageCircle size={13} />} onClick={() => setChatWith(c)}>
+                  <Button size="small" icon={<LuMessageCircle size={13} />} onClick={() => setProfile({ id: c.id, tab: "chat" })}>
                     Nhắn tin
                   </Button>
                 </Badge>
@@ -340,33 +338,6 @@ export function CustomersSection({
         }}
       />
 
-      {/* Nhắn tin nhanh */}
-      <Modal
-        open={!!chatWith}
-        onCancel={() => setChatWith(null)}
-        footer={null}
-        destroyOnHidden
-        width={520}
-        title={
-          chatWith && (
-            <span className="inline-flex items-center gap-2">
-              <LuMessageCircle size={16} /> Nhắn tin · {chatWith.name}
-            </span>
-          )
-        }
-      >
-        {chatWith && (
-          <div className="space-y-2">
-            {!chatWith.zaloUserId && (
-              <div className="rounded-lg bg-amber-50 px-2.5 py-1.5 text-xs text-amber-800">
-                Khách chưa đăng nhập Mini App — tin vẫn được lưu, khách thấy khi đăng nhập Zalo (khớp theo SĐT).
-              </div>
-            )}
-            <CustomerThread storeId={store.id} customerId={chatWith.id} refreshKey="" tall onRead={refresh} />
-          </div>
-        )}
-      </Modal>
-
       {/* Gửi ảnh / link thành album */}
       <QuickSendModal
         payload={sendTo}
@@ -390,23 +361,24 @@ export function CustomersSection({
         }}
       />
 
-      {/* Màn rộng: khung chat mở luôn bên trái hồ sơ khách */}
-      {wide && profileCustomer && !chatWith && (
-        <ProfileChatPanel store={store} customer={profileCustomer} right={PROFILE_W} onClose={() => setProfile(null)} onRead={refresh} />
-      )}
-
       {/* Hồ sơ chi tiết (phụ) */}
       <Drawer
         open={!!profileCustomer}
         onClose={() => setProfile(null)}
-        size={PROFILE_W}
-        // Không giữ focus trong Drawer — để gõ được ở khung chat bên cạnh
-        focusable={{ trap: !wide }}
+        // Màn rộng: khung chat liền bên trái hồ sơ (cùng 1 Drawer); màn hẹp: chat là tab "Tin nhắn"
+        size={wide ? PROFILE_W + CHAT_W : PROFILE_W}
         title="Hồ sơ khách hàng"
-        styles={{ body: { padding: 0 } }}
+        styles={{ body: { padding: 0, display: "flex", minHeight: 0 } }}
       >
+        {profileCustomer && wide && (
+          <ProfileChat key={profileCustomer.id} store={store} customer={profileCustomer} onRead={refresh} className="w-[440px] shrink-0 border-r border-slate-200" />
+        )}
         {profileCustomer && (
+          <div className="min-w-0 flex-1 overflow-y-auto">
           <CustomerProfile
+            key={`${profileCustomer.id}-${profile?.tab}`}
+            initialTab={wide && profile?.tab === "chat" ? "info" : (profile?.tab ?? "info")}
+            chat={wide ? undefined : <ProfileChat store={store} customer={profileCustomer} onRead={refresh} className="h-[60vh]" />}
             store={store}
             customer={profileCustomer}
             onEdit={onEdit}
@@ -415,10 +387,10 @@ export function CustomersSection({
             }}
             albumsVersion={albumsVersion}
             onOpenAlbum={setAlbumOpen}
-            onMessage={() => (wide ? document.getElementById("profile-chat-input")?.focus() : setChatWith(profileCustomer))}
             onBooking={() => setBookingFor(profileCustomer)}
             onSendPhotos={() => setSendTo({ customer: profileCustomer, files: [], links: [] })}
           />
+          </div>
         )}
       </Drawer>
     </div>
@@ -428,39 +400,16 @@ export function CustomersSection({
 // ───────────────────────── Khung chat cạnh hồ sơ khách ─────────────────────────
 
 const PROFILE_W = 420;
+const CHAT_W = 440;
 
-/** Khung chat cố định bên trái Drawer hồ sơ (chỉ màn ≥ lg). Nằm trên lớp mờ của Drawer nên bấm vào không đóng hồ sơ. */
-function ProfileChatPanel({
-  store,
-  customer,
-  right,
-  onClose,
-  onRead,
-}: {
-  store: StoreConfig;
-  customer: StoreCustomerItem;
-  right: number;
-  onClose: () => void;
-  onRead: () => void;
-}) {
-  return createPortal(
-    <div
-      className="fixed bottom-0 top-0 z-[1001] flex w-[min(460px,calc(100vw-420px-24px))] flex-col border-r border-slate-200 bg-white shadow-xl"
-      style={{ right }}
-      onClick={(e) => e.stopPropagation()}
-    >
-      <div className="flex items-center gap-2.5 border-b border-slate-100 px-4 py-3">
-        <Avatar c={customer} color={tierColorOf(store, customer.tier)} size={32} />
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5">
-            <span className="truncate text-sm font-semibold text-slate-900">{customer.name}</span>
-            {customer.zaloUserId && <Tag color="blue" className="!m-0">Zalo</Tag>}
-          </div>
-          <div className="text-xs tabular-nums text-slate-500">{customer.phone}</div>
-        </div>
-        <Tooltip title="Đóng hồ sơ & chat">
-          <Button type="text" size="small" icon={<LuX size={15} />} onClick={onClose} />
-        </Tooltip>
+/** Khung tin nhắn với khách — nằm trong Drawer hồ sơ (cột trái trên màn rộng, tab "Tin nhắn" trên màn hẹp). */
+function ProfileChat({ store, customer, onRead, className = "" }: { store: StoreConfig; customer: StoreCustomerItem; onRead: () => void; className?: string }) {
+  return (
+    <div className={`flex min-h-0 flex-col bg-white ${className}`}>
+      <div className="flex items-center gap-2 border-b border-slate-100 px-4 py-2.5">
+        <LuMessageCircle size={15} className="text-brand-600" />
+        <span className="text-sm font-semibold text-slate-900">Tin nhắn</span>
+        {customer.zaloUserId ? <Tag color="blue" className="!m-0">Zalo</Tag> : <Tag className="!m-0">Chưa dùng Mini App</Tag>}
       </div>
       {!customer.zaloUserId && (
         <div className="mx-3 mt-3 rounded-lg bg-amber-50 px-2.5 py-1.5 text-xs text-amber-800">
@@ -468,10 +417,9 @@ function ProfileChatPanel({
         </div>
       )}
       <div className="min-h-0 flex-1 p-3">
-        <CustomerThread key={customer.id} storeId={store.id} customerId={customer.id} refreshKey="" fill onRead={onRead} />
+        <CustomerThread storeId={store.id} customerId={customer.id} refreshKey="" fill onRead={onRead} />
       </div>
-    </div>,
-    document.body,
+    </div>
   );
 }
 
@@ -739,9 +687,10 @@ function CustomerProfile({
   onDelete,
   albumsVersion = 0,
   onOpenAlbum,
-  onMessage,
   onBooking,
   onSendPhotos,
+  initialTab = "info",
+  chat,
 }: {
   store: StoreConfig;
   customer: StoreCustomerItem;
@@ -749,14 +698,16 @@ function CustomerProfile({
   onEdit: (c: StoreCustomerItem) => void;
   onDelete: (customerId: string) => void | Promise<void>;
   onOpenAlbum: (albumId: string) => void;
-  onMessage: () => void;
   onBooking: () => void;
   onSendPhotos: () => void;
+  initialTab?: string;
+  /** Màn hẹp: khung chat hiện thành tab "Tin nhắn" */
+  chat?: ReactNode;
 }) {
   const { modal } = AntApp.useApp();
   const { kindOf } = useAlbumKinds(store.id);
   const [albums, setAlbums] = useState<AlbumSummary[] | null>(null);
-  const [tab, setTab] = useState("info");
+  const [tab, setTab] = useState(initialTab === "chat" && !chat ? "info" : initialTab);
 
   useEffect(() => {
     setTab("info");
@@ -812,9 +763,6 @@ function CustomerProfile({
         <div className="mt-3 flex flex-wrap justify-center gap-1.5">
           <Button size="small" icon={<LuCalendarPlus size={13} />} onClick={onBooking}>
             Đặt lịch
-          </Button>
-          <Button size="small" icon={<LuMessageCircle size={13} />} onClick={onMessage}>
-            Nhắn tin
           </Button>
           <Button size="small" type="primary" ghost icon={<LuSendHorizontal size={13} />} onClick={onSendPhotos}>
             Gửi ảnh
@@ -960,6 +908,7 @@ function CustomerProfile({
               </div>
             ),
           },
+          ...(chat ? [{ key: "chat", label: "Tin nhắn", children: <div className="pb-4">{chat}</div> }] : []),
         ]}
       />
     </div>
