@@ -36,6 +36,7 @@ import { ApiError } from "../data/platform-api";
 import type { StoreBookingItem, StoreConfig, StoreCustomerItem, StoreOrderItem } from "../data/store-api";
 import { AlbumDrawer, AlbumKindsModal, CustomerThread, guessProvider, PROVIDERS, useAlbumKinds } from "./AlbumViews";
 import { BookingCreateModal } from "./StoreOperationsViews";
+import { PageHeader } from "./ui";
 
 const ORDER_STATUS: Record<string, { label: string; color: string }> = {
   pending: { label: "Chờ xác nhận", color: "gold" },
@@ -170,7 +171,7 @@ export function CustomersSection({
 
   return (
     <div
-      className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+      className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5"
       // Thả trượt ra ngoài dòng khách thì không để trình duyệt mở file
       onDragOver={(e) => e.preventDefault()}
       onDrop={(e) => {
@@ -178,16 +179,11 @@ export function CustomersSection({
         setDragRow(null);
       }}
     >
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h3 className="text-base font-bold text-slate-900">Tệp khách hàng ({store.customers.length})</h3>
-          <p className="text-xs text-slate-500">
-            <LuUpload size={12} className="mr-1 inline" />
-            Kéo thả <b>ảnh</b> hoặc <b>link</b> (Drive, Google Photos…) vào dòng của khách để gửi album ngay.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Input
+      <PageHeader
+        title={<>Tệp khách hàng ({store.customers.length})</>}
+        description={<><LuUpload size={12} className="mr-1 inline" />
+            Kéo thả <b>ảnh</b> hoặc <b>link</b> (Drive, Google Photos…) vào dòng của khách để gửi album ngay.</>}
+        actions={<><Input
             allowClear
             value={q}
             onChange={(e) => setQ(e.target.value)}
@@ -197,9 +193,8 @@ export function CustomersSection({
           />
           <Button type="primary" icon={<LuPlus size={15} />} onClick={onAdd}>
             Thêm khách hàng
-          </Button>
-        </div>
-      </div>
+          </Button></>}
+      />
 
       <Table
         rowKey="id"
@@ -239,13 +234,13 @@ export function CustomersSection({
                     <span className="truncate">{c.name}</span>
                     {c.zaloUserId && (
                       <Tooltip title={c.lastLoginAt ? `Mini App · lần cuối ${dayjs(c.lastLoginAt).format("HH:mm DD/MM")}` : "Đã đăng nhập Mini App"}>
-                        <Tag color="blue" className="m-0 text-[10px]">
+                        <Tag color="blue" className="m-0 text-xs">
                           Zalo
                         </Tag>
                       </Tooltip>
                     )}
                   </div>
-                  <div className="text-[11px] text-slate-500">{c.phone || "Chưa có SĐT"}</div>
+                  <div className="text-xs text-slate-500">{c.phone || "Chưa có SĐT"}</div>
                 </div>
               </div>
             ),
@@ -259,7 +254,7 @@ export function CustomersSection({
                 <span className="inline-flex items-center gap-1 font-bold" style={{ color: tierColorOf(store, tier) }}>
                   <LuCrown size={12} /> {tier}
                 </span>
-                <div className="text-[11px] text-slate-500">
+                <div className="text-xs text-slate-500">
                   {money(c.totalSpent)} · {c.points.toLocaleString("vi-VN")} điểm
                 </div>
               </div>
@@ -275,7 +270,7 @@ export function CustomersSection({
                   <div className="font-semibold text-slate-800">
                     {b.timeSlot} · {b.date === today ? "Hôm nay" : dayjs(b.date).format("DD/MM")}
                   </div>
-                  <div className="truncate text-[11px] text-slate-500">{b.serviceName}</div>
+                  <div className="truncate text-xs text-slate-500">{b.serviceName}</div>
                 </div>
               ) : (
                 <span className="text-xs text-slate-300">—</span>
@@ -294,7 +289,7 @@ export function CustomersSection({
                     {cv.lastDirection === "out" ? "Bạn: " : ""}
                     {cv.lastBody}
                   </span>
-                  {unread > 0 ? <Badge count={unread} size="small" /> : <span className="shrink-0 text-[10px] text-slate-400">{shortTime(cv.lastAt)}</span>}
+                  {unread > 0 ? <Badge count={unread} size="small" /> : <span className="shrink-0 text-xs text-slate-400">{shortTime(cv.lastAt)}</span>}
                 </div>
               ) : (
                 <span className="text-xs text-slate-300">—</span>
@@ -355,7 +350,7 @@ export function CustomersSection({
         {chatWith && (
           <div className="space-y-2">
             {!chatWith.zaloUserId && (
-              <div className="rounded-lg bg-amber-50 px-2.5 py-1.5 text-[11px] text-amber-800">
+              <div className="rounded-lg bg-amber-50 px-2.5 py-1.5 text-xs text-amber-800">
                 Khách chưa đăng nhập Mini App — tin vẫn được lưu, khách thấy khi đăng nhập Zalo (khớp theo SĐT).
               </div>
             )}
@@ -738,15 +733,15 @@ function CustomerProfile({
         </div>
         <div className="mt-2 text-base font-extrabold text-slate-900">{customer.name}</div>
         <div className="mt-1 flex flex-wrap justify-center gap-1.5">
-          <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold text-white" style={{ background: tierColor }}>
+          <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-bold text-white" style={{ background: tierColor }}>
             <LuCrown size={11} /> {customer.tier}
           </span>
           {customer.zaloUserId ? (
-            <Tag color="blue" className="m-0 text-[11px]">
+            <Tag color="blue" className="m-0 text-xs">
               Mini App
             </Tag>
           ) : (
-            <Tag className="m-0 text-[11px]">Chưa dùng Mini App</Tag>
+            <Tag className="m-0 text-xs">Chưa dùng Mini App</Tag>
           )}
         </div>
         <div className="mt-3 flex flex-wrap justify-center gap-1.5">
@@ -778,13 +773,13 @@ function CustomerProfile({
           ].map((x) => (
             <div key={x.label} className="px-1.5 py-2 text-center">
               <div className="truncate text-sm font-extrabold text-slate-900">{x.value}</div>
-              <div className="text-[10px] text-slate-500">{x.label}</div>
+              <div className="text-xs text-slate-500">{x.label}</div>
             </div>
           ))}
         </div>
         {nextTier ? (
           <div className="mt-2.5">
-            <div className="mb-1 text-[11px] text-slate-500">
+            <div className="mb-1 text-xs text-slate-500">
               Còn <b className="text-slate-800">{money(nextTier.minSpent - customer.totalSpent)}</b> để lên{" "}
               <b style={{ color: nextTier.color }}>{nextTier.name}</b>
             </div>
@@ -793,7 +788,7 @@ function CustomerProfile({
             </div>
           </div>
         ) : (
-          tiers.length > 0 && <div className="mt-2 text-[11px] text-slate-500">Khách đang ở hạng cao nhất.</div>
+          tiers.length > 0 && <div className="mt-2 text-xs text-slate-500">Khách đang ở hạng cao nhất.</div>
         )}
       </div>
 
@@ -883,7 +878,7 @@ function CustomerProfile({
                           </div>
                           <div className="p-2">
                             <div className="truncate text-xs font-bold">{a.title}</div>
-                            <div className="text-[11px]" style={{ color: k.color }}>
+                            <div className="text-xs" style={{ color: k.color }}>
                               {k.short} · {a.photoCount} ảnh{a.status === "draft" ? " · nháp" : a.viewedAt ? " · đã xem" : ""}
                             </div>
                           </div>
@@ -916,7 +911,7 @@ const InfoRow = ({ icon, value }: { icon: React.ReactNode; value: React.ReactNod
 const Block = ({ title, more, children }: { title: string; more?: () => void; children: React.ReactNode }) => (
   <div>
     <div className="mb-2 flex items-center justify-between">
-      <span className="text-[11px] font-bold uppercase tracking-wide text-slate-400">{title}</span>
+      <span className="text-xs font-bold uppercase tracking-wide text-slate-400">{title}</span>
       {more && (
         <button type="button" onClick={more} className="inline-flex items-center text-xs font-semibold text-brand-600">
           Xem tất cả <LuChevronRight size={13} />

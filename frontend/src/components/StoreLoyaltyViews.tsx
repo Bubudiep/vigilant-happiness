@@ -190,7 +190,7 @@ export function LoyaltySection({
   };
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
       <Tabs
         defaultActiveKey="tiers"
         items={[
@@ -231,7 +231,7 @@ export function LoyaltySection({
                               <span className="inline-flex items-center gap-1.5 text-sm font-extrabold">
                                 <LuCrown size={15} /> {tier.name}
                               </span>
-                              <span className="rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-bold">
+                              <span className="rounded-full bg-white/20 px-2 py-0.5 text-xs font-bold">
                                 Giảm {tier.discountPercent}%
                               </span>
                             </div>
@@ -258,7 +258,7 @@ export function LoyaltySection({
                               </span>
                             </div>
                             {tier.benefits && (
-                              <div className="rounded-xl bg-slate-50 p-2.5 text-[11px] leading-relaxed text-slate-600">
+                              <div className="rounded-xl bg-slate-50 p-2.5 text-xs leading-relaxed text-slate-600">
                                 {tier.benefits}
                               </div>
                             )}
@@ -327,7 +327,7 @@ export function LoyaltySection({
                                 ? `Freeship tối đa ${r.discountValue.toLocaleString("vi-VN")}đ`
                                 : `Giảm ${r.discountValue.toLocaleString("vi-VN")}đ`}
                           </div>
-                          <div className="text-[11px] text-slate-400">
+                          <div className="text-xs text-slate-400">
                             Đơn tối thiểu: {r.minOrderValue.toLocaleString("vi-VN")}đ
                           </div>
                         </div>
@@ -349,7 +349,7 @@ export function LoyaltySection({
                         const pct = r.quantity > 0 ? Math.min(100, Math.round((r.usedCount / r.quantity) * 100)) : 0;
                         return (
                           <div>
-                            <div className="text-[11px] font-semibold text-slate-700">
+                            <div className="text-xs font-semibold text-slate-700">
                               {r.usedCount} / {r.quantity}
                             </div>
                             <Progress percent={pct} size="small" showInfo={false} />
@@ -362,12 +362,12 @@ export function LoyaltySection({
                       width: 120,
                       render: (_, r) =>
                         r.codeCount ? (
-                          <div className="text-[11px]">
+                          <div className="text-xs">
                             <div className="font-bold text-slate-800">{r.codeCount.toLocaleString("vi-VN")} mã</div>
                             <div className="text-slate-400">đã dùng {(r.codeUsed ?? 0).toLocaleString("vi-VN")}</div>
                           </div>
                         ) : (
-                          <span className="text-[11px] text-slate-400">Mã chung</span>
+                          <span className="text-xs text-slate-400">Mã chung</span>
                         ),
                     },
                     {

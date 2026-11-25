@@ -18,6 +18,7 @@ import {
   updateOAuthApp,
 } from "../data/platform-api";
 import { siteConfig } from "../data/site";
+import { FilterBar, FilterSelect, PageHeader } from "./ui";
 
 const STATUS: Record<LeadStatus, { label: string; color: string }> = {
   NEW: { label: "Chưa gọi", color: "orange" },
@@ -101,16 +102,13 @@ export function CallbacksSection() {
   const todayCount = leads.filter((l) => l.callbackDate && dayjs(l.callbackDate).format("YYYY-MM-DD") === today).length;
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h3 className="text-base font-bold text-slate-900">Lịch gọi lại & Yêu cầu tư vấn</h3>
-          <p className="text-xs text-slate-500">
-            Khách gửi từ Mini App reMini. SĐT có dấu <LuBadgeCheck className="inline text-green-600" /> là số Zalo đã xác minh.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Segmented
+    <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
+      <PageHeader
+        title="Lịch gọi lại & Yêu cầu tư vấn"
+        description={<>Khách gửi từ Mini App reMini. SĐT có dấu <LuBadgeCheck className="inline text-green-600" /> là số Zalo đã xác minh.</>}
+      />
+      <FilterBar
+        filters={<><Segmented
             value={tab}
             onChange={(v) => setTab(v as typeof tab)}
             options={[
@@ -118,14 +116,12 @@ export function CallbacksSection() {
               { value: "consultation", label: "Nhận tư vấn" },
             ]}
           />
-          <Select
+<FilterSelect
             value={status}
             onChange={setStatus}
-            style={{ width: 150 }}
             options={[{ value: "", label: "Mọi trạng thái" }, ...Object.entries(STATUS).map(([v, s]) => ({ value: v, label: s.label }))]}
-          />
-          <Button icon={<LuRefreshCw size={14} />} onClick={load} loading={loading} />
-          <Button
+          /></>}
+        actions={<><Button
             icon={<LuDownload size={14} />}
             disabled={!leads.length}
             onClick={() =>
@@ -149,8 +145,8 @@ export function CallbacksSection() {
           >
             Xuất CSV
           </Button>
-        </div>
-      </div>
+<Button icon={<LuRefreshCw size={14} />} onClick={load} loading={loading} /></>}
+      />
 
       {tab === "callback" && !error && (
         <div className="mb-3 rounded-xl bg-orange-50 px-3 py-2 text-xs text-orange-800">
@@ -183,8 +179,8 @@ export function CallbacksSection() {
                           <div className={`text-xs font-bold ${overdue ? "text-red-600" : isToday ? "text-orange-600" : "text-slate-900"}`}>
                             {d ? (isToday ? "Hôm nay" : d.format("ddd DD/MM")) : "—"}
                           </div>
-                          <div className="font-mono text-[11px] text-slate-500">{r.callbackSlot}</div>
-                          {overdue && <Tag color="red" className="mt-0.5 text-[10px]">Quá hạn</Tag>}
+                          <div className="font-mono text-xs text-slate-500">{r.callbackSlot}</div>
+                          {overdue && <Tag color="red" className="mt-0.5 text-xs">Quá hạn</Tag>}
                         </div>
                       );
                     },
@@ -204,7 +200,7 @@ export function CallbacksSection() {
                       </Tooltip>
                     )}
                   </a>
-                  {r.user && <div className="text-[10px] text-slate-400">Đăng nhập Zalo · {r.user.name}</div>}
+                  {r.user && <div className="text-xs text-slate-400">Đăng nhập Zalo · {r.user.name}</div>}
                 </div>
               ),
             },
@@ -212,10 +208,10 @@ export function CallbacksSection() {
               title: "Nhu cầu",
               render: (_, r) => (
                 <div className="max-w-[260px] text-xs text-slate-600">
-                  {r.industry && <Tag className="text-[10px]">{r.industry}</Tag>}
-                  {r.templateId && <Tag color="blue" className="text-[10px]">{r.templateId}</Tag>}
+                  {r.industry && <Tag className="text-xs">{r.industry}</Tag>}
+                  {r.templateId && <Tag color="blue" className="text-xs">{r.templateId}</Tag>}
                   <div className="mt-0.5 line-clamp-2">{r.note || <span className="text-slate-300">—</span>}</div>
-                  <div className="text-[10px] text-slate-400">Gửi {dayjs(r.createdAt).format("HH:mm DD/MM")}</div>
+                  <div className="text-xs text-slate-400">Gửi {dayjs(r.createdAt).format("HH:mm DD/MM")}</div>
                 </div>
               ),
             },
@@ -342,22 +338,16 @@ export function ApiChannelsSection() {
   );
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h3 className="text-base font-bold text-slate-900">Kênh kết nối API (OAuth 2.0)</h3>
-          <p className="text-xs text-slate-500">
-            Mỗi kênh (Mini App, website, POS…) có <b>Client ID</b> và <b>Client Secret</b> riêng để lấy access token tại{" "}
-            <code>/oauth/token</code>. Secret chỉ hiện 1 lần khi tạo.
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button icon={<LuRefreshCw size={14} />} onClick={load} loading={loading} />
+    <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
+      <PageHeader
+        title="Kênh kết nối API (OAuth 2.0)"
+        description={<>Mỗi kênh (Mini App, website, POS…) có <b>Client ID</b> và <b>Client Secret</b> riêng để lấy access token tại{" "}
+            <code>/oauth/token</code>. Secret chỉ hiện 1 lần khi tạo.</>}
+        actions={<><Button icon={<LuRefreshCw size={14} />} onClick={load} loading={loading} />
           <Button type="primary" icon={<LuPlus size={15} />} onClick={() => setCreateOpen(true)}>
             Tạo kênh
-          </Button>
-        </div>
-      </div>
+          </Button></>}
+      />
 
       {error ? (
         <ErrorBox error={error} onRetry={load} />
@@ -375,7 +365,7 @@ export function ApiChannelsSection() {
               render: (_, r) => (
                 <div>
                   <div className="text-sm font-semibold text-slate-900">{r.name}</div>
-                  <div className="text-[11px] text-slate-500">
+                  <div className="text-xs text-slate-500">
                     {channelLabel(r.channel)} · {r.clientType === "public" ? "Public" : "Confidential"}
                     {r.customer && ` · ${r.customer.companyName || r.customer.name}`}
                   </div>
@@ -388,7 +378,7 @@ export function ApiChannelsSection() {
               render: (_, r) => (
                 <div className="space-y-1">
                   <Copyable value={r.clientId} />
-                  <div className="text-[10px] text-slate-400">
+                  <div className="text-xs text-slate-400">
                     Secret: {r.secretHint ? `••••${r.secretHint}` : "không có (public)"}
                   </div>
                 </div>
@@ -399,12 +389,12 @@ export function ApiChannelsSection() {
               render: (_, r) => (
                 <div className="flex max-w-[220px] flex-wrap gap-1">
                   {r.grantTypes.map((g) => (
-                    <Tag key={g} className="text-[10px]">
+                    <Tag key={g} className="text-xs">
                       {g}
                     </Tag>
                   ))}
                   {r.scopes.map((s) => (
-                    <Tag key={s} color="blue" className="text-[10px]">
+                    <Tag key={s} color="blue" className="text-xs">
                       {s}
                     </Tag>
                   ))}
@@ -415,7 +405,7 @@ export function ApiChannelsSection() {
               title: "Sử dụng",
               width: 130,
               render: (_, r) => (
-                <div className="text-[11px] text-slate-500">
+                <div className="text-xs text-slate-500">
                   <div>{r.activeTokens ?? 0} token còn hạn</div>
                   <div>{r.lastUsedAt ? `Dùng ${dayjs(r.lastUsedAt).format("HH:mm DD/MM")}` : "Chưa dùng"}</div>
                 </div>
@@ -524,7 +514,7 @@ export function ApiChannelsSection() {
                 </div>
                 <div>
                   <div className="mb-1 text-xs font-semibold text-slate-600">Lấy access token</div>
-                  <pre className="overflow-x-auto rounded-lg bg-slate-900 p-3 text-[11px] text-slate-100">{curl}</pre>
+                  <pre className="overflow-x-auto rounded-lg bg-slate-900 p-3 text-xs text-slate-100">{curl}</pre>
                 </div>
               </>
             )}

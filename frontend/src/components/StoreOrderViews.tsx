@@ -25,6 +25,7 @@ import {
   StoreCustomerItem,
   StoreOrderItem,
 } from "../data/store-api";
+import { FilterBar, PageHeader } from "./ui";
 
 const money = (n: number) => `${Math.round(n).toLocaleString("vi-VN")}đ`;
 const errMsg = (e: unknown, fallback: string) => (e instanceof ApiError ? e.message : fallback);
@@ -82,26 +83,27 @@ export function OrdersSection({
   };
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h3 className="text-base font-bold text-slate-900">Quản lý Đơn hàng</h3>
-          <p className="text-xs text-slate-500">Đơn đặt từ Zalo Mini App và đơn tạo tại quầy / qua điện thoại.</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
+    <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
+      <PageHeader
+        title="Quản lý Đơn hàng"
+        description={<>Đơn đặt từ Zalo Mini App và đơn tạo tại quầy / qua điện thoại.</>}
+      />
+      <FilterBar
+        search={
           <Input
             allowClear
             prefix={<LuSearch size={14} className="text-slate-400" />}
             placeholder="Mã đơn, tên, SĐT…"
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            style={{ width: 220 }}
           />
-          <Button type="primary" icon={<LuPlus size={15} />} onClick={() => setCreating(true)} className="font-semibold">
+        }
+        actions={
+          <Button type="primary" icon={<LuPlus size={15} />} onClick={() => setCreating(true)}>
             Tạo đơn
           </Button>
-        </div>
-      </div>
+        }
+      />
 
       <div className="mb-3 flex flex-wrap gap-1.5">
         {[{ value: "all", label: "Tất cả" }, ...ORDER_STATUS].map((s) => (
@@ -136,9 +138,9 @@ export function OrdersSection({
                 <span className="font-mono font-bold">{c}</span>
                 <div className="mt-0.5">
                   {r.source === "admin" ? (
-                    <Tag className="m-0 text-[10px]">Tại quầy</Tag>
+                    <Tag className="m-0 text-xs">Tại quầy</Tag>
                   ) : (
-                    <Tag color="blue" className="m-0 text-[10px]">
+                    <Tag color="blue" className="m-0 text-xs">
                       Mini App
                     </Tag>
                   )}
@@ -151,7 +153,7 @@ export function OrdersSection({
             render: (_, r) => (
               <div>
                 <div className="font-semibold text-slate-900">{r.customerName}</div>
-                <div className="text-[11px] text-slate-500">{r.phone || "—"}</div>
+                <div className="text-xs text-slate-500">{r.phone || "—"}</div>
               </div>
             ),
           },
@@ -163,7 +165,7 @@ export function OrdersSection({
               <div>
                 <span className="font-bold text-brand-600">{money(v)}</span>
                 {!!r.discountAmount && (
-                  <div className="text-[11px] text-rose-500">
+                  <div className="text-xs text-rose-500">
                     −{money(r.discountAmount)}
                     {r.voucherCode && <span className="ml-1 font-mono">{r.voucherCode}</span>}
                   </div>
@@ -239,7 +241,7 @@ function OrderDetail({ order }: { order: StoreOrderItem }) {
               )}
               <div className="min-w-0 flex-1">
                 <div className="truncate text-sm font-semibold text-slate-800">{i.productName}</div>
-                <div className="text-[11px] text-slate-500">
+                <div className="text-xs text-slate-500">
                   {money(i.unitPrice)} × {i.quantity}
                 </div>
               </div>
@@ -274,7 +276,7 @@ function OrderDetail({ order }: { order: StoreOrderItem }) {
           <span className="font-bold">Tổng cộng</span>
           <span className="font-extrabold text-brand-600">{money(order.total)}</span>
         </div>
-        <div className="text-[11px] text-slate-400">Thanh toán: {paymentLabel(order.paymentMethod)}</div>
+        <div className="text-xs text-slate-400">Thanh toán: {paymentLabel(order.paymentMethod)}</div>
       </div>
     </div>
   );
@@ -581,7 +583,7 @@ function OrderCreateDrawer({
                       <Input size="small" placeholder="Tên sản phẩm / dịch vụ" value={l.name} onChange={(e) => setLine(l.key, { name: e.target.value })} />
                     )}
                     {typeof l.stock === "number" && l.quantity > l.stock && (
-                      <div className="text-[11px] text-amber-600">Vượt tồn kho ({l.stock})</div>
+                      <div className="text-xs text-amber-600">Vượt tồn kho ({l.stock})</div>
                     )}
                   </div>
                   <Tooltip title="Đơn giá">
@@ -631,7 +633,7 @@ function OrderCreateDrawer({
 
         {/* Thanh toán */}
         <aside className="lg:sticky lg:top-0 lg:self-start">
-          <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="space-y-4 rounded-xl border border-slate-200 bg-white p-4">
             <h4 className="text-sm font-bold text-slate-900">Thanh toán</h4>
 
             <div>
@@ -642,7 +644,7 @@ function OrderCreateDrawer({
                 <div className="flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2">
                   <div className="min-w-0">
                     <div className="font-mono text-sm font-extrabold text-emerald-700">{applied.code}</div>
-                    <div className="truncate text-[11px] text-emerald-700/80">{applied.title}</div>
+                    <div className="truncate text-xs text-emerald-700/80">{applied.title}</div>
                   </div>
                   <Button size="small" type="text" icon={<LuX size={13} />} onClick={() => setApplied(null)} />
                 </div>
@@ -660,7 +662,7 @@ function OrderCreateDrawer({
                   className="font-mono"
                 />
               )}
-              {voucherErr && <div className="mt-1 text-[11px] text-rose-500">{voucherErr}</div>}
+              {voucherErr && <div className="mt-1 text-xs text-rose-500">{voucherErr}</div>}
             </div>
 
             <div className="space-y-2 text-sm">
@@ -697,7 +699,7 @@ function OrderCreateDrawer({
                   { value: "pending", label: "Chờ" },
                 ]}
               />
-              <div className="mt-1 text-[11px] text-slate-400">
+              <div className="mt-1 text-xs text-slate-400">
                 {status === "completed" ? "Khách đã nhận hàng — cộng điểm & chi tiêu ngay." : "Cộng điểm khi đơn chuyển sang Hoàn thành."}
               </div>
             </div>

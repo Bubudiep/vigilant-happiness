@@ -61,6 +61,7 @@ import { ApiError, fetchStoreStorage, type StoreStorage } from "../data/platform
 import { fmtBytes } from "../data/format";
 import { MAX_BATCH_FILES, MAX_SINGLE_BYTES, splitBatches } from "../data/upload-batch";
 import type { StoreConfig } from "../data/store-api";
+import { FilterBar, FilterSelect, PageHeader } from "./ui";
 
 const errMsg = (e: unknown, fb = "Thao tác thất bại") => (e instanceof ApiError ? e.message : fb);
 
@@ -436,35 +437,28 @@ export function AlbumsSection({ store, initialCustomerId }: { store: StoreConfig
   return (
     <div className="space-y-4">
       <StorageBar storeId={store.id} refreshKey={storageKey} />
-      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h3 className="flex items-center gap-2 text-base font-bold text-slate-900">
-              <LuImages size={18} className="text-brand-600" /> Album ảnh khách
-            </h3>
-            <p className="text-xs text-slate-500">
-              Tải ảnh xem trước + gắn link ảnh gốc (Google Drive…). Bấm “Gửi cho khách” để khách nhận tin và xem trong Mini App.
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Select
+      <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
+        <PageHeader
+        title={<><LuImages size={18} className="text-brand-600" /> Album ảnh khách</>}
+        description={<>Tải ảnh xem trước + gắn link ảnh gốc (Google Drive…). Bấm “Gửi cho khách” để khách nhận tin và xem trong Mini App.</>}
+      />
+      <FilterBar
+        filters={<><FilterSelect
               allowClear
               showSearch
               optionFilterProp="label"
               placeholder="Tất cả khách hàng"
               value={customerId}
               onChange={setCustomerId}
-              style={{ width: 220 }}
               options={store.customers.map((c) => ({ value: c.id, label: `${c.name}${c.phone ? ` · ${c.phone}` : ""}` }))}
-            />
-            <Button icon={<LuTags size={15} />} onClick={() => setKindsOpen(true)}>
+            /></>}
+        actions={<><Button icon={<LuTags size={15} />} onClick={() => setKindsOpen(true)}>
               Loại album
             </Button>
-            <Button type="primary" icon={<LuPlus size={15} />} onClick={() => setCreateOpen(true)}>
+<Button type="primary" icon={<LuPlus size={15} />} onClick={() => setCreateOpen(true)}>
               Tạo album
-            </Button>
-          </div>
-        </div>
+            </Button></>}
+      />
         <div className="mt-4 flex flex-wrap gap-1.5">
           {[{ key: "all" as const, short: "Tất cả", icon: null, color: "" }, ...kinds].map((k) => (
             <button
@@ -525,13 +519,13 @@ export function AlbumsSection({ store, initialCustomerId }: { store: StoreConfig
                     </div>
                   )}
                   <span
-                    className="absolute left-2 top-2 flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold text-white shadow"
+                    className="absolute left-2 top-2 flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-bold text-white shadow"
                     style={{ background: k.color }}
                   >
                     {k.icon && <span className="[&>svg]:h-3 [&>svg]:w-3">{k.icon}</span>}
                     {k.short}
                   </span>
-                  <span className="absolute bottom-2 right-2 rounded-full bg-black/55 px-2 py-0.5 text-[11px] font-semibold text-white">
+                  <span className="absolute bottom-2 right-2 rounded-full bg-black/55 px-2 py-0.5 text-xs font-semibold text-white">
                     {a.photoCount} ảnh{a.links.length ? ` · ${a.links.length} link` : ""}
                   </span>
                 </div>
@@ -650,7 +644,7 @@ function CreateAlbumModal({
                 {k.icon}
               </span>
               <div className="mt-2 text-sm font-bold text-slate-900">{k.short}</div>
-              <div className="text-[11px] leading-tight text-slate-500">{k.hint}</div>
+              <div className="text-xs leading-tight text-slate-500">{k.hint}</div>
             </button>
           ))}
           <button
@@ -936,7 +930,7 @@ export function AlbumDrawer({
             {upload && (
               <div className="mb-3">
                 <Progress percent={Math.round((upload.done / upload.total) * 100)} size="small" />
-                <div className="text-[11px] text-slate-500">
+                <div className="text-xs text-slate-500">
                   Đang tải {upload.done}/{upload.total} ảnh (tự thu nhỏ ≤ 2048px)…
                 </div>
               </div>
@@ -949,7 +943,7 @@ export function AlbumDrawer({
               >
                 <LuImagePlus size={30} />
                 Kéo thả ảnh vào đây hoặc bấm để chọn
-                <span className="text-[11px] text-slate-400">Ảnh được thu nhỏ để xem nhanh — ảnh gốc gửi khách qua link bên phải</span>
+                <span className="text-xs text-slate-400">Ảnh được thu nhỏ để xem nhanh — ảnh gốc gửi khách qua link bên phải</span>
               </button>
             ) : (
               <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
@@ -957,7 +951,7 @@ export function AlbumDrawer({
                   <div key={p.id} className="group relative aspect-square overflow-hidden rounded-xl bg-slate-100">
                     <img src={p.thumbUrl ?? p.url} alt={p.filename} loading="lazy" className="h-full w-full cursor-zoom-in object-cover" onClick={() => setPreview(p.url)} />
                     {album.coverPhotoId === p.id && (
-                      <span className="absolute left-1.5 top-1.5 rounded-full bg-amber-400 px-1.5 py-0.5 text-[10px] font-bold text-white shadow">Bìa</span>
+                      <span className="absolute left-1.5 top-1.5 rounded-full bg-amber-400 px-1.5 py-0.5 text-xs font-bold text-white shadow">Bìa</span>
                     )}
                     <div className="absolute inset-x-0 bottom-0 flex justify-end gap-1 bg-gradient-to-t from-black/60 to-transparent p-1.5 opacity-0 transition group-hover:opacity-100">
                       {album.coverPhotoId !== p.id && (
@@ -1062,7 +1056,7 @@ export function AlbumDrawer({
               {!linksDirty && album.links.length > 0 && (
                 <div className="mt-2 space-y-1">
                   {album.links.map((l: AlbumLink) => (
-                    <a key={l.url} href={l.url} target="_blank" rel="noreferrer" className="block truncate text-[11px] text-brand-600 hover:underline">
+                    <a key={l.url} href={l.url} target="_blank" rel="noreferrer" className="block truncate text-xs text-brand-600 hover:underline">
                       Mở {l.label} ↗
                     </a>
                   ))}
@@ -1194,7 +1188,7 @@ export function CustomerThread({
     <div>
       <div className="mb-1 text-xs font-semibold text-slate-600">Tin nhắn với khách</div>
       <div ref={box} className={`${tall ? "h-[52vh]" : "max-h-56"} space-y-1.5 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-2`}>
-        {msgs.length === 0 && <div className="py-3 text-center text-[11px] text-slate-400">Chưa có tin nhắn</div>}
+        {msgs.length === 0 && <div className="py-3 text-center text-xs text-slate-400">Chưa có tin nhắn</div>}
         {msgs.map((m) => (
           <div key={m.id} className={`flex ${m.direction === "out" ? "justify-end" : "justify-start"}`}>
             <div
@@ -1203,7 +1197,7 @@ export function CustomerThread({
               }`}
             >
               <div className="whitespace-pre-wrap">{m.body}</div>
-              <div className={`mt-0.5 text-[10px] ${m.direction === "out" ? "text-white/70" : "text-slate-400"}`}>
+              <div className={`mt-0.5 text-xs ${m.direction === "out" ? "text-white/70" : "text-slate-400"}`}>
                 {dayjs(m.createdAt).format("HH:mm DD/MM")}
                 {m.direction === "out" && (m.readAt ? " · đã xem" : "")}
               </div>

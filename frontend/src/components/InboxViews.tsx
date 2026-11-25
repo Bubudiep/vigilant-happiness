@@ -20,6 +20,7 @@ import {
 } from "../data/inbox-api";
 import { ApiError, fetchCustomerRows, PlatformCustomerRow } from "../data/platform-api";
 import { siteConfig } from "../data/site";
+import { FilterBar, FilterSelect, PageHeader } from "./ui";
 
 const errMsg = (e: unknown, fb = "Thao tác thất bại") => (e instanceof ApiError ? e.message : fb);
 const customerLabel = (c: { name: string; companyName?: string | null }) => c.companyName || c.name;
@@ -104,7 +105,7 @@ function OaConnect({ onChanged }: { onChanged: () => void }) {
           <Input.TextArea rows={2} placeholder="Access token OA" value={access} onChange={(e) => setAccess(e.target.value)} autoComplete="off" />
           <Input.TextArea rows={2} placeholder="Refresh token OA" value={refresh} onChange={(e) => setRefresh(e.target.value)} autoComplete="off" />
           {status.tokenExpiresAt && <div>Access token hiện tại hết hạn: {dayjs(status.tokenExpiresAt).format("HH:mm DD/MM/YYYY")} {status.canRefresh ? "(tự làm mới)" : "(chưa thể tự làm mới)"}</div>}
-          <p className="text-[11px] text-slate-500">Token được lưu trong cơ sở dữ liệu backend, không hiển thị lại. Zalo chỉ cho trả lời tin tư vấn trong thời hạn sau lần khách nhắn gần nhất.</p>
+          <p className="text-xs text-slate-500">Token được lưu trong cơ sở dữ liệu backend, không hiển thị lại. Zalo chỉ cho trả lời tin tư vấn trong thời hạn sau lần khách nhắn gần nhất.</p>
         </div>
       </Modal>
     </>
@@ -123,14 +124,14 @@ function Bubble({ m }: { m: InboxMessage }) {
           note ? "border border-dashed border-amber-300 bg-amber-50 text-amber-900" : mine ? "bg-blue-600 text-white" : "border border-slate-200 bg-white text-slate-900"
         }`}
       >
-        {note && <div className="mb-0.5 text-[10px] font-bold uppercase">Ghi chú nội bộ</div>}
+        {note && <div className="mb-0.5 text-xs font-bold uppercase">Ghi chú nội bộ</div>}
         {m.image && <Image src={m.image.url} alt={m.image.filename} width={200} style={{ borderRadius: 10, maxHeight: 260, objectFit: "cover" }} />}
         {m.body && <div className="whitespace-pre-wrap break-words">{m.body}</div>}
-        <div className={`mt-1 text-[10px] ${mine ? "text-blue-100" : "text-slate-400"}`}>
+        <div className={`mt-1 text-xs ${mine ? "text-blue-100" : "text-slate-400"}`}>
           {m.staffLabel ? `${m.staffLabel} · ` : ""}
           {dayjs(m.createdAt).format("HH:mm DD/MM")}
         </div>
-        {m.delivery === "failed" && <div className="mt-1 rounded bg-red-100 px-1.5 py-0.5 text-[11px] font-semibold text-red-700">Chưa gửi được tới khách: {m.error}</div>}
+        {m.delivery === "failed" && <div className="mt-1 rounded bg-red-100 px-1.5 py-0.5 text-xs font-semibold text-red-700">Chưa gửi được tới khách: {m.error}</div>}
       </div>
     </div>
   );
@@ -278,16 +279,16 @@ export function InboxSection({ onUnreadChange, storeId }: { onUnreadChange?: () 
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center justify-between gap-2">
                     <span className="truncate text-sm font-semibold text-slate-900">{c.customer ? customerLabel(c.customer) : c.displayName}</span>
-                    <span className="shrink-0 text-[10px] text-slate-400">{shortTime(c.lastMessageAt)}</span>
+                    <span className="shrink-0 text-xs text-slate-400">{shortTime(c.lastMessageAt)}</span>
                   </div>
                   <div className="flex items-center justify-between gap-2">
                     <span className="truncate text-xs text-slate-500">{c.lastPreview}</span>
                     {c.unreadStaff > 0 && <Badge count={c.unreadStaff} size="small" />}
                   </div>
-                  <Tag className="!mt-1 !text-[10px]" color={CHANNEL[c.channel].color} variant="filled">
+                  <Tag className="!mt-1 !text-xs" color={CHANNEL[c.channel].color} variant="filled">
                     {CHANNEL[c.channel].label}
                   </Tag>
-                  {c.status === "closed" && <Tag className="!mt-1 !text-[10px]">Đã đóng</Tag>}
+                  {c.status === "closed" && <Tag className="!mt-1 !text-xs">Đã đóng</Tag>}
                 </div>
               </button>
             ))}
@@ -304,7 +305,7 @@ export function InboxSection({ onUnreadChange, storeId }: { onUnreadChange?: () 
                 <Button className="lg:!hidden" size="small" type="text" icon={<LuArrowLeft size={16} />} onClick={() => setOpenId(null)} />
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm font-bold text-slate-900">{detail.displayName}</div>
-                  <div className="text-[11px] text-slate-500">
+                  <div className="text-xs text-slate-500">
                     <Tag color={CHANNEL[detail.channel].color} variant="filled">
                       {CHANNEL[detail.channel].label}
                     </Tag>
@@ -465,29 +466,26 @@ export function CareSection({ onChanged }: { onChanged?: () => void }) {
   };
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h3 className="text-base font-bold text-slate-900">Chăm sóc khách hàng</h3>
-          <p className="text-xs text-slate-500">Việc hẹn chăm sóc (hỏi thăm sau bàn giao, nhắc gia hạn, gửi ưu đãi…). Đến hạn hệ thống nhắn nhân viên qua Telegram/webhook.</p>
-        </div>
-        <div className="flex gap-2">
-          <Select
+    <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
+      <PageHeader
+        title="Chăm sóc khách hàng"
+        description={<>Việc hẹn chăm sóc (hỏi thăm sau bàn giao, nhắc gia hạn, gửi ưu đãi…). Đến hạn hệ thống nhắn nhân viên qua Telegram/webhook.</>}
+      />
+      <FilterBar
+        filters={<><FilterSelect
             value={status}
             onChange={setStatus}
-            style={{ width: 130 }}
             options={[
               { value: "open", label: "Chưa xong" },
               { value: "done", label: "Đã xong" },
               { value: "all", label: "Tất cả" },
             ]}
-          />
-          <Button icon={<LuRefreshCw size={14} />} onClick={load} loading={loading} />
-          <Button type="primary" onClick={() => setForm({ title: "", dueAt: dayjs().add(1, "day").hour(9).minute(0), note: "" })}>
+          /></>}
+        actions={<><Button icon={<LuRefreshCw size={14} />} onClick={load} loading={loading} />
+<Button type="primary" onClick={() => setForm({ title: "", dueAt: dayjs().add(1, "day").hour(9).minute(0), note: "" })}>
             Thêm việc
-          </Button>
-        </div>
-      </div>
+          </Button></>}
+      />
       {error ? (
         <Alert type="warning" showIcon title={error} action={<Button size="small" onClick={load}>Thử lại</Button>} />
       ) : (
@@ -505,7 +503,7 @@ export function CareSection({ onChanged }: { onChanged?: () => void }) {
               render: (_, r) => (
                 <div>
                   <div className={`text-sm font-semibold ${r.doneAt ? "text-slate-400 line-through" : "text-slate-900"}`}>{r.title}</div>
-                  {r.note && <div className="text-[11px] text-slate-500">{r.note}</div>}
+                  {r.note && <div className="text-xs text-slate-500">{r.note}</div>}
                 </div>
               ),
             },
@@ -515,7 +513,7 @@ export function CareSection({ onChanged }: { onChanged?: () => void }) {
                 r.customer ? (
                   <div>
                     <div className="text-xs font-semibold">{customerLabel(r.customer)}</div>
-                    <div className="font-mono text-[11px] text-slate-500">{r.customer.phone}</div>
+                    <div className="font-mono text-xs text-slate-500">{r.customer.phone}</div>
                   </div>
                 ) : (
                   <span className="text-xs text-slate-500">{r.conversation?.displayName ?? "—"}</span>

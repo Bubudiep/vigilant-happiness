@@ -163,7 +163,7 @@ export default function CreateStoreWizard({
                       <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: t.color }} />
                       <span className="truncate text-sm font-bold text-slate-900">{t.name}</span>
                     </div>
-                    <div className="mt-0.5 truncate text-[11px] text-slate-500">{t.features.join(" · ")}</div>
+                    <div className="mt-0.5 truncate text-xs text-slate-500">{t.features.join(" · ")}</div>
                   </div>
                   {selected && (
                     <span className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-brand-600 text-white shadow">
@@ -255,12 +255,12 @@ export default function CreateStoreWizard({
                   </span>
                   <div className="min-w-0">
                     <div className="truncate text-sm font-extrabold text-slate-900">{name.trim() || "Tên cửa hàng"}</div>
-                    <div className="truncate text-[11px] text-slate-500">{subtitle.trim() || tpl.name}</div>
+                    <div className="truncate text-xs text-slate-500">{subtitle.trim() || tpl.name}</div>
                   </div>
                 </div>
                 <div className="mt-3 flex flex-wrap gap-1">
                   {tpl.features.map((f) => (
-                    <span key={f} className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
+                    <span key={f} className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">
                       {f}
                     </span>
                   ))}

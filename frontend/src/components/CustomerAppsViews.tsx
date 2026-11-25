@@ -9,6 +9,7 @@ import { fmtBytes } from "../data/format";
 import { fetchStoreStorage, type StoreStorage } from "../data/platform-api";
 import { deleteStore, forgetDeletedStore, slugConfirmed } from "../data/store-delete";
 import { fetchStores, StoreWithOwner } from "../data/store-api";
+import { FilterBar, PageHeader } from "./ui";
 
 const errMsg = (e: unknown, fb = "Thao tác thất bại") => (e instanceof ApiError ? e.message : fb);
 
@@ -99,28 +100,23 @@ export function CustomerAppsSection() {
 
   return (
     <div className="space-y-4">
-      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h3 className="flex items-center gap-2 text-base font-bold text-slate-900">
-              <LuSmartphone size={18} className="text-brand-600" /> Cấu hình app của khách
-            </h3>
-            <p className="text-xs text-slate-500">
-              Sửa thông tin, Zalo App / OA, đổi chủ, gắn gói — hoặc mở thẳng trang quản trị / Miniapp Studio của khách để hỗ trợ, cập nhật hộ.
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Input
-              allowClear
-              prefix={<LuSearch size={14} className="text-slate-400" />}
-              placeholder="Tên app, slug, khách, SĐT, App ID"
-              value={keyword}
-              onChange={(e) => setKeyword(e.target.value)}
-              style={{ width: 280 }}
-            />
-            <Button icon={<LuRefreshCw size={14} />} onClick={load} loading={loading} />
-          </div>
-        </div>
+      <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
+        <PageHeader
+        title={<><LuSmartphone size={18} className="text-brand-600" /> Cấu hình app của khách</>}
+        description={<>Sửa thông tin, Zalo App / OA, đổi chủ, gắn gói — hoặc mở thẳng trang quản trị / Miniapp Studio của khách để hỗ trợ, cập nhật hộ.</>}
+      />
+      <FilterBar
+        search={
+          <Input
+            allowClear
+            prefix={<LuSearch size={14} className="text-slate-400" />}
+            placeholder="Tên app, slug, khách, SĐT, App ID"
+            value={keyword}
+            onChange={(e) => setKeyword(e.target.value)}
+          />
+        }
+        actions={<Button icon={<LuRefreshCw size={14} />} onClick={load} loading={loading} />}
+      />
         <div className="mt-3 flex flex-wrap gap-1.5">
           {(
             [
@@ -169,7 +165,7 @@ export function CustomerAppsSection() {
                   )}
                   <div className="min-w-0">
                     <div className="truncate font-bold text-slate-900">{r.name}</div>
-                    <div className="truncate text-[11px] text-slate-500">
+                    <div className="truncate text-xs text-slate-500">
                       /{r.slug} · {templateName(r.templateId)}
                     </div>
                   </div>
@@ -215,7 +211,7 @@ export function CustomerAppsSection() {
               key: "zalo",
               width: 170,
               render: (_, r) => (
-                <div className="flex flex-col items-start gap-1 text-[11px]">
+                <div className="flex flex-col items-start gap-1 text-xs">
                   {r.zaloAppId ? (
                     <Tooltip title={`App ID ${r.zaloAppId}${r.hasZaloAppSecret ? " · đã có App Secret" : " · chưa có App Secret"}`}>
                       <Tag color={r.hasZaloAppSecret ? "blue" : "orange"} className="m-0">
@@ -234,7 +230,7 @@ export function CustomerAppsSection() {
               key: "count",
               width: 110,
               render: (_, r) => (
-                <div className="text-[11px] text-slate-500">
+                <div className="text-xs text-slate-500">
                   {r._count?.products ?? 0} sản phẩm
                   <br />
                   {r._count?.customers ?? 0} khách
@@ -251,7 +247,7 @@ export function CustomerAppsSection() {
               title: "Cập nhật",
               key: "updated",
               width: 110,
-              render: (_, r) => <span className="text-[11px] text-slate-500">{r.updatedAt ? dayjs(r.updatedAt).format("HH:mm DD/MM/YY") : "—"}</span>,
+              render: (_, r) => <span className="text-xs text-slate-500">{r.updatedAt ? dayjs(r.updatedAt).format("HH:mm DD/MM/YY") : "—"}</span>,
             },
             {
               title: "",

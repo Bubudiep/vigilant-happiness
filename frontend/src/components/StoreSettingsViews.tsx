@@ -59,7 +59,7 @@ function MiniAppCard({ store, onPatch, onSecretInput, onSecretSave }: SettingsPr
           />
         </div>
       </div>
-      <p className="mt-2 text-[11px] text-slate-500">
+      <p className="mt-2 text-xs text-slate-500">
         App Secret lưu mã hoá, không hiển thị lại. Dùng để lấy số điện thoại khách khi đăng nhập Zalo trong Mini App của gian hàng và để làm mới token OA.
       </p>
     </Card>
@@ -146,7 +146,7 @@ function OaCard({ store, onPatch }: SettingsProps) {
               />
             }
           />
-          <p className="mt-1 text-[11px] text-slate-500">
+          <p className="mt-1 text-xs text-slate-500">
             Phải là https, tên miền công khai. Bật sự kiện <i>user_send_text</i>, <i>user_send_image</i>, <i>follow</i>. Tin khách nhắn OA sẽ vào mục “Tin nhắn OA” của gian hàng.
           </p>
         </div>
@@ -187,7 +187,7 @@ function OaCard({ store, onPatch }: SettingsProps) {
             </Popconfirm>
           )}
         </div>
-        <p className="text-[11px] text-slate-500">Token lưu trong cơ sở dữ liệu backend và không hiển thị lại. Zalo chỉ cho trả lời tin tư vấn trong thời hạn sau lần khách nhắn gần nhất.</p>
+        <p className="text-xs text-slate-500">Token lưu trong cơ sở dữ liệu backend và không hiển thị lại. Zalo chỉ cho trả lời tin tư vấn trong thời hạn sau lần khách nhắn gần nhất.</p>
       </div>
     </Card>
   );
@@ -421,7 +421,7 @@ export function BuildRequestsSection() {
             render: (_, r) => (
               <div>
                 <div className="font-semibold">{r.store?.name}</div>
-                <div className="text-[11px] text-slate-500">{r.store?.customer ? `${r.store.customer.companyName || r.store.customer.name} · ${r.store.customer.phone}` : "—"}</div>
+                <div className="text-xs text-slate-500">{r.store?.customer ? `${r.store.customer.companyName || r.store.customer.name} · ${r.store.customer.phone}` : "—"}</div>
               </div>
             ),
           },
@@ -430,8 +430,8 @@ export function BuildRequestsSection() {
             render: (_, r) => (
               <div>
                 <div>{r.appName}</div>
-                <div className="font-mono text-[11px] text-slate-500">{r.appId || "chưa có App ID"}</div>
-                {r.note && <div className="max-w-[240px] text-[11px] italic text-slate-500">{r.note}</div>}
+                <div className="font-mono text-xs text-slate-500">{r.appId || "chưa có App ID"}</div>
+                {r.note && <div className="max-w-[240px] text-xs italic text-slate-500">{r.note}</div>}
               </div>
             ),
           },

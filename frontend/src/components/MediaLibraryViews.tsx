@@ -1,4 +1,4 @@
-import { App as AntApp, Button, Empty, Modal, Popconfirm, Segmented, Select, Spin, Tag } from "antd";
+import { App as AntApp, Button, Empty, Modal, Popconfirm, Segmented, Spin, Tag } from "antd";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LuRefreshCw, LuTrash2, LuUpload } from "react-icons/lu";
 import { shrinkImage } from "../data/album-api";
@@ -8,6 +8,7 @@ import { findMediaInUse, mediaUsage, StoreMediaItem, usedInLabel } from "../data
 import { ApiError } from "../data/platform-api";
 import type { StoreConfig } from "../data/store-api";
 import { StorageBar } from "./AlbumViews";
+import { FilterBar, FilterSelect, PageHeader } from "./ui";
 
 const TYPES: { value: string; label: string }[] = [
   { value: "all", label: "Tất cả" },
@@ -117,17 +118,17 @@ export function MediaLibrarySection({ store }: { store: StoreConfig }) {
   return (
     <div className="space-y-4">
       <StorageBar storeId={store.id} refreshKey={storageKey} />
-      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h3 className="text-base font-bold text-slate-900">Thư viện ảnh</h3>
-            <p className="text-xs text-slate-500">
-              Ảnh dùng cho thiết kế, sản phẩm, banner — tải lên hoặc kéo thả vào đây. Xoá sản phẩm không tự xoá ảnh — ảnh thừa vẫn tính vào hạn mức dung lượng.
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Select size="middle" value={uploadType} onChange={setUploadType} options={UPLOAD_TYPES} className="w-28" aria-label="Loại ảnh tải lên" />
-            <Button
+      <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
+        <PageHeader
+        title="Thư viện ảnh"
+        description={<>Ảnh dùng cho thiết kế, sản phẩm, banner — tải lên hoặc kéo thả vào đây. Xoá sản phẩm không tự xoá ảnh — ảnh thừa vẫn tính vào hạn mức dung lượng.</>}
+      />
+      <FilterBar
+        filters={<><FilterSelect size="middle" value={uploadType} onChange={setUploadType} options={UPLOAD_TYPES} aria-label="Loại ảnh tải lên" /></>}
+        actions={<><Button icon={<LuRefreshCw size={14} />} loading={loading} onClick={load}>
+              Làm mới
+            </Button>
+<Button
               type="primary"
               icon={<LuUpload size={14} />}
               loading={!!uploading}
@@ -135,10 +136,7 @@ export function MediaLibrarySection({ store }: { store: StoreConfig }) {
             >
               {uploading ? `Đang tải ${uploading.done}/${uploading.total}` : "Tải ảnh lên"}
             </Button>
-            <Button icon={<LuRefreshCw size={14} />} loading={loading} onClick={load}>
-              Làm mới
-            </Button>
-            <input
+<input
               ref={fileRef}
               type="file"
               accept="image/jpeg,image/png,image/webp,image/gif"
@@ -148,9 +146,8 @@ export function MediaLibrarySection({ store }: { store: StoreConfig }) {
                 upload(e.target.files);
                 e.target.value = "";
               }}
-            />
-          </div>
-        </div>
+            /></>}
+      />
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
           <Segmented size="small" value={type} onChange={(v) => setType(String(v))} options={TYPES} />
           <span className="text-xs text-slate-500">
@@ -207,7 +204,7 @@ export function MediaLibrarySection({ store }: { store: StoreConfig }) {
                         <div className="truncate text-xs font-semibold text-slate-800" title={m.fileName}>
                           {m.fileName}
                         </div>
-                        <div className="text-[11px] text-slate-500">
+                        <div className="text-xs text-slate-500">
                           {fmtBytes(m.sizeBytes)} · {typeLabel(m.type)}
                         </div>
                       </div>

@@ -82,6 +82,8 @@ Quota Zalo: Development 11/300, Testing 19/60.
 | T44 API media trả cờ `inUse` (gồm logo / cover / banner) | `backend-d2` | [x] API 51/51 |
 | T44c Xoá ảnh đang dùng → 409 (`?force=1` để ép) | `backend-d2` | [x] API 52/52 |
 | T46 Nút "Xoá gian hàng" (trang Cấu hình app khách) | `frontend-2b` | [x] test 60/60 |
+| T47 Chuẩn hoá giao diện quản trị (font, cỡ chữ, bố cục bộ lọc / form) | `frontend-2b` | [x] chưa xem bằng trình duyệt |
+| T47b Hoàn thiện T47: StatCard, form 2 cột, tabular-nums, chip lọc | `frontend-2b` | [/] |
 | T45 Nhãn tiếng Việt cho action audit mới | `frontend-2b` | [x] test 45/45 (`data/audit-labels.ts`) |
 | T44b Thư viện ảnh dùng cờ `inUse/usedIn` + xử lý 409 | `frontend-2b` | [x] test 53/53 |
 | T36 Ảnh trình thiết kế: bỏ data URL, tải lên media | `frontend-2b` | [x] chưa thử thật |
@@ -158,6 +160,14 @@ Quy ước khi chạy song song: phiên backend chỉ sửa `backend/`, phiên f
 - **Đã làm (25/11):** mỗi media có `inUse` + `usedIn` ("logo" | "cover" | "theme" | "slider" | "design" | "banner" | "product"), so khớp URL hoặc `storageKey`; dùng chung với dọn logo cũ. Test `media-usage.api.test.ts` (2). Không tính ảnh trong đơn hàng cũ / mô tả. **Tiếp (T44c):** `DELETE /stores/media/:id` ảnh đang dùng → 409 `{ message, usedIn }`, `?force=1` để ép.
 - `GET /stores/:storeId/media` trả thêm `inUse: boolean` (và `usedIn: string[]` như `product`, `slider`, `logo`, `banner`, `design`) tính phía server từ mọi nơi tham chiếu. Frontend ưu tiên cờ server, fallback `findMediaInUse`.
 - Màn quản lý media của store (`GET /stores/:storeId/media`, `DELETE /stores/media/:id`): lưới ảnh, dung lượng từng ảnh, lọc theo loại, xoá (cảnh báo ảnh có thể đang dùng trong sản phẩm / thiết kế — đánh dấu "đang dùng" nếu URL xuất hiện trong sản phẩm / slider / `builderSchema`), thanh dung lượng gói.
+
+### T47. Chuẩn hoá giao diện quản trị (frontend, 25/11)
+- Font **Be Vietnam Pro** tự host (`@fontsource`), thang chữ: tiêu đề trang 18/600 · tiêu đề khối 15/600 · nội dung 14 · phụ 13 · chú thích 12 (bỏ `text-[10px]/[11px]` trừ badge), số tiền `tabular-nums`.
+- Token antd (`main.tsx`): fontSize 14, controlHeight 34, borderRadius 8 / LG 12, Table header nền slate-50 cỡ 13.
+- Bộ khung dùng chung `src/components/ui/`: `PageHeader` (tiêu đề + mô tả + nút bên phải), `FilterBar` (tìm kiếm trái co giãn → bộ lọc → nút hành động phải; độ rộng cố định: tìm 240, select 160, khoảng ngày 260; xuống dòng gọn trên mobile), `SectionCard`, `StatCard`. Form trong modal/drawer: nhãn trên, lưới 2 cột từ `sm`, nút "Huỷ" rồi nút chính ở phải.
+- Áp lần lượt `/controller/*` rồi `/admin/*`; chỉ đổi trình bày, không đổi hành vi. **Cần xem bằng trình duyệt sau khi xong.**
+- **Đã làm (25/11):** `src/fonts.css` (8 woff2 có `unicode-range`, JS chính chỉ +1,4KB), token antd + Table/Card/Modal/Drawer, `src/components/ui/` (`PageHeader`, `FilterBar` + `FilterSelect`/`FilterRange`, `SectionCard`, `StatCard`, `FormLayout`); chữ < 12px → 12px; ~20 header → `PageHeader`, 12 trang dùng `FilterBar`; sidebar 2 console h-9 14/500. Font đổi toàn cục nên trang chủ cũng dùng Be Vietnam Pro.
+- **Cần nhìn:** bảng nhiều cột (Cấu hình app, Voucher, Đăng ký gói), drawer hẹp, FilterBar trên mobile, badge 12px ở sidebar.
 
 ### T35. Kiểm tra giao diện + T11 còn lại (frontend)
 - Mở bằng trình duyệt: `/controller/inbox` (2 tab Hội thoại / Chăm sóc, badge), `/controller/storage`, album (lưới dùng thumbnail). Sửa lỗi hiển thị / mobile.

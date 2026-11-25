@@ -17,6 +17,7 @@ import {
   updateDebt,
 } from "../data/platform-api";
 import { downloadCsv } from "./PlatformViews";
+import { FilterBar, FilterSelect, PageHeader } from "./ui";
 
 const errMsg = (e: unknown, fb = "Thao tác thất bại") => (e instanceof ApiError ? e.message : fb);
 const vnd = (n: number) => `${n.toLocaleString("vi-VN")}đ`;
@@ -149,25 +150,23 @@ export function DebtsSection() {
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {cards.map((c) => (
-          <div key={c.label} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{c.label}</div>
+          <div key={c.label} className="rounded-xl border border-slate-200 bg-white p-4">
+            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">{c.label}</div>
             <div className={`mt-1 text-xl font-bold ${c.tone}`}>{c.value}</div>
           </div>
         ))}
       </div>
 
-      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h3 className="text-base font-bold text-slate-900">Khách nợ tiền</h3>
-            <p className="text-xs text-slate-500">Ghi khoản khách còn nợ, thu từng phần và theo dõi khoản quá hạn.</p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Input.Search allowClear placeholder="Tìm khách / nội dung" style={{ width: 190 }} onChange={(e) => setKw(e.target.value)} />
-            <Select
+      <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
+        <PageHeader
+        title="Khách nợ tiền"
+        description={<>Ghi khoản khách còn nợ, thu từng phần và theo dõi khoản quá hạn.</>}
+      />
+      <FilterBar
+        search={<Input.Search allowClear placeholder="Tìm khách / nội dung" onChange={(e) => setKw(e.target.value)} />}
+        filters={<><FilterSelect
               value={status}
               onChange={setStatus}
-              style={{ width: 150 }}
               options={[
                 { value: "open", label: "Đang nợ" },
                 { value: "overdue", label: "Quá hạn" },
@@ -175,16 +174,15 @@ export function DebtsSection() {
                 { value: "paid", label: "Đã thu đủ" },
                 { value: "all", label: "Tất cả" },
               ]}
-            />
-            <Button icon={<LuRefreshCw size={14} />} onClick={load} loading={loading} />
-            <Button icon={<LuDownload size={14} />} onClick={exportCsv} disabled={!rows.length}>
+            /></>}
+        actions={<><Button icon={<LuDownload size={14} />} onClick={exportCsv} disabled={!rows.length}>
               Xuất CSV
             </Button>
-            <Button type="primary" icon={<LuPlus size={15} />} onClick={() => setForm({ id: null, title: "", amount: null, dueDate: null, note: "" })}>
+<Button icon={<LuRefreshCw size={14} />} onClick={load} loading={loading} />
+<Button type="primary" icon={<LuPlus size={15} />} onClick={() => setForm({ id: null, title: "", amount: null, dueDate: null, note: "" })}>
               Thêm khoản nợ
-            </Button>
-          </div>
-        </div>
+            </Button></>}
+      />
 
         {error ? (
           <Alert type="warning" showIcon title="Không tải được dữ liệu" description={error} action={<Button size="small" onClick={load}>Thử lại</Button>} />
@@ -204,7 +202,7 @@ export function DebtsSection() {
                 render: (_, r) => (
                   <div>
                     <div className="text-sm font-semibold text-slate-900">{customerLabel(r.customer)}</div>
-                    <div className="font-mono text-[11px] text-slate-500">{r.customer.phone}</div>
+                    <div className="font-mono text-xs text-slate-500">{r.customer.phone}</div>
                   </div>
                 ),
               },
@@ -215,7 +213,7 @@ export function DebtsSection() {
               {
                 title: "Hạn",
                 width: 100,
-                render: (_, r) => (r.dueDate ? <span className={`text-[11px] ${r.status === "overdue" ? "font-semibold text-red-600" : ""}`}>{dayjs(r.dueDate).format("DD/MM/YYYY")}</span> : <span className="text-slate-300">—</span>),
+                render: (_, r) => (r.dueDate ? <span className={`text-xs ${r.status === "overdue" ? "font-semibold text-red-600" : ""}`}>{dayjs(r.dueDate).format("DD/MM/YYYY")}</span> : <span className="text-slate-300">—</span>),
               },
               { title: "Trạng thái", width: 130, render: (_, r) => <Tag color={STATUS[r.status].color}>{STATUS[r.status].label}</Tag> },
               {
@@ -269,7 +267,7 @@ export function DebtsSection() {
             />
             <DatePicker className="w-full" placeholder="Hạn thanh toán (không bắt buộc)" format="DD/MM/YYYY" value={form.dueDate} onChange={(v) => setForm({ ...form, dueDate: v })} />
             <Input.TextArea rows={2} placeholder="Ghi chú" value={form.note} maxLength={500} onChange={(e) => setForm({ ...form, note: e.target.value })} />
-            {form.id && <p className="text-[11px] text-slate-500">Số nợ không được nhỏ hơn số đã thu.</p>}
+            {form.id && <p className="text-xs text-slate-500">Số nợ không được nhỏ hơn số đã thu.</p>}
           </div>
         )}
       </Modal>
@@ -320,15 +318,15 @@ export function DebtsSection() {
             </div>
             <div className="grid grid-cols-3 gap-2 text-center">
               <div className="rounded-xl bg-slate-50 p-2">
-                <div className="text-[10px] uppercase text-slate-500">Tổng nợ</div>
+                <div className="text-xs uppercase text-slate-500">Tổng nợ</div>
                 <div className="text-sm font-bold">{vnd(opened.amount)}</div>
               </div>
               <div className="rounded-xl bg-green-50 p-2">
-                <div className="text-[10px] uppercase text-slate-500">Đã thu</div>
+                <div className="text-xs uppercase text-slate-500">Đã thu</div>
                 <div className="text-sm font-bold text-green-600">{vnd(opened.paid)}</div>
               </div>
               <div className="rounded-xl bg-red-50 p-2">
-                <div className="text-[10px] uppercase text-slate-500">Còn nợ</div>
+                <div className="text-xs uppercase text-slate-500">Còn nợ</div>
                 <div className="text-sm font-bold text-red-600">{vnd(opened.remaining)}</div>
               </div>
             </div>
@@ -374,7 +372,7 @@ export function DebtsSection() {
                   <div key={p.id} className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-1.5">
                     <div>
                       <div className="text-sm font-semibold text-green-600">+{vnd(p.amount)}</div>
-                      <div className="text-[11px] text-slate-500">
+                      <div className="text-xs text-slate-500">
                         {dayjs(p.paidAt).format("DD/MM/YYYY")}
                         {p.method ? ` · ${p.method}` : ""}
                         {p.note ? ` · ${p.note}` : ""}

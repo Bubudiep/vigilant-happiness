@@ -25,7 +25,7 @@ export default function UserMenu({
             label: (
               <div className="text-xs">
                 <div className="font-bold text-slate-900">{user.name}</div>
-                <div className="text-[11px] text-slate-500">
+                <div className="text-xs text-slate-500">
                   {user.provider === "zalo" ? "Tài khoản Zalo" : "Tài khoản Google"}
                   {user.phone ? ` · ${user.phone}` : user.email ? ` · ${user.email}` : ""}
                 </div>
@@ -55,7 +55,7 @@ export default function UserMenu({
         )}
         <div className="hidden leading-tight xl:block">
           <div className="max-w-[110px] truncate text-xs font-bold text-slate-900">{user.name}</div>
-          <div className="text-[10px] font-semibold text-slate-500">{user.provider === "zalo" ? "Zalo" : "Google"}</div>
+          <div className="text-xs font-semibold text-slate-500">{user.provider === "zalo" ? "Zalo" : "Google"}</div>
         </div>
       </button>
     </Dropdown>

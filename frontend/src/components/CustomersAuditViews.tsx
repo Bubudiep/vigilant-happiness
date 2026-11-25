@@ -1,5 +1,5 @@
 import { auditActionLabel } from "../data/audit-labels";
-import { Alert, App as AntApp, Button, Drawer, Empty, Input, Modal, Popconfirm, Segmented, Select, Table, Tag } from "antd";
+import { Alert, App as AntApp, Button, Drawer, Empty, Input, Modal, Popconfirm, Segmented, Table, Tag } from "antd";
 import dayjs from "dayjs";
 import { useCallback, useEffect, useState } from "react";
 import { LuPlus, LuRefreshCw, LuTrash2 } from "react-icons/lu";
@@ -20,6 +20,7 @@ import {
   setAccountRole,
   setCustomerStatus,
 } from "../data/platform-api";
+import { FilterBar, FilterSelect, PageHeader } from "./ui";
 
 const STATUS_TAG: Record<string, { color: string; label: string }> = {
   active: { color: "green", label: "Hoạt động" },
@@ -124,30 +125,26 @@ export function CustomersPlatformSection() {
   };
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h3 className="text-base font-bold text-slate-900">Khách hàng reMini</h3>
-          <p className="text-xs text-slate-500">
-            Khách đăng nhập Zalo bằng số trùng <b>SĐT khách hàng</b> hoặc <b>SĐT nhân sự</b> bên dưới sẽ thấy dự án và ticket trong Mini App.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Segmented
+    <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
+      <PageHeader
+        title="Khách hàng reMini"
+        description={<>Khách đăng nhập Zalo bằng số trùng <b>SĐT khách hàng</b> hoặc <b>SĐT nhân sự</b> bên dưới sẽ thấy dự án và ticket trong Mini App.</>}
+      />
+      <FilterBar
+        search={<Input.Search allowClear placeholder="Tìm tên / SĐT / email" onChange={(e) => setKw(e.target.value)} />}
+        filters={<><Segmented
             value={statusFilter}
             onChange={(v) => setStatusFilter(v as "all" | "pending")}
             options={[
               { value: "all", label: "Tất cả" },
               { value: "pending", label: `Chờ kích hoạt${pendingCount ? ` (${pendingCount})` : ""}` },
             ]}
-          />
-          <Input.Search allowClear placeholder="Tìm tên / SĐT / email" style={{ width: 200 }} onChange={(e) => setKw(e.target.value)} />
-          <Button icon={<LuRefreshCw size={14} />} onClick={list.load} loading={list.loading} />
-          <Button type="primary" icon={<LuPlus size={15} />} onClick={() => setEdit({ id: null, name: "", companyName: "", phone: "", email: "" })}>
+          /></>}
+        actions={<><Button icon={<LuRefreshCw size={14} />} onClick={list.load} loading={list.loading} />
+<Button type="primary" icon={<LuPlus size={15} />} onClick={() => setEdit({ id: null, name: "", companyName: "", phone: "", email: "" })}>
             Thêm khách hàng
-          </Button>
-        </div>
-      </div>
+          </Button></>}
+      />
 
       {list.error ? (
         <Retry error={list.error} onRetry={list.load} />
@@ -166,7 +163,7 @@ export function CustomersPlatformSection() {
               render: (_, r) => (
                 <div>
                   <div className="text-sm font-semibold text-slate-900">{r.companyName || r.name}</div>
-                  <div className="text-[11px] text-slate-500">{r.companyName ? r.name : ""}</div>
+                  <div className="text-xs text-slate-500">{r.companyName ? r.name : ""}</div>
                 </div>
               ),
             },
@@ -175,13 +172,13 @@ export function CustomersPlatformSection() {
               title: "Tài khoản đăng nhập",
               render: (_, r) =>
                 r.users?.length ? (
-                  <div className="text-[11px] text-slate-600">{r.users.map((u) => <div key={u.id}>{u.email || u.name}</div>)}</div>
+                  <div className="text-xs text-slate-600">{r.users.map((u) => <div key={u.id}>{u.email || u.name}</div>)}</div>
                 ) : (
                   <span className="text-xs text-slate-300">—</span>
                 ),
             },
             { title: "Gói", render: (_, r) => (r.subscriptions[0] ? <Tag color="blue">{r.subscriptions[0].plan.name}</Tag> : <span className="text-xs text-slate-300">—</span>) },
-            { title: "Hạn", width: 100, render: (_, r) => (r.subscriptions[0] ? <span className="text-[11px]">{dayjs(r.subscriptions[0].expiresAt).format("DD/MM/YYYY")}</span> : "") },
+            { title: "Hạn", width: 100, render: (_, r) => (r.subscriptions[0] ? <span className="text-xs">{dayjs(r.subscriptions[0].expiresAt).format("DD/MM/YYYY")}</span> : "") },
             { title: "Store", width: 70, render: (_, r) => r._count.stores },
             { title: "Nhân sự", width: 80, render: (_, r) => r._count.staff },
             {
@@ -253,13 +250,13 @@ export function CustomersPlatformSection() {
             </div>
             <div>
               <div className="mb-1 text-xs font-bold uppercase tracking-wide text-slate-500">Nhân sự được đăng nhập</div>
-              <p className="mb-2 text-[11px] text-slate-500">Thêm số Zalo của nhân viên khách hàng để họ cũng xem được dự án của công ty.</p>
+              <p className="mb-2 text-xs text-slate-500">Thêm số Zalo của nhân viên khách hàng để họ cũng xem được dự án của công ty.</p>
               <div className="space-y-1.5">
                 {detail.staff.map((s) => (
                   <div key={s.id} className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-1.5">
                     <div>
                       <div className="text-sm font-semibold">{s.name}</div>
-                      <div className="font-mono text-[11px] text-slate-500">{s.phone}</div>
+                      <div className="font-mono text-xs text-slate-500">{s.phone}</div>
                     </div>
                     <Popconfirm title="Xoá nhân sự?" onConfirm={() => removeStaff(s.id).then(() => loadDetail(detail.id)).catch((e) => message.error(errMsg(e)))}>
                       <Button size="small" type="text" danger icon={<LuTrash2 size={12} />} />
@@ -317,17 +314,15 @@ export function AuditSection() {
   const [group, setGroup] = useState("");
   const list = useList(() => fetchAudit(group || undefined), [group]);
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h3 className="text-base font-bold text-slate-900">Nhật ký thao tác</h3>
-          <p className="text-xs text-slate-500">Ai đã làm gì, lúc nào, từ IP nào. Secret / token không bao giờ được ghi lại.</p>
-        </div>
-        <div className="flex gap-2">
-          <Select value={group} onChange={setGroup} style={{ width: 150 }} options={GROUPS} />
-          <Button icon={<LuRefreshCw size={14} />} onClick={list.load} loading={list.loading} />
-        </div>
-      </div>
+    <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
+      <PageHeader
+        title="Nhật ký thao tác"
+        description={<>Ai đã làm gì, lúc nào, từ IP nào. Secret / token không bao giờ được ghi lại.</>}
+      />
+      <FilterBar
+        filters={<><FilterSelect value={group} onChange={setGroup} options={GROUPS} /></>}
+        actions={<><Button icon={<LuRefreshCw size={14} />} onClick={list.load} loading={list.loading} /></>}
+      />
       {list.error ? (
         <Retry error={list.error} onRetry={list.load} />
       ) : (
@@ -339,12 +334,12 @@ export function AuditSection() {
           pagination={{ pageSize: 15 }}
           locale={{ emptyText: <Empty description="Chưa có thao tác nào" /> }}
           columns={[
-            { title: "Lúc", width: 120, render: (_, r) => <span className="text-[11px]">{dayjs(r.createdAt).format("HH:mm:ss DD/MM")}</span> },
+            { title: "Lúc", width: 120, render: (_, r) => <span className="text-xs">{dayjs(r.createdAt).format("HH:mm:ss DD/MM")}</span> },
             { title: "Người thực hiện", render: (_, r) => <span className="text-xs">{r.actorLabel}</span> },
             { title: "Thao tác", render: (_, r) => <Tag>{auditActionLabel(r.action, r.meta)}</Tag> },
-            { title: "Đối tượng", render: (_, r) => <span className="font-mono text-[11px] text-slate-500">{r.targetType} {r.targetId}</span> },
-            { title: "Chi tiết", render: (_, r) => <span className="text-[11px] text-slate-500">{r.meta ? JSON.stringify(r.meta) : ""}</span> },
-            { title: "IP", width: 120, render: (_, r) => <span className="font-mono text-[11px]">{r.ip}</span> },
+            { title: "Đối tượng", render: (_, r) => <span className="font-mono text-xs text-slate-500">{r.targetType} {r.targetId}</span> },
+            { title: "Chi tiết", render: (_, r) => <span className="text-xs text-slate-500">{r.meta ? JSON.stringify(r.meta) : ""}</span> },
+            { title: "IP", width: 120, render: (_, r) => <span className="font-mono text-xs">{r.ip}</span> },
           ]}
         />
       )}
@@ -380,20 +375,16 @@ export function AccountsSection({ currentUserId }: { currentUserId: string }) {
   };
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h3 className="text-base font-bold text-slate-900">Tài khoản quản trị</h3>
-          <p className="text-xs text-slate-500">
-            Tài khoản được đánh dấu <b>Quản trị nền tảng</b> thấy mọi gian hàng, duyệt người bán và dùng các mục quản trị.
-            Tài khoản khác là chủ shop — chỉ quản lý gian hàng của mình.
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Input.Search allowClear placeholder="Tìm tên / email" style={{ width: 220 }} onChange={(e) => setKw(e.target.value)} />
-          <Button icon={<LuRefreshCw size={14} />} onClick={list.load} loading={list.loading} />
-        </div>
-      </div>
+    <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
+      <PageHeader
+        title="Tài khoản quản trị"
+        description={<>Tài khoản được đánh dấu <b>Quản trị nền tảng</b> thấy mọi gian hàng, duyệt người bán và dùng các mục quản trị.
+            Tài khoản khác là chủ shop — chỉ quản lý gian hàng của mình.</>}
+      />
+      <FilterBar
+        search={<Input.Search allowClear placeholder="Tìm tên / email" onChange={(e) => setKw(e.target.value)} />}
+        actions={<><Button icon={<LuRefreshCw size={14} />} onClick={list.load} loading={list.loading} /></>}
+      />
       {list.error ? (
         <Retry error={list.error} onRetry={list.load} />
       ) : (
@@ -418,9 +409,9 @@ export function AccountsSection({ currentUserId }: { currentUserId: string }) {
                   )}
                   <div>
                     <div className="text-sm font-semibold text-slate-900">
-                      {a.name} {a.id === currentUserId && <span className="text-[11px] font-normal text-slate-400">(bạn)</span>}
+                      {a.name} {a.id === currentUserId && <span className="text-xs font-normal text-slate-400">(bạn)</span>}
                     </div>
-                    <div className="text-[11px] text-slate-500">{a.email}</div>
+                    <div className="text-xs text-slate-500">{a.email}</div>
                   </div>
                 </div>
               ),
@@ -440,7 +431,7 @@ export function AccountsSection({ currentUserId }: { currentUserId: string }) {
             {
               title: "Đăng nhập gần nhất",
               width: 150,
-              render: (_, a) => <span className="text-[11px] text-slate-500">{dayjs(a.lastLoginAt).format("DD/MM/YYYY HH:mm")}</span>,
+              render: (_, a) => <span className="text-xs text-slate-500">{dayjs(a.lastLoginAt).format("DD/MM/YYYY HH:mm")}</span>,
             },
             {
               title: "Vai trò",

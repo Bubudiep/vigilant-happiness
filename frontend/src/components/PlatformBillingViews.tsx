@@ -42,6 +42,7 @@ import {
   SubscriptionRow,
   updateSubscription,
 } from "../data/platform-api";
+import { FilterBar, PageHeader } from "./ui";
 
 const errMsg = (e: unknown, fb = "Thao tác thất bại") => (e instanceof ApiError ? e.message : fb);
 const money = (n: number) => `${n.toLocaleString("vi-VN")}đ`;
@@ -68,11 +69,11 @@ export function PlansSection() {
   }, [reloadPlans]);
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-      <h3 className="flex items-center gap-2 text-base font-bold text-slate-900">
-        <LuPackage size={18} className="text-brand-600" /> Gói dịch vụ
-      </h3>
-      <p className="text-xs text-slate-500">Danh mục gói reMini và gói khách đang dùng: đăng ký, gia hạn, áp voucher, đổi trạng thái.</p>
+    <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
+      <PageHeader
+        title={<><LuPackage size={18} className="text-brand-600" /> Gói dịch vụ</>}
+        description="Danh mục gói reMini và gói khách đang dùng: đăng ký, gia hạn, áp voucher, đổi trạng thái."
+      />
       <Tabs
         activeKey={tab}
         onChange={setTab}
@@ -106,7 +107,7 @@ function PlanCatalog({ plans, onChanged }: { plans: PlanRow[]; onChanged: () => 
               <div className="flex items-start justify-between gap-2">
                 <div>
                   <div className="text-base font-extrabold text-slate-900">{p.name}</div>
-                  <div className="text-[11px] text-slate-400">{p.code}</div>
+                  <div className="text-xs text-slate-400">{p.code}</div>
                 </div>
                 <div className="flex gap-1">
                   {!p.isActive && <Tag className="m-0">Đã tắt</Tag>}
@@ -136,7 +137,7 @@ function PlanCatalog({ plans, onChanged }: { plans: PlanRow[]; onChanged: () => 
               </div>
               <div className="text-xs text-slate-500">{money(p.priceYearly)}/năm</div>
               {p.description && <div className="mt-2 text-xs text-slate-600">{p.description}</div>}
-              <div className="mt-2 flex flex-wrap gap-1 text-[11px]">
+              <div className="mt-2 flex flex-wrap gap-1 text-xs">
                 <Tag className="m-0">{p.maxStores} store</Tag>
                 <Tag className="m-0">{p.maxProducts} sản phẩm</Tag>
                 <Tag className="m-0">{p.maxStaff} nhân sự</Tag>
@@ -153,7 +154,7 @@ function PlanCatalog({ plans, onChanged }: { plans: PlanRow[]; onChanged: () => 
                   ))}
                 </ul>
               )}
-              <div className="mt-2 text-[11px] text-slate-400">{p._count?.subscriptions ?? 0} lượt đăng ký</div>
+              <div className="mt-2 text-xs text-slate-400">{p._count?.subscriptions ?? 0} lượt đăng ký</div>
             </div>
           ))}
         </div>
@@ -313,16 +314,17 @@ function SubscriptionsTab({ plans }: { plans: PlanRow[] }) {
 
   return (
     <>
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap items-center gap-2">
+      <FilterBar
+        search={
           <Input
             allowClear
             prefix={<LuSearch size={14} className="text-slate-400" />}
             placeholder="Khách, SĐT, gói, voucher"
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
-            style={{ width: 240 }}
           />
+        }
+        filters={
           <Segmented
             value={status}
             onChange={(v) => setStatus(String(v))}
@@ -334,14 +336,16 @@ function SubscriptionsTab({ plans }: { plans: PlanRow[] }) {
               { value: "cancelled", label: "Đã huỷ" },
             ]}
           />
-        </div>
-        <div className="flex gap-2">
-          <Button icon={<LuRefreshCw size={14} />} onClick={load} loading={loading} />
-          <Button type="primary" icon={<LuUserPlus size={14} />} onClick={() => setCreating(true)} disabled={!plans.length}>
-            Đăng ký gói cho khách
-          </Button>
-        </div>
-      </div>
+        }
+        actions={
+          <>
+            <Button icon={<LuRefreshCw size={14} />} onClick={load} loading={loading} />
+            <Button type="primary" icon={<LuUserPlus size={14} />} onClick={() => setCreating(true)} disabled={!plans.length}>
+              Đăng ký gói cho khách
+            </Button>
+          </>
+        }
+      />
       <Table<SubscriptionRow>
         rowKey="id"
         size="middle"
@@ -420,7 +424,7 @@ function SubscriptionsTab({ plans }: { plans: PlanRow[] }) {
                   <Tag color={SUB_STATUS[st]?.color} className="m-0">
                     {SUB_STATUS[st]?.label ?? st}
                   </Tag>
-                  {s.autoRenew && <span className="text-[10px] text-slate-400">Tự gia hạn</span>}
+                  {s.autoRenew && <span className="text-xs text-slate-400">Tự gia hạn</span>}
                 </div>
               );
             },
@@ -707,21 +711,15 @@ export function PlatformVouchersSection() {
   const planName = (id: string) => plans.find((p) => p.id === id)?.name ?? "?";
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h3 className="flex items-center gap-2 text-base font-bold text-slate-900">
-            <LuTicketPercent size={18} className="text-brand-600" /> Voucher gói reMini
-          </h3>
-          <p className="text-xs text-slate-500">Mã giảm giá khi khách mua / gia hạn gói. Áp ở bước "Đăng ký gói cho khách" (mục Gói dịch vụ).</p>
-        </div>
-        <div className="flex gap-2">
-          <Button icon={<LuRefreshCw size={14} />} onClick={load} loading={loading} />
+    <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
+      <PageHeader
+        title={<><LuTicketPercent size={18} className="text-brand-600" /> Voucher gói reMini</>}
+        description={<>Mã giảm giá khi khách mua / gia hạn gói. Áp ở bước "Đăng ký gói cho khách" (mục Gói dịch vụ).</>}
+        actions={<><Button icon={<LuRefreshCw size={14} />} onClick={load} loading={loading} />
           <Button type="primary" icon={<LuPlus size={14} />} onClick={() => setEditing("new")}>
             Tạo voucher
-          </Button>
-        </div>
-      </div>
+          </Button></>}
+      />
       <Table<PlatformVoucherRow>
         rowKey="id"
         size="middle"
@@ -757,7 +755,7 @@ export function PlatformVouchersSection() {
             key: "scope",
             width: 190,
             render: (_, v) => (
-              <div className="flex flex-wrap gap-1 text-[11px]">
+              <div className="flex flex-wrap gap-1 text-xs">
                 {v.planIds.length ? v.planIds.map((id) => <Tag key={id} className="m-0">{planName(id)}</Tag>) : <Tag className="m-0">Mọi gói</Tag>}
                 {v.billingCycle !== "all" && <Tag color="purple" className="m-0">{v.billingCycle === "yearly" ? "Gói năm" : "Gói tháng"}</Tag>}
               </div>

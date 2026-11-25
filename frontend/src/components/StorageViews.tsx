@@ -2,19 +2,10 @@ import { Alert, Button, Progress, Spin, Table } from "antd";
 import { useCallback, useEffect, useState } from "react";
 import { LuRefreshCw } from "react-icons/lu";
 import { fmtBytes } from "../data/format";
+import { PageHeader, SectionCard, StatCard } from "./ui";
 import { ApiError, fetchStorageOverview, StorageOverview, StorageStoreRow } from "../data/platform-api";
 
 export { fmtBytes };
-
-function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
-  return (
-    <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
-      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</div>
-      <div className="mt-1 text-2xl font-extrabold text-slate-900">{value}</div>
-      {hint && <div className="mt-0.5 text-xs text-slate-500">{hint}</div>}
-    </div>
-  );
-}
 
 /** Dung lượng: ổ đĩa server, DB, ảnh theo từng gian hàng và tổng. */
 export function StorageSection() {
@@ -42,19 +33,19 @@ export function StorageSection() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h2 className="text-lg font-bold text-slate-900">Dung lượng</h2>
-          <p className="text-xs text-slate-500">Cập nhật {new Date(data.generatedAt).toLocaleTimeString("vi-VN")} · số liệu theo DB, riêng "trên ổ" là đo thật (cache 5 phút)</p>
-        </div>
-        <Button icon={<LuRefreshCw />} loading={loading} onClick={load}>
-          Làm mới
-        </Button>
-      </div>
+      <PageHeader
+        title="Dung lượng"
+        description={`Cập nhật ${new Date(data.generatedAt).toLocaleTimeString("vi-VN")} · số liệu theo DB, riêng "trên ổ" là đo thật (cache 5 phút)`}
+        actions={
+          <Button icon={<LuRefreshCw />} loading={loading} onClick={load}>
+            Làm mới
+          </Button>
+        }
+      />
       {error && <Alert type="error" message={error} showIcon />}
 
       {disk && (
-        <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
+        <SectionCard>
           <div className="mb-2 flex justify-between text-sm font-semibold text-slate-700">
             <span>Ổ đĩa server</span>
             <span>
@@ -62,16 +53,17 @@ export function StorageSection() {
             </span>
           </div>
           <Progress percent={pct} status={pct >= 90 ? "exception" : pct >= 80 ? "active" : "normal"} />
-        </div>
+        </SectionCard>
       )}
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat label="Ảnh gian hàng" value={fmtBytes(data.files.stores)} hint="Album + ảnh sản phẩm/banner" />
-        <Stat label="Ảnh hộp thư reMini" value={fmtBytes(data.files.inbox.bytes)} hint={`${data.files.inbox.files} ảnh`} />
-        <Stat label="Tổng ảnh (theo DB)" value={fmtBytes(data.files.total)} />
-        <Stat label="Trên ổ / Database" value={`${fmtBytes(onDisk)} / ${data.db == null ? "—" : fmtBytes(data.db)}`} hint="uploads + uploads-private / Postgres" />
+        <StatCard label="Ảnh gian hàng" value={fmtBytes(data.files.stores)} hint="Album + ảnh sản phẩm/banner" />
+        <StatCard label="Ảnh hộp thư reMini" value={fmtBytes(data.files.inbox.bytes)} hint={`${data.files.inbox.files} ảnh`} />
+        <StatCard label="Tổng ảnh (theo DB)" value={fmtBytes(data.files.total)} />
+        <StatCard label="Trên ổ / Database" value={`${fmtBytes(onDisk)} / ${data.db == null ? "—" : fmtBytes(data.db)}`} hint="uploads + uploads-private / Postgres" />
       </div>
 
+      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
       <Table<StorageStoreRow>
         rowKey="storeId"
         size="middle"
@@ -130,6 +122,7 @@ export function StorageSection() {
           </Table.Summary.Row>
         )}
       />
+      </div>
     </div>
   );
 }

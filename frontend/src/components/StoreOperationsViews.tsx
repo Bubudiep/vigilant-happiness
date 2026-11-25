@@ -43,6 +43,7 @@ import {
   StoreEventItem,
   StoreSupportTicket,
 } from "../data/store-api";
+import { FilterBar, FilterSelect, PageHeader } from "./ui";
 
 export type StoreNavKey =
   | "overview"
@@ -192,7 +193,7 @@ export function BookingCreateModal({
                 key={p.id}
                 type="button"
                 onClick={() => form.setFieldValue("serviceName", p.name)}
-                className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-[11px] font-medium text-slate-600 hover:border-brand-400 hover:text-brand-600"
+                className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-xs font-medium text-slate-600 hover:border-brand-400 hover:text-brand-600"
               >
                 + {p.name}
               </button>
@@ -269,7 +270,7 @@ export function OverviewSection({
   return (
     <div className="space-y-5">
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="rounded-xl border border-slate-200 bg-white p-4">
           <div className="flex items-center justify-between text-slate-500">
             <span className="text-xs font-semibold uppercase">Doanh thu tích lũy</span>
             <LuTrendingUp className="text-emerald-600" size={18} />
@@ -280,7 +281,7 @@ export function OverviewSection({
           <div className="mt-1 text-xs text-slate-500">Từ {store.customers.length} khách hàng</div>
         </div>
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="rounded-xl border border-slate-200 bg-white p-4">
           <div className="flex items-center justify-between text-slate-500">
             <span className="text-xs font-semibold uppercase">Lịch hẹn hôm nay</span>
             <LuCalendarCheck className="text-sky-600" size={18} />
@@ -293,7 +294,7 @@ export function OverviewSection({
           </div>
         </div>
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="rounded-xl border border-slate-200 bg-white p-4">
           <div className="flex items-center justify-between text-slate-500">
             <span className="text-xs font-semibold uppercase">Đơn hàng</span>
             <LuShoppingBag className="text-brand-600" size={18} />
@@ -306,7 +307,7 @@ export function OverviewSection({
           </div>
         </div>
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="rounded-xl border border-slate-200 bg-white p-4">
           <div className="flex items-center justify-between text-slate-500">
             <span className="text-xs font-semibold uppercase">Sản phẩm & Kho</span>
             <LuPackage className="text-amber-600" size={18} />
@@ -321,7 +322,7 @@ export function OverviewSection({
       </div>
 
       {/* Widget Lịch hẹn & Đặt lịch cho khách ngay trên trang Tổng quan */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
         <div className="mb-3.5 flex flex-wrap items-center justify-between gap-2">
           <div>
             <h3 className="flex items-center gap-2 text-sm font-bold text-slate-900">
@@ -346,20 +347,20 @@ export function OverviewSection({
             <div key={b.id} className="flex flex-col justify-between rounded-xl border border-slate-200/80 bg-slate-50/70 p-3.5">
               <div>
                 <div className="flex items-center justify-between gap-2">
-                  <span className="inline-flex items-center gap-1 rounded-md bg-brand-600/10 px-2 py-0.5 text-[11px] font-bold text-brand-700">
+                  <span className="inline-flex items-center gap-1 rounded-md bg-brand-600/10 px-2 py-0.5 text-xs font-bold text-brand-700">
                     <LuClock size={12} /> {b.timeSlot} · {dayjs(b.date).format("DD/MM")}
                   </span>
-                  <span className="font-mono text-[10px] font-semibold text-slate-400">{b.code}</span>
+                  <span className="font-mono text-xs font-semibold text-slate-400">{b.code}</span>
                 </div>
                 <div className="mt-2 text-xs font-bold text-slate-900">
                   {b.customerName} <span className="font-normal text-slate-500">· {b.phone}</span>
                 </div>
                 <div className="mt-0.5 truncate text-xs text-slate-600">{b.serviceName}</div>
-                {b.staffName && <div className="mt-0.5 text-[11px] text-slate-400">Phụ trách: {b.staffName}</div>}
+                {b.staffName && <div className="mt-0.5 text-xs text-slate-400">Phụ trách: {b.staffName}</div>}
               </div>
               <div className="mt-3 flex items-center justify-between gap-2 border-t border-slate-200/70 pt-2.5">
                 <Tag
-                  className="m-0 text-[10px]"
+                  className="m-0 text-xs"
                   color={b.status === "completed" ? "green" : b.status === "confirmed" ? "blue" : b.status === "pending" ? "orange" : "red"}
                 >
                   {BOOKING_STATUS_OPTIONS.find((o) => o.value === b.status)?.label}
@@ -378,7 +379,7 @@ export function OverviewSection({
       </div>
 
       <div className="grid gap-5 lg:grid-cols-2">
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
           <div className="mb-3 flex items-center justify-between">
             <h3 className="text-sm font-bold text-slate-900">Đơn hàng gần đây</h3>
             <Button type="link" size="small" onClick={() => onNavigate("orders")}>
@@ -392,11 +393,11 @@ export function OverviewSection({
                   <div className="text-xs font-bold text-slate-900">
                     {o.code} · {o.customerName}
                   </div>
-                  <div className="text-[11px] text-slate-500">{o.itemsSummary}</div>
+                  <div className="text-xs text-slate-500">{o.itemsSummary}</div>
                 </div>
                 <div className="text-right">
                   <div className="text-xs font-bold text-brand-600">{o.total.toLocaleString("vi-VN")}đ</div>
-                  <Tag className="mt-0.5 text-[10px]" color={o.status === "completed" ? "green" : o.status === "pending" ? "orange" : "blue"}>
+                  <Tag className="mt-0.5 text-xs" color={o.status === "completed" ? "green" : o.status === "pending" ? "orange" : "blue"}>
                     {o.status === "pending" ? "Chờ xác nhận" : o.status === "shipping" ? "Đang giao" : o.status === "completed" ? "Hoàn thành" : o.status}
                   </Tag>
                 </div>
@@ -405,7 +406,7 @@ export function OverviewSection({
           </div>
         </div>
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
           <div className="mb-3 flex items-center justify-between">
             <h3 className="text-sm font-bold text-slate-900">Trạng thái Store & Mini App</h3>
             <Button type="link" size="small" onClick={() => onNavigate("miniapp")}>
@@ -419,7 +420,7 @@ export function OverviewSection({
             </div>
             <div className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2.5">
               <span className="text-slate-600">Slug công khai</span>
-              <code className="rounded bg-white px-2 py-0.5 font-mono text-[11px] text-brand-700">{store.slug}</code>
+              <code className="rounded bg-white px-2 py-0.5 font-mono text-xs text-brand-700">{store.slug}</code>
             </div>
             <div className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2.5">
               <span className="text-slate-600">Zalo Mini App ID</span>
@@ -531,7 +532,7 @@ export function BookingsSection({
           {b.timeSlot} · {WEEKDAY[dayjs(b.date).day()]} {dayjs(b.date).format("DD/MM")} · {b.staffName || "Chưa phân công"}
         </div>
         {b.note && <div className="mt-1 text-slate-500">“{b.note}”</div>}
-        <div className="mt-1 font-mono text-[10px] text-slate-400">{b.code}</div>
+        <div className="mt-1 font-mono text-xs text-slate-400">{b.code}</div>
       </div>
       <div className="flex flex-wrap gap-1">
         {BOOKING_STATUS_OPTIONS.map((o) => (
@@ -539,7 +540,7 @@ export function BookingsSection({
             key={o.value}
             type="button"
             onClick={() => patchBooking(b.id, { status: o.value as StoreBookingItem["status"] }, `Đã chuyển sang "${o.label}"`)}
-            className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold transition ${
+            className={`rounded-full border px-2 py-0.5 text-xs font-semibold transition ${
               b.status === o.value ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 text-slate-600 hover:border-slate-400"
             }`}
           >
@@ -568,20 +569,15 @@ export function BookingsSection({
   );
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h3 className="flex items-center gap-2 text-base font-bold text-slate-900">
-            <LuCalendarCheck size={18} className="text-brand-600" /> Lịch hẹn
-          </h3>
-          <p className="text-xs text-slate-500">
-            {view === "calendar"
+    <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
+      <PageHeader
+        title={<><LuCalendarCheck size={18} className="text-brand-600" /> Lịch hẹn</>}
+        description={<>{view === "calendar"
               ? `${days[0].format("DD/MM")} – ${days[CAL_DAYS - 1].format("DD/MM")} · ${inRange.length} lịch · ${todayCount} hôm nay · ${pendingCount} chờ xác nhận`
-              : "Toàn bộ lịch khách đặt trên Mini App và lịch đặt tại quầy."}
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Segmented
+              : "Toàn bộ lịch khách đặt trên Mini App và lịch đặt tại quầy."}</>}
+      />
+      <FilterBar
+        filters={<><Segmented
             size="small"
             value={view}
             onChange={(v) => setView(v as "calendar" | "list")}
@@ -590,18 +586,16 @@ export function BookingsSection({
               { value: "list", label: "Danh sách" },
             ]}
           />
-          <Select
+<FilterSelect
             size="small"
             value={statusFilter}
             onChange={setStatusFilter}
-            style={{ width: 150 }}
             options={[{ value: "all", label: "Tất cả trạng thái" }, ...BOOKING_STATUS_OPTIONS]}
-          />
-          <Button type="primary" icon={<LuPlus size={15} />} onClick={() => setModal({ open: true })}>
+          /></>}
+        actions={<><Button type="primary" icon={<LuPlus size={15} />} onClick={() => setModal({ open: true })}>
             Đặt lịch
-          </Button>
-        </div>
-      </div>
+          </Button></>}
+      />
 
       {view === "calendar" ? (
         <>
@@ -613,7 +607,7 @@ export function BookingsSection({
               </Button>
               <Button size="small" icon={<LuChevronRight size={14} />} onClick={() => setStart((d) => d.add(CAL_DAYS, "day"))} />
             </div>
-            <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-500">
+            <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
               {(Object.keys(STATUS_STYLE) as StoreBookingItem["status"][]).map((k) => (
                 <span key={k} className="flex items-center gap-1">
                   <span className={`h-2 w-2 rounded-full ${STATUS_STYLE[k].dot}`} /> {STATUS_STYLE[k].label}
@@ -628,7 +622,7 @@ export function BookingsSection({
           <div className="overflow-x-auto rounded-xl border border-slate-200">
             <div className="grid min-w-[900px]" style={{ gridTemplateColumns: `170px repeat(${CAL_DAYS}, minmax(0, 1fr))` }}>
               {/* Hàng tiêu đề ngày */}
-              <div className="sticky left-0 z-10 border-b border-slate-200 bg-slate-50 px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-slate-400">
+              <div className="sticky left-0 z-10 border-b border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold uppercase tracking-wide text-slate-400">
                 Nhân viên
               </div>
               {days.map((d) => {
@@ -641,13 +635,13 @@ export function BookingsSection({
                     key={key}
                     className={`border-b border-l border-slate-200 px-2 py-2 text-center ${isToday ? "bg-brand-50" : "bg-slate-50"}`}
                   >
-                    <div className={`text-[11px] font-bold ${isToday ? "text-brand-600" : isPast ? "text-slate-400" : "text-slate-500"}`}>
+                    <div className={`text-xs font-bold ${isToday ? "text-brand-600" : isPast ? "text-slate-400" : "text-slate-500"}`}>
                       {isToday ? "Hôm nay" : WEEKDAY[d.day()]}
                     </div>
                     <div className={`text-base font-extrabold ${isToday ? "text-brand-600" : isPast ? "text-slate-400" : "text-slate-900"}`}>
                       {d.format("DD/MM")}
                     </div>
-                    <div className="text-[10px] text-slate-400">{count ? `${count} lịch` : "—"}</div>
+                    <div className="text-xs text-slate-400">{count ? `${count} lịch` : "—"}</div>
                   </div>
                 );
               })}
@@ -657,7 +651,7 @@ export function BookingsSection({
                 <div key={staff} className="contents">
                   <div className="sticky left-0 z-10 flex items-start gap-2 border-b border-slate-100 bg-white px-3 py-2.5">
                     <span
-                      className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-black ${
+                      className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-black ${
                         staff === UNASSIGNED ? "border border-dashed border-slate-300 text-slate-400" : "bg-slate-900 text-white"
                       }`}
                     >
@@ -665,7 +659,7 @@ export function BookingsSection({
                     </span>
                     <div className="min-w-0">
                       <div className="truncate text-xs font-bold text-slate-800">{staff === UNASSIGNED ? "Chưa phân công" : staff}</div>
-                      <div className="text-[10px] text-slate-400">
+                      <div className="text-xs text-slate-400">
                         {inRange.filter((b) => (staff === UNASSIGNED ? !b.staffName?.trim() : b.staffName?.trim() === staff)).length} lịch
                       </div>
                     </div>
@@ -691,12 +685,12 @@ export function BookingsSection({
                               type="button"
                               className={`block w-full rounded-lg border px-1.5 py-1 text-left transition hover:shadow-sm ${STATUS_STYLE[b.status].chip}`}
                             >
-                              <div className="flex items-center gap-1 text-[11px] font-bold">
+                              <div className="flex items-center gap-1 text-xs font-bold">
                                 <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${STATUS_STYLE[b.status].dot}`} />
                                 {b.timeSlot}
                                 <span className="truncate font-semibold">{b.customerName}</span>
                               </div>
-                              <div className="truncate text-[10px] opacity-75">{b.serviceName}</div>
+                              <div className="truncate text-xs opacity-75">{b.serviceName}</div>
                             </button>
                           </Popover>
                         ))}
@@ -725,9 +719,7 @@ export function BookingsSection({
         </>
       ) : (
         <>
-          <div className="mb-3 flex justify-end">
-            <Input type="date" size="small" value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} style={{ width: 150 }} />
-          </div>
+          <FilterBar filters={<Input type="date" value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} className="w-full sm:!w-40" />} />
           <Table
             rowKey="id"
             size="small"
@@ -741,7 +733,7 @@ export function BookingsSection({
                     <div className="text-xs font-bold text-brand-600">
                       {r.timeSlot} · {dayjs(r.date).format("DD/MM/YYYY")}
                     </div>
-                    <div className="font-mono text-[10px] text-slate-400">{r.code}</div>
+                    <div className="font-mono text-xs text-slate-400">{r.code}</div>
                   </div>
                 ),
               },
@@ -750,7 +742,7 @@ export function BookingsSection({
                 render: (_, r) => (
                   <div>
                     <div className="font-semibold text-slate-900">{r.customerName}</div>
-                    <div className="text-[11px] text-slate-500">{r.phone}</div>
+                    <div className="text-xs text-slate-500">{r.phone}</div>
                   </div>
                 ),
               },
@@ -759,7 +751,7 @@ export function BookingsSection({
                 render: (_, r) => (
                   <div>
                     <div className="font-medium text-slate-800">{r.serviceName}</div>
-                    {r.note && <div className="text-[11px] text-slate-400">{r.note}</div>}
+                    {r.note && <div className="text-xs text-slate-400">{r.note}</div>}
                   </div>
                 ),
               },
@@ -835,16 +827,14 @@ export function EventsSection({
   };
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h3 className="text-base font-bold text-slate-900">Sự kiện & Chiến dịch Mini App</h3>
-          <p className="text-xs text-slate-500">Quản lý Flash Sale, Check-in tích điểm và sự kiện cửa hàng.</p>
-        </div>
-        <Button type="primary" icon={<LuPlus size={15} />} onClick={() => setModalOpen(true)}>
+    <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
+      <PageHeader
+        title="Sự kiện & Chiến dịch Mini App"
+        description={<>Quản lý Flash Sale, Check-in tích điểm và sự kiện cửa hàng.</>}
+        actions={<><Button type="primary" icon={<LuPlus size={15} />} onClick={() => setModalOpen(true)}>
           Tạo sự kiện
-        </Button>
-      </div>
+        </Button></>}
+      />
 
       <Table
         rowKey="id"
@@ -858,7 +848,7 @@ export function EventsSection({
             render: (t, r) => (
               <div>
                 <div className="font-semibold text-slate-900">{t}</div>
-                {r.description && <div className="text-[11px] text-slate-500">{r.description}</div>}
+                {r.description && <div className="text-xs text-slate-500">{r.description}</div>}
               </div>
             ),
           },
@@ -975,7 +965,7 @@ export function InventorySection({
   };
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
       <div className="mb-4 flex items-center justify-between">
         <div>
           <h3 className="flex items-center gap-2 text-base font-bold text-slate-900">
@@ -996,7 +986,7 @@ export function InventorySection({
             render: (_, r) => (
               <div>
                 <div className="font-semibold text-slate-900">{r.name}</div>
-                <div className="text-[11px] text-slate-500">SKU: {r.sku || r.id.toUpperCase()} · {r.category}</div>
+                <div className="text-xs text-slate-500">SKU: {r.sku || r.id.toUpperCase()} · {r.category}</div>
               </div>
             ),
           },
@@ -1052,7 +1042,7 @@ export function SupportSection({
 
   return (
     <div className="grid gap-5 lg:grid-cols-12">
-      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm lg:col-span-5">
+      <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5 lg:col-span-5">
         <h3 className="mb-1 flex items-center gap-2 text-base font-bold text-slate-900">
           <LuHeadphones size={18} className="text-brand-600" /> Gửi yêu cầu hỗ trợ
         </h3>
@@ -1098,7 +1088,7 @@ export function SupportSection({
         </Form>
       </div>
 
-      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm lg:col-span-7">
+      <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5 lg:col-span-7">
         <h3 className="mb-3 text-base font-bold text-slate-900">Lịch sử hỗ trợ ({tickets.length})</h3>
         <div className="space-y-3">
           {tickets.map((tk) => (
@@ -1120,7 +1110,7 @@ export function SupportSection({
                   )}
                 </Tag>
               </div>
-              <div className="mt-2 flex items-center gap-3 text-[11px] text-slate-400">
+              <div className="mt-2 flex items-center gap-3 text-xs text-slate-400">
                 <span>{tk.createdAt}</span>
                 <span>·</span>
                 <span>Mức độ: {tk.priority}</span>
@@ -1215,7 +1205,7 @@ export function DocumentsSection({
   return (
     <div className="grid gap-5 lg:grid-cols-12">
       {/* Cột trái: Danh sách tài liệu */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm lg:col-span-4">
+      <div className="rounded-xl border border-slate-200 bg-white p-4 lg:col-span-4">
         <div className="mb-3 flex items-center justify-between gap-2">
           <h3 className="flex items-center gap-2 text-sm font-bold text-slate-900">
             <LuBookOpen size={17} className="text-brand-600" /> Thư viện &amp; Tài liệu ({docs.length})
@@ -1255,11 +1245,11 @@ export function DocumentsSection({
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-xs font-bold text-slate-900">{doc.title}</div>
                     <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                      <Tag color={cat.color} className="m-0 text-[10px]">
+                      <Tag color={cat.color} className="m-0 text-xs">
                         {cat.label}
                       </Tag>
                       {!doc.published && (
-                        <Tag color="default" className="m-0 text-[10px]">
+                        <Tag color="default" className="m-0 text-xs">
                           Bản nháp
                         </Tag>
                       )}
@@ -1267,7 +1257,7 @@ export function DocumentsSection({
                   </div>
                   <LuFileText size={15} className={active ? "shrink-0 text-brand-600" : "shrink-0 text-slate-400"} />
                 </div>
-                <div className="mt-2 text-[10px] text-slate-400">Cập nhật: {doc.updatedAt}</div>
+                <div className="mt-2 text-xs text-slate-400">Cập nhật: {doc.updatedAt}</div>
               </button>
             );
           })}
@@ -1280,7 +1270,7 @@ export function DocumentsSection({
       </div>
 
       {/* Cột phải: Trình soạn thảo & Xem trước */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm lg:col-span-8">
+      <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5 lg:col-span-8">
         {currentDoc ? (
           <div className="space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
@@ -1363,7 +1353,7 @@ export function DocumentsSection({
                   {getCatMeta(currentDoc.category).label}
                 </Tag>
                 <h2 className="text-lg font-extrabold text-slate-900">{currentDoc.title}</h2>
-                <div className="mt-1 text-[11px] text-slate-400">
+                <div className="mt-1 text-xs text-slate-400">
                   Cập nhật lần cuối: {currentDoc.updatedAt} · Đường dẫn: /docs/{currentDoc.slug}
                 </div>
                 <div className="mt-4 whitespace-pre-line text-sm leading-relaxed text-slate-700">

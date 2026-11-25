@@ -53,7 +53,7 @@ export default function StoreSwitcher({
           className="mb-2"
         />
       )}
-      <div className="px-1 pb-1 text-[11px] font-bold uppercase tracking-wider text-slate-400">
+      <div className="px-1 pb-1 text-xs font-bold uppercase tracking-wider text-slate-400">
         {showOwner ? `Tất cả store (${stores.length})` : "Store của bạn"}
       </div>
       <div className="max-h-[320px] space-y-0.5 overflow-y-auto">
@@ -76,7 +76,7 @@ export default function StoreSwitcher({
                 <span className="truncate text-sm font-semibold text-slate-900">{s.name}</span>
                 <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${s.active ? "bg-emerald-500" : "bg-slate-300"}`} />
               </div>
-              <div className="truncate text-[11px] text-slate-500">{sub(s)}</div>
+              <div className="truncate text-xs text-slate-500">{sub(s)}</div>
             </div>
             {s.id === current.id && <LuCheck size={15} className="shrink-0 text-brand-600" />}
           </button>
@@ -110,7 +110,7 @@ export default function StoreSwitcher({
         <StoreAvatar store={current} size={28} />
         <div className="hidden min-w-0 leading-tight sm:block">
           <div className="truncate text-xs font-bold text-slate-900">{current.name}</div>
-          <div className="flex items-center gap-1 text-[10px] font-semibold text-slate-500">
+          <div className="flex items-center gap-1 text-xs font-semibold text-slate-500">
             <span className={`h-1.5 w-1.5 rounded-full ${current.active ? "bg-emerald-500" : "bg-slate-300"}`} />
             <span className="truncate">{current.active ? "Đang hoạt động" : "Tạm tắt"} · {sub(current)}</span>
           </div>

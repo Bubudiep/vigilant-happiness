@@ -35,6 +35,7 @@ import {
 import { storesForCustomer } from "../data/store-filter";
 import { fetchStores } from "../data/store-api";
 import { demoTemplates } from "../data/site";
+import { FilterBar, FilterSelect, PageHeader } from "./ui";
 
 const errMsg = (e: unknown, fallback = "Thao tác thất bại") => (e instanceof ApiError ? e.message : fallback);
 
@@ -91,23 +92,21 @@ const DEFAULT_MILESTONES = ["Chốt yêu cầu & báo giá", "Thiết kế giao 
 export function PortalSection() {
   const [tab, setTab] = useState<"projects" | "tickets">("projects");
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h3 className="text-base font-bold text-slate-900">Dự án & Ticket khách hàng</h3>
-          <p className="text-xs text-slate-500">
-            Khách đăng nhập Zalo trong Mini App reMini (số Zalo trùng SĐT khách hàng) sẽ thấy tiến độ và ticket ở tab "Tài khoản".
-          </p>
-        </div>
-        <Segmented
+    <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
+      <PageHeader
+        title="Dự án & Ticket khách hàng"
+        description={<>Khách đăng nhập Zalo trong Mini App reMini (số Zalo trùng SĐT khách hàng) sẽ thấy tiến độ và ticket ở tab "Tài khoản".</>}
+      />
+      <FilterBar
+        filters={<><Segmented
           value={tab}
           onChange={(v) => setTab(v as typeof tab)}
           options={[
             { value: "projects", label: "Tiến độ dự án" },
             { value: "tickets", label: "Ticket hỗ trợ" },
           ]}
-        />
-      </div>
+        /></>}
+      />
       {tab === "projects" ? <ProjectsPanel /> : <TicketsPanel />}
     </div>
   );
@@ -193,7 +192,7 @@ function ProjectsPanel() {
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <div className="truncate text-sm font-bold text-slate-900">{p.name}</div>
-                  <div className="text-[11px] text-slate-500">
+                  <div className="text-xs text-slate-500">
                     {p.customer?.companyName || p.customer?.name} · {p.customer?.phone}
                     {p.templateId && ` · ${p.templateId}`}
                   </div>
@@ -215,7 +214,7 @@ function ProjectsPanel() {
                   <InputNumber size="small" min={0} max={100} value={p.progress} suffix="%" style={{ width: 90 }} onChange={(v) => v !== null && patch(p, { progress: Number(v) })} />
                 </Tooltip>
               </div>
-              <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-500">
+              <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
                 <label className="flex items-center gap-1">
                   Bắt đầu
                   <input
@@ -339,16 +338,16 @@ function ProjectsPanel() {
             options={storeOptionsFor(draft.customerId && draft.customerId !== "__new" ? draft.customerId : undefined)}
           />
           <div className="grid grid-cols-2 gap-2">
-            <label className="text-[11px] text-slate-500">
+            <label className="text-xs text-slate-500">
               Ngày bắt đầu
               <Input type="date" value={draft.startDate} onChange={(e) => setDraft({ ...draft, startDate: e.target.value })} />
             </label>
-            <label className="text-[11px] text-slate-500">
+            <label className="text-xs text-slate-500">
               Hạn hoàn thành
               <Input type="date" value={draft.dueDate} onChange={(e) => setDraft({ ...draft, dueDate: e.target.value })} />
             </label>
           </div>
-          <div className="text-[11px] text-slate-500">Tự tạo {DEFAULT_MILESTONES.length} mốc mặc định: {DEFAULT_MILESTONES.join(" → ")}</div>
+          <div className="text-xs text-slate-500">Tự tạo {DEFAULT_MILESTONES.length} mốc mặc định: {DEFAULT_MILESTONES.join(" → ")}</div>
         </div>
       </Modal>
     </>
@@ -385,15 +384,16 @@ function TicketsPanel() {
 
   return (
     <>
-      <div className="mb-3 flex justify-end gap-2">
-        <Select
-          value={status}
-          onChange={setStatus}
-          style={{ width: 170 }}
-          options={[{ value: "", label: "Chưa đóng" }, ...Object.entries(TICKET_STATUS).map(([v, s]) => ({ value: v, label: s.label }))]}
-        />
-        <Button icon={<LuRefreshCw size={14} />} onClick={tickets.load} loading={tickets.loading} />
-      </div>
+      <FilterBar
+        filters={
+          <FilterSelect
+            value={status}
+            onChange={setStatus}
+            options={[{ value: "", label: "Chưa đóng" }, ...Object.entries(TICKET_STATUS).map(([v, s]) => ({ value: v, label: s.label }))]}
+          />
+        }
+        actions={<Button icon={<LuRefreshCw size={14} />} onClick={tickets.load} loading={tickets.loading} />}
+      />
       <Table<TicketRow>
         rowKey="id"
         size="small"
@@ -409,7 +409,7 @@ function TicketsPanel() {
             render: (_, r) => (
               <div>
                 <div className="text-sm font-semibold text-slate-900">{r.subject}</div>
-                <div className="line-clamp-1 text-[11px] text-slate-500">
+                <div className="line-clamp-1 text-xs text-slate-500">
                   {r.messages[0]?.authorType === "customer" ? "Khách: " : "Mình: "}
                   {r.messages[0]?.body}
                 </div>
@@ -423,7 +423,7 @@ function TicketsPanel() {
             render: (_, r) => <Tag color={r.priority === "urgent" ? "red" : r.priority === "high" ? "orange" : "default"}>{r.priority}</Tag>,
           },
           { title: "Trạng thái", width: 130, render: (_, r) => <Tag color={TICKET_STATUS[r.status]?.color}>{TICKET_STATUS[r.status]?.label ?? r.status}</Tag> },
-          { title: "Cập nhật", width: 110, render: (_, r) => <span className="text-[11px] text-slate-500">{dayjs(r.lastReplyAt).format("HH:mm DD/MM")}</span> },
+          { title: "Cập nhật", width: 110, render: (_, r) => <span className="text-xs text-slate-500">{dayjs(r.lastReplyAt).format("HH:mm DD/MM")}</span> },
         ]}
       />
 
@@ -450,12 +450,12 @@ function TicketsPanel() {
                 <div key={m.id} className={`flex ${m.authorType === "staff" ? "justify-end" : m.authorType === "system" ? "justify-center" : "justify-start"}`}>
                   <div
                     className={`max-w-[85%] rounded-xl px-3 py-2 text-sm ${
-                      m.authorType === "staff" ? "bg-blue-600 text-white" : m.authorType === "system" ? "text-[11px] text-slate-400" : "bg-slate-100 text-slate-800"
+                      m.authorType === "staff" ? "bg-blue-600 text-white" : m.authorType === "system" ? "text-xs text-slate-400" : "bg-slate-100 text-slate-800"
                     }`}
                   >
-                    {m.authorType !== "system" && <div className="text-[10px] font-semibold opacity-80">{m.authorName}</div>}
+                    {m.authorType !== "system" && <div className="text-xs font-semibold opacity-80">{m.authorName}</div>}
                     <div className="whitespace-pre-wrap">{m.body}</div>
-                    <div className="mt-0.5 text-[10px] opacity-70">{dayjs(m.createdAt).format("HH:mm DD/MM")}</div>
+                    <div className="mt-0.5 text-xs opacity-70">{dayjs(m.createdAt).format("HH:mm DD/MM")}</div>
                   </div>
                 </div>
               ))}
@@ -533,17 +533,11 @@ export function AntiSpamSection() {
 
   const err = events.error || blocks.error || stats.error;
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h3 className="flex items-center gap-1.5 text-base font-bold text-slate-900">
-            <LuShieldAlert size={18} /> Chống spam
-          </h3>
-          <p className="text-xs text-slate-500">
-            Ô bẫy · token mở form (≥ 2,5 giây) · đầu số VN · lọc link & từ khoá · tần suất theo IP/SĐT · tự chặn IP 24h khi bị chặn ≥ 5 lần/giờ.
-          </p>
-        </div>
-        {stats.data && (
+    <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
+      <PageHeader
+        title={<><LuShieldAlert size={18} /> Chống spam</>}
+        description={<>Ô bẫy · token mở form (≥ 2,5 giây) · đầu số VN · lọc link & từ khoá · tần suất theo IP/SĐT · tự chặn IP 24h khi bị chặn ≥ 5 lần/giờ.</>}
+        actions={<>{stats.data && (
           <div className="flex gap-2 text-center text-xs">
             <div className="rounded-lg bg-red-50 px-3 py-1.5 text-red-700">
               <div className="text-base font-bold">{stats.data.last7Days.blocked}</div>đã chặn 7 ngày
@@ -555,8 +549,8 @@ export function AntiSpamSection() {
               <div className="text-base font-bold">{stats.data.activeBlocks}</div>danh sách chặn
             </div>
           </div>
-        )}
-      </div>
+        )}</>}
+      />
 
       {err ? (
         <LoadError error={err} onRetry={() => [events.load(), blocks.load(), stats.load()]} />
@@ -581,11 +575,11 @@ export function AntiSpamSection() {
               dataSource={events.data ?? []}
               pagination={{ pageSize: 15 }}
               columns={[
-                { title: "Lúc", width: 100, render: (_, r) => <span className="text-[11px]">{dayjs(r.createdAt).format("HH:mm DD/MM")}</span> },
+                { title: "Lúc", width: 100, render: (_, r) => <span className="text-xs">{dayjs(r.createdAt).format("HH:mm DD/MM")}</span> },
                 { title: "Kết quả", width: 90, render: (_, r) => <Tag color={r.action === "blocked" ? "red" : "gold"}>{r.action === "blocked" ? "Chặn" : "Nghi ngờ"} {r.score}</Tag> },
-                { title: "Lý do", render: (_, r) => <div className="flex flex-wrap gap-1">{r.reasons.map((x) => <Tag key={x} className="text-[10px]">{reasonLabel(x)}</Tag>)}</div> },
-                { title: "Nguồn", render: (_, r) => <div className="text-[11px] text-slate-500"><div>{r.route}</div><div className="font-mono">{r.ip} {r.phone}</div></div> },
-                { title: "Nội dung", render: (_, r) => <span className="line-clamp-2 text-[11px] text-slate-500">{r.sample}</span> },
+                { title: "Lý do", render: (_, r) => <div className="flex flex-wrap gap-1">{r.reasons.map((x) => <Tag key={x} className="text-xs">{reasonLabel(x)}</Tag>)}</div> },
+                { title: "Nguồn", render: (_, r) => <div className="text-xs text-slate-500"><div>{r.route}</div><div className="font-mono">{r.ip} {r.phone}</div></div> },
+                { title: "Nội dung", render: (_, r) => <span className="line-clamp-2 text-xs text-slate-500">{r.sample}</span> },
                 {
                   title: "",
                   width: 90,
@@ -619,7 +613,7 @@ export function AntiSpamSection() {
               columns={[
                 { title: "Khách", render: (_, r) => <div><div className="text-sm font-semibold">{r.name}</div><div className="font-mono text-xs">{r.phone}</div></div> },
                 { title: "Ghi chú", render: (_, r) => <span className="text-xs text-slate-600">{r.note}</span> },
-                { title: "Gửi lúc", width: 110, render: (_, r) => <span className="text-[11px]">{dayjs(r.createdAt).format("HH:mm DD/MM")}</span> },
+                { title: "Gửi lúc", width: 110, render: (_, r) => <span className="text-xs">{dayjs(r.createdAt).format("HH:mm DD/MM")}</span> },
                 {
                   title: "",
                   width: 170,
@@ -674,9 +668,9 @@ export function AntiSpamSection() {
                     width: 120,
                     render: (_, r) =>
                       r.expiresAt ? (
-                        <span className={`text-[11px] ${dayjs(r.expiresAt).isBefore(dayjs()) ? "text-slate-400 line-through" : ""}`}>{dayjs(r.expiresAt).format("HH:mm DD/MM")}</span>
+                        <span className={`text-xs ${dayjs(r.expiresAt).isBefore(dayjs()) ? "text-slate-400 line-through" : ""}`}>{dayjs(r.expiresAt).format("HH:mm DD/MM")}</span>
                       ) : (
-                        <span className="text-[11px]">Vĩnh viễn</span>
+                        <span className="text-xs">Vĩnh viễn</span>
                       ),
                   },
                   {

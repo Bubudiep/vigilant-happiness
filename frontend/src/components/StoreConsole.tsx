@@ -97,6 +97,7 @@ import {
   StoreNavKey,
   SupportSection,
 } from "./StoreOperationsViews";
+import { PageHeader } from "./ui";
 
 const VALID_NAV_KEYS: StoreNavKey[] = [
   "overview",
@@ -588,8 +589,8 @@ export default function StoreConsole({
               setActiveNav(item.key);
               onSelect?.();
             }}
-            className={`flex w-full items-center rounded-xl text-left text-sm font-semibold transition ${
-              collapsed ? "justify-center px-0 py-2.5" : "justify-between px-3 py-2"
+            className={`flex w-full items-center h-9 rounded-lg text-left text-sm font-medium transition ${
+              collapsed ? "justify-center px-0" : "justify-between px-3"
             } ${
               active
                 ? "bg-brand-600 text-white shadow-sm"
@@ -602,7 +603,7 @@ export default function StoreConsole({
             </span>
             {!collapsed && typeof item.badge === "number" && (
               <span
-                className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${
+                className={`rounded-full px-2 py-0.5 text-xs font-bold ${
                   active ? "bg-white/20 text-white" : item.alert ? "bg-rose-500 text-white" : "bg-slate-100 text-slate-600"
                 }`}
               >
@@ -692,7 +693,7 @@ export default function StoreConsole({
             {renderSidebarMenu(undefined, sidebarCollapsed)}
             {!sidebarCollapsed && (
               <div className="mt-4 rounded-xl border border-slate-100 bg-slate-50 p-3">
-                <div className="text-[11px] font-bold text-slate-500">Trạng thái Mini App</div>
+                <div className="text-xs font-bold text-slate-500">Trạng thái Mini App</div>
                 <div className="mt-2 flex items-center justify-between">
                   <span className="text-xs font-bold text-slate-800">
                     {store.active ? "Đang hoạt động" : "Tạm tắt"}
@@ -753,18 +754,14 @@ export default function StoreConsole({
           )}
 
           {activeNav === "products" && (
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <h3 className="text-base font-bold text-slate-900">
-                    Sản phẩm / Dịch vụ ({store.products.length})
-                  </h3>
-                  <p className="text-xs text-slate-500">Quản lý danh mục, giá bán và trạng thái hiển thị trên Mini App.</p>
-                </div>
-                <Button type="primary" icon={<LuPlus size={15} />} onClick={() => openProductModal()}>
+            <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
+              <PageHeader
+        title={<>Sản phẩm / Dịch vụ ({store.products.length})</>}
+        description={<>Quản lý danh mục, giá bán và trạng thái hiển thị trên Mini App.</>}
+        actions={<><Button type="primary" icon={<LuPlus size={15} />} onClick={() => openProductModal()}>
                   Thêm sản phẩm
-                </Button>
-              </div>
+                </Button></>}
+      />
               <Table
                 rowKey="id"
                 size="small"
@@ -777,7 +774,7 @@ export default function StoreConsole({
                     render: (v, rec) => (
                       <div>
                         <div className="font-semibold text-slate-900">{v}</div>
-                        <div className="text-[11px] text-slate-400">
+                        <div className="text-xs text-slate-400">
                           {rec.category} {rec.unit ? `· ${rec.unit}` : ""}
                         </div>
                       </div>
@@ -792,7 +789,7 @@ export default function StoreConsole({
                           {(rec.salePrice ?? price).toLocaleString("vi-VN")}đ
                         </div>
                         {rec.salePrice ? (
-                          <div className="text-[11px] text-slate-400 line-through">
+                          <div className="text-xs text-slate-400 line-through">
                             {price.toLocaleString("vi-VN")}đ
                           </div>
                         ) : null}
@@ -971,7 +968,7 @@ export default function StoreConsole({
           <div className="flex flex-col items-center justify-center rounded-2xl border border-slate-100 bg-slate-50 p-4 text-center md:col-span-4">
             <QRCode value={zaloPreviewUrl} size={136} bordered={false} />
             <div className="mt-2.5 text-xs font-bold text-slate-900">Quét bằng Zalo để xem trước</div>
-            <div className="mt-0.5 text-[11px] text-slate-500">Mini App của shop · /{store.slug}</div>
+            <div className="mt-0.5 text-xs text-slate-500">Mini App của shop · /{store.slug}</div>
           </div>
         </div>
         <div className="mt-4 border-t border-slate-100 pt-4">

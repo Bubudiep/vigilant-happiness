@@ -483,7 +483,7 @@ export function VoucherCodesDrawer({
               { label: "Đã dùng", value: used, cls: "text-slate-400" },
             ].map((s) => (
               <div key={s.label} className="rounded-2xl border border-slate-200 bg-white p-3">
-                <div className="text-[11px] font-semibold text-slate-500">{s.label}</div>
+                <div className="text-xs font-semibold text-slate-500">{s.label}</div>
                 <div className={`text-2xl font-extrabold ${s.cls}`}>{s.value.toLocaleString("vi-VN")}</div>
               </div>
             ))}
@@ -516,7 +516,7 @@ export function VoucherCodesDrawer({
                 Sinh {count.toLocaleString("vi-VN")} mã
               </Button>
             </div>
-            <div className="mt-2 text-[11px] text-slate-500">
+            <div className="mt-2 text-xs text-slate-500">
               Mẫu mã: <span className="font-mono font-bold text-slate-700">{sample}</span> · Không dùng ký tự dễ nhầm (0/O, 1/I/L). Mỗi mã chỉ dùng
               được 1 lần; số lượt của voucher tự tăng theo số mã.
             </div>
@@ -782,7 +782,7 @@ export function CardPrintModal({
                   }`}
                 >
                   <TemplateThumb o={{ ...o, template: t.id }} />
-                  <div className="mt-1 truncate text-[11px] font-bold text-slate-800">{t.name}</div>
+                  <div className="mt-1 truncate text-xs font-bold text-slate-800">{t.name}</div>
                 </button>
               ))}
             </div>
