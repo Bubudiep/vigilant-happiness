@@ -277,7 +277,12 @@ export class StoreDataService {
    * (cho phép sửa đơn giá), dòng tự nhập cần tên + giá. Có thể áp mã voucher, phí ship, giảm thêm.
    * Khách tìm theo customerId hoặc SĐT; chưa có thì tạo mới (saveCustomer).
    */
-  private async createOrder(storeId: string, body: AdminOrderInput) {
+  /** Bán tại quầy (trang Bán hàng): tạo đơn nguồn "pos", đã hoàn thành → cộng điểm khách. Gọi sau khi đã kiểm tra quyền. */
+  createPosOrder(storeId: string, body: AdminOrderInput) {
+    return this.createOrder(storeId, { ...body, status: "completed" }, "pos");
+  }
+
+  private async createOrder(storeId: string, body: AdminOrderInput, source: "admin" | "pos" = "admin") {
     if (!body || typeof body !== "object") throw new BadRequestException("Dữ liệu không hợp lệ");
     const head = pickFields(body, { ...SPECS.orders, customerName: "string", phone: "string" }, ["customerName"]);
     const rawItems = Array.isArray(body.items) ? body.items : [];
@@ -337,7 +342,7 @@ export class StoreDataService {
           discountAmount,
           voucherCode: quote?.code ?? null,
           totalAmount: subtotal + shippingFee - discountAmount,
-          source: "admin",
+          source,
           status: "pending",
           paymentMethod: (head.paymentMethod as string) ?? "cash",
           note: (head.note as string) || null,
@@ -428,7 +433,7 @@ export class StoreDataService {
   }
 }
 
-type AdminOrderInput = {
+export type AdminOrderInput = {
   customerId?: string;
   customerName?: string;
   phone?: string;

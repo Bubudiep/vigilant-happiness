@@ -180,3 +180,23 @@ test("notify: định dạng cảnh báo ổ đĩa", () => {
   assert.match(text, /92\.3%/);
   assert.match(text, /3\.0 \/ 40\.0 GB/);
 });
+
+// ───────── Bán hàng: tiền giờ bàn / phòng ─────────
+import { timeCharge } from "../src/pos/pos.service";
+
+test("timeCharge: làm tròn lên theo block, tối thiểu, giá giờ", () => {
+  const t0 = new Date("2026-11-25T10:00:00Z");
+  const at = (min: number) => new Date(t0.getTime() + min * 60_000);
+  // Bida 60k/h, block 30′: 41′ → 60′ → 60.000đ
+  assert.deepEqual(timeCharge(t0, at(41), 60_000, 30, 0), { minutes: 41, billedMinutes: 60, charge: 60_000 });
+  // 30′ đúng → 30.000đ
+  assert.equal(timeCharge(t0, at(30), 60_000, 30, 0).charge, 30_000);
+  // Karaoke 150k/h, tối thiểu 60′: 20′ → 150.000đ
+  assert.equal(timeCharge(t0, at(20), 150_000, 30, 60).charge, 150_000);
+  // Block 15′: 50′ → 60′; 1h05 → 75′ → 75.000đ
+  assert.equal(timeCharge(t0, at(65), 60_000, 15, 0).charge, 75_000);
+  // Tính theo phút (block 1), làm tròn 1.000đ: 7′ × 50k/h = 5.833 → 6.000
+  assert.equal(timeCharge(t0, at(7), 50_000, 1, 0).charge, 6_000);
+  // Không tính giờ
+  assert.equal(timeCharge(t0, at(90), 0, 30, 0).charge, 0);
+});

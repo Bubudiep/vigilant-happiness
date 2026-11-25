@@ -32,7 +32,6 @@ import {
   LuSave,
   LuShoppingBag,
   LuTrash2,
-  LuTrendingUp,
   LuUsers,
 } from "react-icons/lu";
 import { siteConfig } from "../data/site";
@@ -60,6 +59,8 @@ export type StoreNavKey =
   | "orders"
   | "miniapp"
   | "staff"
+  | "pos"
+  | "reports"
   | "documents"
   | "support"
   | "oainbox"
@@ -395,7 +396,6 @@ export function OverviewSection({
   const todayStr = dayjs().format("YYYY-MM-DD");
   const todayBookings = bookings.filter((b) => b.date === todayStr);
   const pendingBookings = bookings.filter((b) => b.status === "pending").length;
-  const totalRevenue = store.customers.reduce((sum, c) => sum + c.totalSpent, 0);
   const lowStockCount = store.products.filter((p) => !isService(p) && (p.stock ?? 0) <= LOW_STOCK).length;
   const serviceCount = store.products.filter(isService).length;
 
@@ -418,10 +418,10 @@ export function OverviewSection({
     <div className="space-y-5">
       <StatGrid>
         <StatCard
-          label="Doanh thu tích lũy"
-          icon={<LuTrendingUp className="text-emerald-600" size={18} />}
-          value={`${totalRevenue.toLocaleString("vi-VN")}đ`}
-          hint={`Từ ${store.customers.length} khách hàng`}
+          label="Khách hàng"
+          icon={<LuUsers className="text-emerald-600" size={18} />}
+          value={store.customers.length.toLocaleString("vi-VN")}
+          hint={`${store.customers.filter((c) => c.zaloUserId).length} khách dùng Mini App`}
         />
         <StatCard
           label="Lịch hẹn hôm nay"

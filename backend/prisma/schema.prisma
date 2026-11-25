@@ -261,6 +261,9 @@ model Store {
   staff            CustomerStaff[]
   employees        StoreStaff[]
   attendance       StoreAttendance[]
+  areas            StoreArea[]
+  tables           StoreTable[]
+  tableSessions    StoreTableSession[]
   media            StoreMedia[]
   banners          StoreBanner[]
   orders           StoreOrder[]
@@ -1041,4 +1044,81 @@ model StoreBuildRequest {
 
   @@index([storeId, createdAt])
   @@index([status, createdAt])
+}
+
+/// Khu vực / tầng của quán (Tầng 1, Tầng 2, Sân vườn, Khu bida…)
+model StoreArea {
+  id        String       @id @default(cuid())
+  storeId   String
+  store     Store        @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  name      String
+  sortOrder Int          @default(0)
+  createdAt DateTime     @default(now())
+  tables    StoreTable[]
+
+  @@index([storeId, sortOrder])
+}
+
+/// Bàn / phòng bán hàng tại quán. Có thể tính tiền theo giờ (bida, karaoke, phòng họp…)
+model StoreTable {
+  id           String              @id @default(cuid())
+  storeId      String
+  store        Store               @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  areaId       String?
+  area         StoreArea?          @relation(fields: [areaId], references: [id], onDelete: SetNull)
+  name         String
+  /// table = bàn | billiards = bàn bida | karaoke = phòng karaoke | room = phòng | other
+  kind         String              @default("table")
+  seats        Int?
+  /// Giá theo giờ (đ); 0 = không tính giờ
+  pricePerHour Int                 @default(0)
+  /// Làm tròn lên theo block phút (15 / 30 / 60…); 1 = tính theo phút
+  blockMinutes Int                 @default(30)
+  /// Tính tối thiểu (phút)
+  minMinutes   Int                 @default(0)
+  /// ready = sẵn sàng | reserved = đặt trước | cleaning = đang dọn (khi đang có phiên thì là "đang dùng")
+  state        String              @default("ready")
+  /// Ghi chú đặt trước (tên khách, giờ đến…)
+  stateNote    String?
+  active       Boolean             @default(true)
+  sortOrder    Int                 @default(0)
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+  sessions     StoreTableSession[]
+
+  @@index([storeId, areaId, sortOrder])
+}
+
+/// Phiên sử dụng bàn / phòng: mở bàn → gọi món → thanh toán (tạo StoreOrder nguồn "pos")
+model StoreTableSession {
+  id            String     @id @default(cuid())
+  storeId       String
+  store         Store      @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  tableId       String
+  table         StoreTable @relation(fields: [tableId], references: [id], onDelete: Cascade)
+  /// open | closed | cancelled
+  status        String     @default("open")
+  startedAt     DateTime   @default(now())
+  endedAt       DateTime?
+  guestCount    Int?
+  customerId    String?
+  customerName  String?
+  /// Món đã gọi: [{ productId, name, unitPrice, quantity }]
+  items         Json       @default("[]")
+  /// Giá giờ chốt lúc mở bàn (đổi giá bàn không ảnh hưởng phiên đang chạy)
+  pricePerHour  Int        @default(0)
+  blockMinutes  Int        @default(30)
+  minMinutes    Int        @default(0)
+  timeCharge    Int        @default(0)
+  itemsTotal    Int        @default(0)
+  discount      Int        @default(0)
+  total         Int        @default(0)
+  paymentMethod String?
+  orderId       String?
+  note          String?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  @@index([storeId, status])
+  @@index([tableId, status])
 }

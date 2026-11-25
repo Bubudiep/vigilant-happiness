@@ -5,6 +5,7 @@ import { AntiSpamModule } from "./antispam/antispam.module";
 import { AuditModule } from "./audit/audit.module";
 import { StorageStatsModule } from "./storage-stats/storage-stats.module";
 import { AttendanceModule } from "./attendance/attendance.module";
+import { PosModule } from "./pos/pos.module";
 import { AuthModule } from "./auth/auth.module";
 import { CustomersModule } from "./customers/customers.module";
 import { DebtsModule } from "./debts/debts.module";
@@ -35,6 +36,7 @@ import { TemplatesModule } from "./templates/templates.module";
     AuditModule,
     StorageStatsModule,
     AttendanceModule,
+    PosModule,
     JobsModule,
     HealthModule,
     LeadsModule,

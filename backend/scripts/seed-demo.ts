@@ -80,6 +80,7 @@ async function seedPlatform() {
     { companyName: null, industry: null },
     { companyName: "Bếp Nhà Lan", industry: "fnb_cafe_01" },
     { companyName: "Phòng khám Siêu âm BabySee 5D", industry: "sieu_am_5d_01" },
+    { companyName: "Sao Billiards & Karaoke", industry: "fnb_cafe_01" },
   ];
   const customers = [];
   for (let i = 0; i < companies.length; i++) {
@@ -293,6 +294,8 @@ type StoreSpec = {
   /** Loại album riêng của shop (null = mặc định Hôm nay / Ảnh cưới / Đám hỏi / Khác) */
   albumKinds?: AlbumKind[];
   albumTitle?: (customerName: string, i: number) => string;
+  /** Bán hàng tại quầy: khu vực → nhóm bàn [tiền tố, số lượng, loại, số ghế, giá giờ, block phút, tối thiểu phút] */
+  pos?: { area: string; tables: [string, number, string, number, number, number, number][] }[];
   events?: { title: string; type: string; start: number; end: number; status: string; participants: number; description?: string }[];
 };
 
@@ -399,9 +402,9 @@ async function seedStore(spec: StoreSpec, owner: { id: string }, subscriptionId:
         discountAmount: discount,
         voucherCode: discount ? "CHAOBAN" : null,
         totalAmount: subtotal + ship - discount,
-        source: pick(["miniapp", "miniapp", "pos", "phone"]),
+        source: pick(["miniapp", "miniapp", "pos", "admin"]),
         status: STATUSES[i % STATUSES.length],
-        paymentMethod: pick(["cod", "bank_transfer", "zalopay"]),
+        paymentMethod: pick(["cod", "bank_transfer", "ewallet", "cash"]),
         createdAt: daysFromNow(-int(0, 20), int(8, 21), int(0, 59)),
         items: { create: lines },
       },
@@ -431,6 +434,81 @@ async function seedStore(spec: StoreSpec, owner: { id: string }, subscriptionId:
       sortOrder: i,
     })),
   });
+  // Bán hàng: khu vực, bàn / phòng, phiên đang mở + phiên đã thanh toán (đơn nguồn "pos")
+  if (spec.pos) {
+    const goods = products.filter((p) => p.kind === "product" && p.active);
+    let order = 0;
+    let posSeq = 0;
+    for (const [ai, a] of spec.pos.entries()) {
+      const area = await prisma.storeArea.create({ data: { storeId: sid, name: a.area, sortOrder: ai } });
+      for (const [prefix, count, kind, seats, pricePerHour, blockMinutes, minMinutes] of a.tables) {
+        for (let n = 1; n <= count; n++) {
+          const t = await prisma.storeTable.create({
+            data: { storeId: sid, areaId: area.id, name: `${prefix}${n}`, kind, seats, pricePerHour, blockMinutes, minMinutes, sortOrder: order++, state: rnd() < 0.08 ? "reserved" : rnd() < 0.05 ? "cleaning" : "ready", stateNote: null },
+          });
+          if (t.state === "reserved") await prisma.storeTable.update({ where: { id: t.id }, data: { stateNote: `${pick(TEN)} · ${pick(["18:30", "19:00", "20:00"])}` } });
+          const lineOf = () => {
+            const p = pick(goods);
+            return { productId: p.id, name: p.name, unitPrice: p.salePrice ?? p.price, quantity: int(1, 3) };
+          };
+          // Lịch sử 14 ngày: 0–3 phiên / bàn / ngày
+          for (let d = -13; d <= 0; d++) {
+            for (let k = 0; k < int(0, pricePerHour ? 3 : 2); k++) {
+              const start = daysFromNow(d, int(9, 21), int(0, 59));
+              const minutes = pricePerHour ? int(35, 200) : int(20, 120);
+              const end = new Date(start.getTime() + minutes * 60_000);
+              if (end > new Date()) continue;
+              const items = Array.from({ length: int(pricePerHour ? 0 : 1, 4) }, lineOf);
+              const block = Math.max(1, blockMinutes);
+              const billed = pricePerHour ? Math.max(minMinutes, Math.ceil(minutes / block) * block) : 0;
+              const timeCharge = Math.round((billed * pricePerHour) / 60 / 1000) * 1000;
+              const itemsTotal = items.reduce((x, i) => x + i.unitPrice * i.quantity, 0);
+              if (!itemsTotal && !timeCharge) continue;
+              const payment = pick(["cash", "cash", "bank_transfer", "ewallet", "card"]);
+              const lines = [
+                ...(timeCharge ? [{ productId: null, productName: `Giờ ${t.name} (${billed >= 60 ? `${Math.floor(billed / 60)}h${billed % 60 ? String(billed % 60).padStart(2, "0") : ""}` : `${billed} phút`})`, unitPrice: timeCharge, quantity: 1, lineTotal: timeCharge }] : []),
+                ...items.map((i) => ({ productId: i.productId, productName: i.name, unitPrice: i.unitPrice, quantity: i.quantity, lineTotal: i.unitPrice * i.quantity })),
+              ];
+              const o = await prisma.storeOrder.create({
+                data: {
+                  storeId: sid,
+                  code: `DMP${spec.slug.slice(5, 7).toUpperCase()}${String(10000 + posSeq++)}`,
+                  customerName: `Khách lẻ · ${t.name}`,
+                  phone: "",
+                  subtotal: itemsTotal + timeCharge,
+                  totalAmount: itemsTotal + timeCharge,
+                  source: "pos",
+                  status: "completed",
+                  paymentMethod: payment,
+                  createdAt: end,
+                  items: { create: lines },
+                },
+              });
+              await prisma.storeTableSession.create({
+                data: { storeId: sid, tableId: t.id, status: "closed", startedAt: start, endedAt: end, guestCount: int(1, seats || 4), items, pricePerHour, blockMinutes, minMinutes, timeCharge, itemsTotal, total: itemsTotal + timeCharge, paymentMethod: payment, orderId: o.id, createdAt: start },
+              });
+            }
+          }
+          // Đang có khách (~40% bàn)
+          if (t.state === "ready" && rnd() < 0.4) {
+            await prisma.storeTableSession.create({
+              data: {
+                storeId: sid,
+                tableId: t.id,
+                startedAt: new Date(Date.now() - int(8, 150) * 60_000),
+                guestCount: int(1, seats || 4),
+                items: Array.from({ length: int(0, 3) }, lineOf),
+                pricePerHour,
+                blockMinutes,
+                minMinutes,
+              },
+            });
+          }
+        }
+      }
+    }
+  }
+
   // Chấm công 14 ngày gần nhất (giờ VN): đúng giờ / muộn / thỉnh thoảng vắng; người "nghỉ phép" nghỉ từ hôm qua
   const members = await prisma.storeStaff.findMany({ where: { storeId: sid }, orderBy: { sortOrder: "asc" } });
   const VN = 7 * 3_600_000;
@@ -582,6 +660,11 @@ async function main() {
         ["Nước ép cam (ngừng bán)", "Nước ép", 40_000],
       ],
       services: ["Đặt bàn 2 người", "Đặt bàn nhóm", "Tiệc sinh nhật", "Workshop pha chế"],
+      pos: [
+        { area: "Tầng 1", tables: [["B", 8, "table", 4, 0, 30, 0]] },
+        { area: "Tầng 2", tables: [["L", 6, "table", 4, 0, 30, 0], ["Phòng họp ", 1, "room", 10, 120_000, 30, 60]] },
+        { area: "Sân vườn", tables: [["S", 4, "table", 6, 0, 30, 0]] },
+      ],
       team: [
         ["Phạm Quốc Huy", "Quản lý cửa hàng", 12_000_000, ["Tiệc sinh nhật", "Đặt bàn nhóm"], 1],
         ["Ngọc Anh", "Barista", 7_500_000, ["Workshop pha chế"], 2],
@@ -662,6 +745,42 @@ async function main() {
         { title: "Tháng tri ân mẹ bầu – giảm 15% siêu âm 5D", type: "promotion", start: -5, end: 25, status: "running", participants: 86, description: "Áp dụng cho khách đặt lịch qua Mini App" },
         { title: "Lớp tiền sản cuối tuần", type: "workshop", start: 4, end: 4, status: "upcoming", participants: 30, description: "Chuẩn bị đi sinh, chăm sóc bé sơ sinh" },
         { title: "Khám sàng lọc miễn phí", type: "promotion", start: -45, end: -40, status: "ended", participants: 152 },
+      ],
+    },
+    {
+      slug: "demo-saobida",
+      name: "Sao Billiards & Karaoke",
+      templateId: "fnb_cafe_01",
+      stock: "fnb",
+      customerIdx: 9,
+      primary: "#16a34a",
+      products: [
+        ["Bia Tiger (lon)", "Bia", 25_000],
+        ["Bia Heineken (lon)", "Bia", 30_000],
+        ["Nước suối", "Nước", 10_000],
+        ["Sting", "Nước", 15_000],
+        ["Trà đá", "Nước", 5_000],
+        ["Cà phê sữa", "Nước", 25_000],
+        ["Khô bò", "Đồ nhắm", 60_000],
+        ["Trái cây dĩa", "Đồ nhắm", 120_000, 99_000],
+        ["Mì xào bò", "Đồ ăn", 55_000],
+        ["Đậu phộng rang", "Đồ nhắm", 20_000],
+        ["Thuê cơ riêng", "Dịch vụ", 20_000, null, 60],
+        ["Gói sinh nhật phòng VIP", "Dịch vụ", 500_000, null, 180],
+      ],
+      services: ["Đặt bàn bida", "Đặt phòng karaoke", "Gói sinh nhật phòng VIP"],
+      pos: [
+        { area: "Khu bida lỗ", tables: [["Bida lỗ ", 6, "billiards", 4, 60_000, 30, 30]] },
+        { area: "Khu bida phăng", tables: [["Phăng ", 4, "billiards", 2, 50_000, 15, 0]] },
+        { area: "Karaoke", tables: [["P.", 4, "karaoke", 8, 150_000, 30, 60], ["VIP ", 2, "karaoke", 15, 300_000, 30, 60]] },
+        { area: "Quầy bar", tables: [["Bar ", 4, "table", 2, 0, 30, 0]] },
+      ],
+      team: [
+        ["Lý Văn Tài", "Quản lý ca", 10_000_000, ["Đặt bàn bida", "Đặt phòng karaoke"], 1],
+        ["Minh Khôi", "Thu ngân", 6_500_000, []],
+        ["Quang Huy", "Phục vụ", 5_500_000, ["Đặt bàn bida"]],
+        ["Thùy Dung", "Phục vụ", 5_500_000, ["Đặt phòng karaoke", "Gói sinh nhật phòng VIP"]],
+        ["Hải Nam", "Phục vụ", 3_500_000, []],
       ],
     },
   ];

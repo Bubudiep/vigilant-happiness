@@ -38,6 +38,8 @@ import {
   LuFolderOpen,
   LuImages,
   LuIdCard,
+  LuLayoutGrid,
+  LuChartColumn,
   LuMessagesSquare,
   LuSettings,
 } from "react-icons/lu";
@@ -77,6 +79,8 @@ const MediaLibrarySection = lazy(() => named(import("./MediaLibraryViews"), "Med
 const CustomersSection = lazy(() => named(import("./StoreCustomerViews"), "CustomersSection"));
 const OrdersSection = lazy(() => named(import("./StoreOrderViews"), "OrdersSection"));
 const ProductsSection = lazy(() => named(import("./StoreProductViews"), "ProductsSection"));
+const PosSection = lazy(() => named(import("./StorePosViews"), "PosSection"));
+const ReportsSection = lazy(() => named(import("./StoreReportViews"), "ReportsSection"));
 const StaffSection = lazy(() => named(import("./StoreStaffViews"), "StaffSection"));
 
 const SectionLoading = () => (
@@ -106,6 +110,8 @@ const VALID_NAV_KEYS: StoreNavKey[] = [
   "orders",
   "miniapp",
   "staff",
+  "pos",
+  "reports",
   "documents",
   "support",
   "oainbox",
@@ -490,6 +496,7 @@ export default function StoreConsole({
   const lowStock = store.products.filter((p) => !isService(p) && (p.stock ?? 0) <= LOW_STOCK).length;
   const navItems: { key: StoreNavKey; label: string; icon: React.ReactNode; badge?: number; alert?: boolean }[] = [
     { key: "overview", label: "Tổng quan", icon: <LuLayoutDashboard size={17} /> },
+    { key: "pos", label: "Bán hàng", icon: <LuLayoutGrid size={17} /> },
     { key: "bookings", label: "Lịch hẹn", icon: <LuCalendarCheck size={17} />, badge: store.bookings?.length },
     { key: "events", label: "Sự kiện", icon: <LuCalendarDays size={17} /> },
     { key: "products", label: "Sản phẩm & Dịch vụ", icon: <LuPackage size={17} />, badge: lowStock || undefined },
@@ -505,6 +512,7 @@ export default function StoreConsole({
     { key: "media", label: "Thư viện ảnh", icon: <LuFolderOpen size={17} /> },
     { key: "loyalty", label: "Hạng & Voucher", icon: <LuCrown size={17} />, badge: store.vouchers?.length },
     { key: "orders", label: "Đơn hàng", icon: <LuShoppingBag size={17} /> },
+    { key: "reports", label: "Báo cáo", icon: <LuChartColumn size={17} /> },
     { key: "miniapp", label: "Miniapp", icon: <LuSmartphone size={17} /> },
     { key: "documents", label: "Thư viện & Tài liệu", icon: <LuBookOpen size={17} />, badge: store.documents?.length },
     { key: "oainbox", label: "Tin nhắn OA", icon: <LuMessagesSquare size={17} /> },
@@ -688,6 +696,8 @@ export default function StoreConsole({
             <OrdersSection store={store} updateCurrentStore={updateCurrentStore} applyLocal={applyLocal} />
           )}
 
+          {activeNav === "pos" && <PosSection key={store.id} store={store} onCheckout={() => loadDetail(store.id)} />}
+          {activeNav === "reports" && <ReportsSection key={store.id} store={store} />}
           {activeNav === "staff" && <StaffSection key={store.id} store={store} updateCurrentStore={updateCurrentStore} applyLocal={applyLocal} />}
 
           {activeNav === "documents" && (
