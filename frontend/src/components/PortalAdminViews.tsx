@@ -615,7 +615,7 @@ export function AntiSpamSection() {
               pagination={{ pageSize: 15, hideOnSinglePage: true }}
               locale={{ emptyText: <Empty description="Không có yêu cầu nghi spam" /> }}
               columns={[
-                { title: "Khách", render: (_, r) => <div><div className="text-sm font-semibold">{r.name}</div><div className="font-mono text-xs">{r.phone}</div></div> },
+                { title: "Khách", render: (_, r) => <div><div className="text-sm font-semibold">{r.name}</div><div className="text-xs tabular-nums">{r.phone}</div></div> },
                 { title: "Ghi chú", render: (_, r) => <span className="text-xs text-slate-600">{r.note}</span> },
                 { title: "Gửi lúc", width: 110, render: (_, r) => <span className="text-xs">{dayjs(r.createdAt).format("HH:mm DD/MM")}</span> },
                 {

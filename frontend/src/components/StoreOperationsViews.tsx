@@ -83,6 +83,15 @@ const BOOKING_STATUS_OPTIONS = [
   { value: "cancelled", label: "Đã hủy" },
 ];
 
+/** Nhãn trạng thái đơn (khớp StoreOrderViews) */
+const ORDER_STATUS_TAG: Record<string, { label: string; color: string }> = {
+  pending: { label: "Chờ xác nhận", color: "orange" },
+  confirmed: { label: "Đã xác nhận", color: "blue" },
+  shipping: { label: "Đang giao", color: "cyan" },
+  completed: { label: "Hoàn thành", color: "green" },
+  cancelled: { label: "Đã huỷ", color: "red" },
+};
+
 export function BookingCreateModal({
   open,
   onClose,
@@ -380,8 +389,8 @@ export function OverviewSection({
                 </div>
                 <div className="text-right">
                   <div className="text-xs font-bold text-brand-600">{o.total.toLocaleString("vi-VN")}đ</div>
-                  <Tag className="mt-0.5 text-xs" color={o.status === "completed" ? "green" : o.status === "pending" ? "orange" : "blue"}>
-                    {o.status === "pending" ? "Chờ xác nhận" : o.status === "shipping" ? "Đang giao" : o.status === "completed" ? "Hoàn thành" : o.status}
+                  <Tag className="!m-0 mt-0.5 text-xs" color={ORDER_STATUS_TAG[o.status]?.color ?? "default"}>
+                    {ORDER_STATUS_TAG[o.status]?.label ?? o.status}
                   </Tag>
                 </div>
               </div>
@@ -505,7 +514,7 @@ export function BookingsSection({
     <div className="w-[260px] space-y-2 text-xs">
       <div>
         <div className="text-sm font-bold text-slate-900">{b.customerName}</div>
-        <a href={`tel:${b.phone}`} className="font-mono text-brand-600">
+        <a href={`tel:${b.phone}`} className="tabular-nums text-brand-600">
           {b.phone}
         </a>
       </div>

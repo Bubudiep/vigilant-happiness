@@ -85,6 +85,7 @@ Quota Zalo: Development 11/300, Testing 19/60.
 | T47 Chuẩn hoá giao diện quản trị (font, cỡ chữ, bố cục bộ lọc / form) | `frontend-2b` | [x] chưa xem bằng trình duyệt |
 | T47b Hoàn thiện T47: StatCard, form 2 cột, tabular-nums, chip lọc, thang chữ gọn | `frontend-2b` + `demo-f7` | [x] |
 | T48 Sửa UI theo ảnh chụp (Chrome headless) | `demo-88` | [x] |
+| T49 Dữ liệu mẫu `npm run seed:demo` (3 gian hàng: cà phê, spa, siêu âm 5D) | `demo-88` | [x] |
 | T45 Nhãn tiếng Việt cho action audit mới | `frontend-2b` | [x] test 45/45 (`data/audit-labels.ts`) |
 | T44b Thư viện ảnh dùng cờ `inUse/usedIn` + xử lý 409 | `frontend-2b` | [x] test 53/53 |
 | T36 Ảnh trình thiết kế: bỏ data URL, tải lên media | `frontend-2b` | [x] chưa thử thật |

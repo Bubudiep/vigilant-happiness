@@ -192,7 +192,7 @@ export function CallbacksSection() {
               render: (_, r) => (
                 <div>
                   <div className="text-sm font-semibold text-slate-900">{r.name}</div>
-                  <a href={`tel:${r.phone}`} className="inline-flex items-center gap-1 font-mono text-xs text-brand-600">
+                  <a href={`tel:${r.phone}`} className="inline-flex items-center gap-1 text-xs tabular-nums text-brand-600">
                     <LuPhone size={12} /> {r.phone}
                     {r.phoneVerified && (
                       <Tooltip title="Số điện thoại Zalo đã xác minh">

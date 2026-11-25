@@ -199,7 +199,7 @@ export function DebtsSection() {
                 render: (_, r) => (
                   <div>
                     <div className="text-sm font-semibold text-slate-900">{customerLabel(r.customer)}</div>
-                    <div className="font-mono text-xs text-slate-500">{r.customer.phone}</div>
+                    <div className="text-xs tabular-nums text-slate-500">{r.customer.phone}</div>
                   </div>
                 ),
               },
@@ -330,7 +330,7 @@ export function DebtsSection() {
               </div>
             </div>
             <div className="text-xs text-slate-500">
-              SĐT khách: <span className="font-mono">{opened.customer.phone}</span>
+              SĐT khách: <span className="tabular-nums">{opened.customer.phone}</span>
               {opened.dueDate && <> · Hạn: {dayjs(opened.dueDate).format("DD/MM/YYYY")}</>}
             </div>
             <div className="flex flex-wrap gap-2">

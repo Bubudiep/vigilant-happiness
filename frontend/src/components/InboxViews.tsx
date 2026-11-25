@@ -308,7 +308,7 @@ export function InboxSection({ onUnreadChange, storeId }: { onUnreadChange?: () 
                     <Tag color={CHANNEL[detail.channel].color} variant="filled">
                       {CHANNEL[detail.channel].label}
                     </Tag>
-                    {detail.phone && <span className="font-mono">{detail.phone}</span>}
+                    {detail.phone && <span className="tabular-nums">{detail.phone}</span>}
                   </div>
                 </div>
                 {!storeId && (
@@ -512,7 +512,7 @@ export function CareSection({ onChanged }: { onChanged?: () => void }) {
                 r.customer ? (
                   <div>
                     <div className="text-xs font-semibold">{customerLabel(r.customer)}</div>
-                    <div className="font-mono text-xs text-slate-500">{r.customer.phone}</div>
+                    <div className="text-xs tabular-nums text-slate-500">{r.customer.phone}</div>
                   </div>
                 ) : (
                   <span className="text-xs text-slate-500">{r.conversation?.displayName ?? "—"}</span>

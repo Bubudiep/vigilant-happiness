@@ -134,6 +134,7 @@ Không commit / in ra giá trị `.env`.
 cd backend && npm run start:dev            # http://localhost:4000/api, Swagger /api/docs
 npx tsc --noEmit -p .                      # typecheck
 npx prisma migrate deploy && npm run prisma:seed
+npm run seed:demo                          # dữ liệu mẫu (dev): 9 khách nền tảng, 3 gian hàng demo-* (cà phê, spa, siêu âm 5D); -- --clean để xoá
 # Prisma generate báo EPERM khi server đang chạy (khoá DLL) → dừng server rồi chạy lại
 # Gọi Zalo Graph API từ máy dev lỗi chứng chỉ → chạy với NODE_OPTIONS=--use-system-ca
 

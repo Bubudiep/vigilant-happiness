@@ -206,7 +206,8 @@ export function CustomersSection({
         size="small"
         dataSource={rows}
         pagination={{ pageSize: 10, showSizeChanger: false, hideOnSinglePage: true }}
-        scroll={{ x: 980 }}
+        tableLayout="fixed"
+        scroll={{ x: 1080 }}
         locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có khách hàng" /> }}
         rowClassName={(r) => `cursor-pointer ${dragRow === r.id ? "[&>td]:!bg-brand-50 outline outline-2 -outline-offset-2 outline-brand-500" : ""}`}
         onRow={(rec) => ({
@@ -231,6 +232,7 @@ export function CustomersSection({
           {
             title: "Khách hàng",
             dataIndex: "name",
+            width: 240,
             render: (_, c) => (
               <div className="flex items-center gap-2.5">
                 <Avatar c={c} color={tierColorOf(store, c.tier)} size={34} />
@@ -253,13 +255,13 @@ export function CustomersSection({
           {
             title: "Hạng / Chi tiêu",
             dataIndex: "tier",
-            width: 150,
+            width: 180,
             render: (tier, c) => (
               <div className="text-xs">
                 <span className="inline-flex items-center gap-1 font-bold" style={{ color: tierColorOf(store, tier) }}>
                   <LuCrown size={12} /> {tier}
                 </span>
-                <div className="text-xs text-slate-500">
+                <div className="whitespace-nowrap text-xs tabular-nums text-slate-500">
                   {money(c.totalSpent)} · {c.points.toLocaleString("vi-VN")} điểm
                 </div>
               </div>
@@ -284,7 +286,6 @@ export function CustomersSection({
           },
           {
             title: "Tin nhắn",
-            width: 220,
             render: (_, c) => {
               const cv = convs[c.id];
               const unread = unreadMap[c.id] ?? cv?.unread ?? 0;
