@@ -5,6 +5,7 @@
  *   nội dung       13px         → text-sm
  *   chữ phụ / chú thích 12px    → text-xs (slate-500)
  *   badge / chip   11px         → text-2xs
+ *   nhãn nhóm chữ hoa (menu, thẻ thống kê) → text-3xs (quản trị: 8px)
  * Trang chủ không có `admin-ui` → giữ cỡ mặc định của Tailwind. Khung mô phỏng điện thoại (`phone-ui`) cũng giữ mặc định.
  * Không dùng cỡ tuỳ ý text-[..px] trong trang quản trị. Số tiền / số lượng: tabular-nums. Khung dùng chung: src/components/ui/.
  */
@@ -20,6 +21,7 @@ export default {
         sans: ['"Be Vietnam Pro"', "ui-sans-serif", "system-ui", "-apple-system", '"Segoe UI"', "Roboto", "sans-serif"],
       },
       fontSize: {
+        "3xs": fs("3xs", "0.625rem", "0.875rem"),
         "2xs": fs("2xs", "0.6875rem", "1rem"),
         xs: fs("xs", "0.75rem", "1rem"),
         sm: fs("sm", "0.875rem", "1.25rem"),

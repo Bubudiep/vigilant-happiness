@@ -568,8 +568,8 @@ export default function StoreConsole({
         ) : (
           <div className="flex items-center justify-between gap-2 px-1">
             <div className="min-w-0 leading-tight">
-              <div className="text-2xs font-semibold uppercase tracking-wider text-slate-500">Mini App</div>
-              <div className="mt-0.5 text-xs font-medium text-slate-800">{store.active ? "Đang hoạt động" : "Tạm tắt"}</div>
+              <div className="text-3xs font-semibold uppercase tracking-[0.08em] text-slate-400">Mini App</div>
+              <div className="mt-px text-xs font-medium text-slate-700">{store.active ? "Đang hoạt động" : "Tạm tắt"}</div>
             </div>
             <Switch size="small" checked={store.active} onChange={(v) => updateCurrentStore((s) => ({ ...s, active: v }))} />
           </div>

@@ -116,12 +116,12 @@ export default function StoreSwitcher({
           title={mini ? current.name : undefined}
           className={`flex w-full items-center gap-2 rounded-md text-left transition hover:bg-slate-100 ${mini ? "justify-center p-0.5" : "p-1.5"}`}
         >
-          <StoreAvatar store={current} size={mini ? 32 : 30} />
+          <StoreAvatar store={current} size={mini ? 30 : 26} />
           {!mini && (
             <>
               <div className="min-w-0 flex-1 leading-tight">
-                <div className="truncate text-sm font-semibold text-slate-900">{current.name}</div>
-                <div className="mt-0.5 flex items-center gap-1 text-2xs text-slate-500">
+                <div className="truncate text-xs font-semibold text-slate-900">{current.name}</div>
+                <div className="mt-px flex items-center gap-1 text-2xs text-slate-400">
                   <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${current.active ? "bg-emerald-500" : "bg-slate-300"}`} />
                   <span className="truncate">{current.active ? "Đang hoạt động" : "Tạm tắt"} · {sub(current)}</span>
                 </div>

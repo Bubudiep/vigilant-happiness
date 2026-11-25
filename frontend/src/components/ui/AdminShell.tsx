@@ -66,13 +66,13 @@ export function AdminShell<K extends string>({
   }, []);
 
   const nav = (mini: boolean, after?: () => void) => (
-    <nav className="space-y-4">
+    <nav className="space-y-3">
       {groups.map((g, gi) => (
         <div key={g.title}>
           {mini ? (
             gi > 0 && <div className="mx-auto mb-3 h-px w-6 bg-slate-300" />
           ) : (
-            <div className="mb-1 px-2 text-2xs font-semibold uppercase tracking-wider text-slate-500">{g.title}</div>
+            <div className="mb-0.5 px-2 text-3xs font-semibold uppercase leading-3 tracking-[0.08em] text-slate-400">{g.title}</div>
           )}
           <div className="space-y-px">
             {g.items.map((item) => {
@@ -86,19 +86,19 @@ export function AdminShell<K extends string>({
                     after?.();
                   }}
                   aria-current={on ? "page" : undefined}
-                  className={`group relative flex h-8 w-full items-center gap-2.5 rounded-md text-left text-sm font-medium transition-colors ${
+                  className={`group relative flex h-7 w-full items-center gap-2 rounded-md text-left text-xs transition-colors ${
                     mini ? "justify-center" : "px-2"
-                  } ${on ? "bg-brand-50 text-brand-700" : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"}`}
+                  } ${on ? "bg-brand-50 font-semibold text-brand-700" : "font-medium text-slate-700 hover:bg-slate-100 hover:text-slate-900"}`}
                 >
                   {on && <span className="absolute inset-y-1.5 left-0 w-[3px] rounded-r bg-brand-600" />}
-                  <span className={`flex shrink-0 [&>svg]:h-4 [&>svg]:w-4 ${on ? "text-brand-600" : "text-slate-500 group-hover:text-slate-700"}`}>{item.icon}</span>
+                  <span className={`flex shrink-0 [&>svg]:h-[15px] [&>svg]:w-[15px] ${on ? "text-brand-600" : "text-slate-400 group-hover:text-slate-600"}`}>{item.icon}</span>
                   {!mini && <span className="min-w-0 flex-1 truncate">{item.label}</span>}
                   {!!item.badge &&
                     (mini ? (
                       item.alert && <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-red-600" />
                     ) : (
                       <span
-                        className={`min-w-[18px] rounded px-1 text-center text-2xs font-semibold leading-4 tabular-nums ${
+                        className={`min-w-[16px] rounded px-1 text-center text-2xs font-semibold leading-[14px] tabular-nums ${
                           item.alert ? "bg-red-600 text-white" : on ? "bg-brand-100 text-brand-700" : "bg-slate-100 text-slate-600"
                         }`}
                       >
@@ -143,7 +143,7 @@ export function AdminShell<K extends string>({
           <button
             type="button"
             onClick={() => setPaletteOpen(true)}
-            className="flex h-8 w-full items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-2.5 text-left text-sm text-slate-500 transition hover:border-slate-300 hover:bg-white"
+            className="flex h-7 w-full items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-2.5 text-left text-xs text-slate-400 transition hover:border-slate-300 hover:bg-white"
           >
             <LuSearch size={14} />
             <span className="flex-1">Tìm mục, chuyển trang…</span>
@@ -183,11 +183,11 @@ export function AdminShell<K extends string>({
 
         <main className="min-h-[calc(100vh-48px)] min-w-0 flex-1 bg-slate-50 px-3 py-4 sm:px-5 lg:px-8 lg:py-5">
           {!!breadcrumb?.length && (
-            <div className="mb-2 flex min-w-0 items-center gap-1 text-xs text-slate-500">
+            <div className="mb-1.5 flex min-w-0 items-center gap-1 text-2xs text-slate-400">
               {breadcrumb.map((b, i) => (
                 <Fragment key={i}>
-                  {i > 0 && <LuChevronRight size={12} className="shrink-0 text-slate-400" />}
-                  <span className={`truncate ${i === breadcrumb.length - 1 ? "font-medium text-slate-700" : ""}`}>{b}</span>
+                  {i > 0 && <LuChevronRight size={10} className="shrink-0 text-slate-300" />}
+                  <span className={`truncate ${i === breadcrumb.length - 1 ? "font-medium text-slate-600" : ""}`}>{b}</span>
                 </Fragment>
               ))}
             </div>
@@ -254,7 +254,7 @@ function CommandPalette<K extends string>({
             } else if (e.key === "Enter" && list[idx]) pick(list[idx].key);
           }}
           placeholder="Tìm mục… (VD: đơn, khách, báo cáo)"
-          className="h-11 flex-1 bg-transparent text-base outline-none placeholder:text-slate-400"
+          className="h-10 flex-1 bg-transparent text-sm outline-none placeholder:text-slate-400"
         />
         <kbd className="rounded border border-slate-200 px-1.5 text-2xs font-semibold text-slate-500">Esc</kbd>
       </div>
@@ -265,11 +265,11 @@ function CommandPalette<K extends string>({
             type="button"
             onMouseEnter={() => setIdx(n)}
             onClick={() => pick(i.key)}
-            className={`flex h-9 w-full items-center gap-2.5 rounded-md px-2.5 text-left text-sm ${n === idx ? "bg-brand-50 text-brand-700" : "text-slate-700"}`}
+            className={`flex h-9 w-full items-center gap-2.5 rounded-md px-2.5 text-left text-xs ${n === idx ? "bg-brand-50 text-brand-700" : "text-slate-700"}`}
           >
             <span className={`[&>svg]:h-4 [&>svg]:w-4 ${n === idx ? "text-brand-600" : "text-slate-500"}`}>{i.icon}</span>
             <span className="flex-1 font-medium">{i.label}</span>
-            <span className="text-xs text-slate-400">{i.group}</span>
+            <span className="text-2xs text-slate-400">{i.group}</span>
             {n === idx && <LuCornerDownLeft size={13} className="text-brand-600" />}
           </button>
         ))}

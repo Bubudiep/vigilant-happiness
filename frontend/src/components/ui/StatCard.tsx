@@ -6,11 +6,11 @@ export function StatCard({ label, value, hint, icon, tone = "default" }: { label
   return (
     <div className="min-w-0 rounded-lg border border-slate-200 bg-white px-3.5 py-3 transition hover:border-slate-300">
       <div className="flex items-center justify-between gap-2">
-        <div className="min-w-0 truncate text-2xs font-semibold uppercase tracking-wider text-slate-500">{label}</div>
+        <div className="min-w-0 truncate text-3xs font-semibold uppercase tracking-[0.08em] text-slate-500">{label}</div>
         {icon}
       </div>
-      <div className={`mt-1.5 text-xl font-semibold tabular-nums tracking-tight ${color}`}>{value}</div>
-      {hint && <div className="mt-0.5 text-xs text-slate-500">{hint}</div>}
+      <div className={`mt-1 text-xl font-semibold tabular-nums tracking-tight ${color}`}>{value}</div>
+      {hint && <div className="mt-0.5 truncate text-2xs text-slate-400">{hint}</div>}
     </div>
   );
 }
