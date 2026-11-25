@@ -1,8 +1,9 @@
-import { App as AntApp, Button, Empty, Modal, Popconfirm, Segmented, Spin, Tag } from "antd";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { LuRefreshCw, LuTrash2 } from "react-icons/lu";
+import { App as AntApp, Button, Empty, Modal, Popconfirm, Segmented, Select, Spin, Tag } from "antd";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { LuRefreshCw, LuTrash2, LuUpload } from "react-icons/lu";
+import { shrinkImage } from "../data/album-api";
 import { fmtBytes } from "../data/format";
-import { deleteStoreMedia, fetchStoreMedia } from "../data/media-api";
+import { deleteStoreMedia, fetchStoreMedia, uploadStoreMedia } from "../data/media-api";
 import { findMediaInUse, mediaUsage, StoreMediaItem, usedInLabel } from "../data/media-usage";
 import { ApiError } from "../data/platform-api";
 import type { StoreConfig } from "../data/store-api";
@@ -17,6 +18,9 @@ const TYPES: { value: string; label: string }[] = [
   { value: "unused", label: "Chưa dùng" }, // lọc theo trạng thái dùng, không phải loại
 ];
 const typeLabel = (t: string) => TYPES.find((x) => x.value === t)?.label ?? t;
+/** Loại ảnh khi tải lên (backend nhận logo | banner | product | general) */
+const UPLOAD_TYPES = TYPES.filter((t) => t.value !== "all" && t.value !== "unused");
+const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 
 /** Thư viện ảnh của gian hàng (ảnh tải lên từ trình thiết kế / sản phẩm): xem dung lượng, xoá ảnh thừa để giải phóng hạn mức. */
 export function MediaLibrarySection({ store }: { store: StoreConfig }) {
@@ -46,6 +50,42 @@ export function MediaLibrarySection({ store }: { store: StoreConfig }) {
     () => findMediaInUse(items ?? [], [store.products, store.sliders, store.theme, store.builder]),
     [items, store.products, store.sliders, store.theme, store.builder],
   );
+
+  // Tải ảnh lên thư viện: nén ở trình duyệt (≤ 2048px) rồi gửi lần lượt từng ảnh
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [uploadType, setUploadType] = useState("general");
+  const [uploading, setUploading] = useState<{ done: number; total: number } | null>(null);
+  const [dragOver, setDragOver] = useState(false);
+
+  const upload = async (list: FileList | File[] | null) => {
+    const files = Array.from(list ?? []).filter((f) => f.type.startsWith("image/"));
+    if (!files.length) return message.warning("Chọn file ảnh (JPG, PNG, WebP, GIF)");
+    setUploading({ done: 0, total: files.length });
+    let ok = 0;
+    const errors: string[] = [];
+    for (let i = 0; i < files.length; i++) {
+      const f = files[i];
+      try {
+        const blob = await shrinkImage(f);
+        if (blob.size > MAX_UPLOAD_BYTES) throw new ApiError("Ảnh lớn hơn 10MB sau khi nén", 413);
+        await uploadStoreMedia(store.id, blob, f.name, uploadType);
+        ok++;
+      } catch (e) {
+        const msg = e instanceof ApiError ? e.message : "lỗi tải lên";
+        if (e instanceof ApiError && e.quota) {
+          errors.push(msg);
+          break; // hết hạn mức: dừng các ảnh sau
+        }
+        errors.push(`${f.name}: ${msg}`);
+      }
+      setUploading({ done: i + 1, total: files.length });
+    }
+    setUploading(null);
+    if (ok) message.success(`Đã tải lên ${ok} ảnh`);
+    if (errors.length) message.error({ content: errors.slice(0, 3).join(" · ") + (errors.length > 3 ? ` (+${errors.length - 3} lỗi)` : ""), duration: 6 });
+    if (type !== "all" && type !== uploadType) setType("all");
+    load();
+  };
 
   const usageOf = (m: StoreMediaItem) => mediaUsage(m, inUse);
   const shown = (items ?? []).filter((m) => (type === "all" ? true : type === "unused" ? !usageOf(m).inUse : m.type === type));
@@ -82,12 +122,34 @@ export function MediaLibrarySection({ store }: { store: StoreConfig }) {
           <div>
             <h3 className="text-base font-bold text-slate-900">Thư viện ảnh</h3>
             <p className="text-xs text-slate-500">
-              Ảnh đã tải lên cho thiết kế, sản phẩm, banner. Xoá sản phẩm không tự xoá ảnh — ảnh thừa vẫn tính vào hạn mức dung lượng.
+              Ảnh dùng cho thiết kế, sản phẩm, banner — tải lên hoặc kéo thả vào đây. Xoá sản phẩm không tự xoá ảnh — ảnh thừa vẫn tính vào hạn mức dung lượng.
             </p>
           </div>
-          <Button icon={<LuRefreshCw size={14} />} loading={loading} onClick={load}>
-            Làm mới
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Select size="middle" value={uploadType} onChange={setUploadType} options={UPLOAD_TYPES} className="w-28" aria-label="Loại ảnh tải lên" />
+            <Button
+              type="primary"
+              icon={<LuUpload size={14} />}
+              loading={!!uploading}
+              onClick={() => fileRef.current?.click()}
+            >
+              {uploading ? `Đang tải ${uploading.done}/${uploading.total}` : "Tải ảnh lên"}
+            </Button>
+            <Button icon={<LuRefreshCw size={14} />} loading={loading} onClick={load}>
+              Làm mới
+            </Button>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              multiple
+              hidden
+              onChange={(e) => {
+                upload(e.target.files);
+                e.target.value = "";
+              }}
+            />
+          </div>
         </div>
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
           <Segmented size="small" value={type} onChange={(v) => setType(String(v))} options={TYPES} />
@@ -96,13 +158,26 @@ export function MediaLibrarySection({ store }: { store: StoreConfig }) {
           </span>
         </div>
 
-        <div className="mt-4">
+        <div
+          className={`mt-4 rounded-xl transition ${dragOver ? "bg-brand-50 ring-2 ring-dashed ring-brand-400" : ""}`}
+          onDragOver={(e) => {
+            if (!e.dataTransfer.types.includes("Files")) return;
+            e.preventDefault();
+            setDragOver(true);
+          }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setDragOver(false);
+            if (!uploading) upload(e.dataTransfer.files);
+          }}
+        >
           {!items ? (
             <div className="py-12 text-center">
               <Spin />
             </div>
           ) : shown.length === 0 ? (
-            <Empty description="Chưa có ảnh nào" />
+            <Empty description="Chưa có ảnh nào — bấm “Tải ảnh lên” hoặc kéo thả ảnh vào đây" />
           ) : (
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
               {shown.map((m) => {
