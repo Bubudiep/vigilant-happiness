@@ -1,5 +1,5 @@
 import { auditActionLabel } from "../data/audit-labels";
-import { Alert, App as AntApp, Button, Drawer, Empty, Input, Modal, Popconfirm, Segmented, Table, Tag } from "antd";
+import { Alert, App as AntApp, Button, Drawer, Empty, Input, Modal, Popconfirm, Segmented, Table, Tag, Tooltip } from "antd";
 import dayjs from "dayjs";
 import { useCallback, useEffect, useState } from "react";
 import { LuPlus, LuRefreshCw, LuTrash2 } from "react-icons/lu";
@@ -154,7 +154,7 @@ export function CustomersPlatformSection() {
           size="small"
           loading={list.loading}
           dataSource={rows}
-          pagination={{ pageSize: 12 }}
+          pagination={{ pageSize: 12, hideOnSinglePage: true }}
           locale={{ emptyText: <Empty description="Chưa có khách hàng" /> }}
           onRow={(r) => ({ onClick: () => setOpenId(r.id), className: "cursor-pointer" })}
           columns={[
@@ -167,7 +167,7 @@ export function CustomersPlatformSection() {
                 </div>
               ),
             },
-            { title: "SĐT Zalo", dataIndex: "phone", render: (v: string) => <span className="font-mono text-xs">{v}</span> },
+            { title: "SĐT Zalo", dataIndex: "phone", render: (v: string) => <span className="tabular-nums">{v}</span> },
             {
               title: "Tài khoản đăng nhập",
               render: (_, r) =>
@@ -242,7 +242,7 @@ export function CustomersPlatformSection() {
             </div>
             <div className="rounded-xl bg-slate-50 p-3 text-xs text-slate-600">
               <div>
-                Liên hệ: {detail.name} · <span className="font-mono">{detail.phone}</span>
+                Liên hệ: {detail.name} · <span className="tabular-nums">{detail.phone}</span>
               </div>
               {detail.email && <div>Email: {detail.email}</div>}
               {detail.address && <div>Địa chỉ: {detail.address}</div>}
@@ -258,7 +258,7 @@ export function CustomersPlatformSection() {
                   <div key={s.id} className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-1.5">
                     <div>
                       <div className="text-sm font-semibold">{s.name}</div>
-                      <div className="font-mono text-xs text-slate-500">{s.phone}</div>
+                      <div className="text-xs tabular-nums text-slate-500">{s.phone}</div>
                     </div>
                     <Popconfirm title="Xoá nhân sự?" onConfirm={() => removeStaff(s.id).then(() => loadDetail(detail.id)).catch((e) => message.error(errMsg(e)))}>
                       <Button size="small" type="text" danger icon={<LuTrash2 size={12} />} />
@@ -333,15 +333,47 @@ export function AuditSection() {
           size="small"
           loading={list.loading}
           dataSource={list.data ?? []}
-          pagination={{ pageSize: 15 }}
+          pagination={{ pageSize: 15, hideOnSinglePage: true }}
           locale={{ emptyText: <Empty description="Chưa có thao tác nào" /> }}
           columns={[
-            { title: "Lúc", width: 120, render: (_, r) => <span className="text-xs">{dayjs(r.createdAt).format("HH:mm:ss DD/MM")}</span> },
-            { title: "Người thực hiện", render: (_, r) => <span className="text-xs">{r.actorLabel}</span> },
-            { title: "Thao tác", render: (_, r) => <Tag>{auditActionLabel(r.action, r.meta)}</Tag> },
-            { title: "Đối tượng", render: (_, r) => <span className="font-mono text-xs text-slate-500">{r.targetType} {r.targetId}</span> },
-            { title: "Chi tiết", render: (_, r) => <span className="text-xs text-slate-500">{r.meta ? JSON.stringify(r.meta) : ""}</span> },
-            { title: "IP", width: 120, render: (_, r) => <span className="font-mono text-xs">{r.ip}</span> },
+            { title: "Lúc", width: 130, render: (_, r) => <span className="whitespace-nowrap text-xs tabular-nums">{dayjs(r.createdAt).format("HH:mm:ss DD/MM")}</span> },
+            {
+              title: "Người thực hiện",
+              width: 180,
+              ellipsis: { showTitle: false },
+              render: (_, r) => (
+                <Tooltip title={r.actorLabel}>
+                  <span className="text-xs">{r.actorLabel}</span>
+                </Tooltip>
+              ),
+            },
+            { title: "Thao tác", width: 200, render: (_, r) => <Tag className="!m-0">{auditActionLabel(r.action, r.meta)}</Tag> },
+            {
+              title: "Đối tượng",
+              width: 200,
+              responsive: ["lg"],
+              ellipsis: { showTitle: false },
+              render: (_, r) => (
+                <Tooltip title={`${r.targetType} ${r.targetId ?? ""}`}>
+                  <span className="text-xs text-slate-500">
+                    <span className="font-medium text-slate-700">{r.targetType}</span> {r.targetId}
+                  </span>
+                </Tooltip>
+              ),
+            },
+            {
+              title: "Chi tiết",
+              ellipsis: { showTitle: false },
+              render: (_, r) => {
+                const text = r.meta ? JSON.stringify(r.meta) : "";
+                return (
+                  <Tooltip title={text.length > 60 ? <span className="break-all text-xs">{text}</span> : undefined}>
+                    <span className="text-xs text-slate-500">{text}</span>
+                  </Tooltip>
+                );
+              },
+            },
+            { title: "IP", width: 110, responsive: ["xl"], render: (_, r) => <span className="text-xs tabular-nums text-slate-500">{r.ip}</span> },
           ]}
         />
       )}
@@ -395,7 +427,7 @@ export function AccountsSection({ currentUserId }: { currentUserId: string }) {
           size="small"
           loading={list.loading}
           dataSource={rows}
-          pagination={{ pageSize: 15 }}
+          pagination={{ pageSize: 15, hideOnSinglePage: true }}
           locale={{ emptyText: <Empty description="Chưa có tài khoản" /> }}
           columns={[
             {

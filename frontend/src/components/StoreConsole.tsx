@@ -601,7 +601,7 @@ export default function StoreConsole({
               {item.icon}
               {!collapsed && <span className="truncate">{item.label}</span>}
             </span>
-            {!collapsed && typeof item.badge === "number" && (
+            {!collapsed && !!item.badge && (
               <span
                 className={`rounded-full px-2 py-0.5 text-2xs font-bold ${
                   active ? "bg-white/20 text-white" : item.alert ? "bg-rose-500 text-white" : "bg-slate-100 text-slate-600"
@@ -765,7 +765,7 @@ export default function StoreConsole({
               <Table
                 rowKey="id"
                 size="small"
-                pagination={{ pageSize: 8 }}
+                pagination={{ pageSize: 8, hideOnSinglePage: true }}
                 dataSource={store.products}
                 columns={[
                   {

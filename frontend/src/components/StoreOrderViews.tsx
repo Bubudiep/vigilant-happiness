@@ -117,7 +117,7 @@ export function OrdersSection({
         rowKey="id"
         size="small"
         dataSource={filtered}
-        pagination={{ pageSize: 10 }}
+        pagination={{ pageSize: 10, hideOnSinglePage: true }}
         scroll={{ x: 900 }}
         locale={{ emptyText: <Empty description="Chưa có đơn hàng" image={Empty.PRESENTED_IMAGE_SIMPLE} /> }}
         expandable={{ expandedRowRender: (o) => <OrderDetail order={o} />, rowExpandable: () => true }}

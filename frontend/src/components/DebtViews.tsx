@@ -189,7 +189,7 @@ export function DebtsSection() {
             size="small"
             loading={loading}
             dataSource={rows}
-            pagination={{ pageSize: 12 }}
+            pagination={{ pageSize: 12, hideOnSinglePage: true }}
             scroll={{ x: 820 }}
             locale={{ emptyText: <Empty description={status === "open" ? "Không có khoản nợ nào đang mở" : "Không có khoản nợ phù hợp"} /> }}
             onRow={(r) => ({ onClick: () => setOpenId(r.id), className: "cursor-pointer" })}

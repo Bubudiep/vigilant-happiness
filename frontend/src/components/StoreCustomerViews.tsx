@@ -36,7 +36,7 @@ import { ApiError } from "../data/platform-api";
 import type { StoreBookingItem, StoreConfig, StoreCustomerItem, StoreOrderItem } from "../data/store-api";
 import { AlbumDrawer, AlbumKindsModal, CustomerThread, guessProvider, PROVIDERS, useAlbumKinds } from "./AlbumViews";
 import { BookingCreateModal } from "./StoreOperationsViews";
-import { PageHeader } from "./ui";
+import { FilterBar, PageHeader } from "./ui";
 
 const ORDER_STATUS: Record<string, { label: string; color: string }> = {
   pending: { label: "Chờ xác nhận", color: "gold" },
@@ -183,24 +183,29 @@ export function CustomersSection({
         title={<>Tệp khách hàng ({store.customers.length})</>}
         description={<><LuUpload size={12} className="mr-1 inline" />
             Kéo thả <b>ảnh</b> hoặc <b>link</b> (Drive, Google Photos…) vào dòng của khách để gửi album ngay.</>}
-        actions={<><Input
+      />
+      <FilterBar
+        search={
+          <Input
             allowClear
             value={q}
             onChange={(e) => setQ(e.target.value)}
             prefix={<LuSearch size={14} className="text-slate-400" />}
             placeholder="Tìm tên, SĐT, hạng..."
-            className="w-60"
           />
+        }
+        actions={
           <Button type="primary" icon={<LuPlus size={15} />} onClick={onAdd}>
             Thêm khách hàng
-          </Button></>}
+          </Button>
+        }
       />
 
       <Table
         rowKey="id"
         size="small"
         dataSource={rows}
-        pagination={{ pageSize: 10, showSizeChanger: false }}
+        pagination={{ pageSize: 10, showSizeChanger: false, hideOnSinglePage: true }}
         scroll={{ x: 980 }}
         locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có khách hàng" /> }}
         rowClassName={(r) => `cursor-pointer ${dragRow === r.id ? "[&>td]:!bg-brand-50 outline outline-2 -outline-offset-2 outline-brand-500" : ""}`}

@@ -11,6 +11,7 @@ import {
   Select,
  
   Switch,
+  Empty,
   Table,
   Tag,
   App as AntApp,
@@ -298,9 +299,9 @@ export function OverviewSection({
 
       {/* Widget Lịch hẹn & Đặt lịch cho khách ngay trên trang Tổng quan */}
       <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
-        <div className="mb-3.5 flex flex-wrap items-center justify-between gap-2">
+        <div className={`${bookings.length ? "mb-3.5" : ""} flex flex-wrap items-center justify-between gap-2`}>
           <div>
-            <h3 className="flex items-center gap-2 text-sm font-bold text-slate-900">
+            <h3 className="flex items-center gap-2 text-base font-semibold text-slate-900">
               <LuCalendarCheck size={17} className="text-brand-600" /> Lịch hẹn sắp tới & Đặt lịch cho khách
             </h3>
             <p className="text-xs text-slate-500">
@@ -317,7 +318,7 @@ export function OverviewSection({
           </div>
         </div>
 
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        {bookings.length > 0 && <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {bookings.slice(0, 6).map((b) => (
             <div key={b.id} className="flex flex-col justify-between rounded-xl border border-slate-200/80 bg-slate-50/70 p-3.5">
               <div>
@@ -350,17 +351,24 @@ export function OverviewSection({
               </div>
             </div>
           ))}
-        </div>
+        </div>}
       </div>
 
       <div className="grid gap-5 lg:grid-cols-2">
         <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
           <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-sm font-bold text-slate-900">Đơn hàng gần đây</h3>
+            <h3 className="text-base font-semibold text-slate-900">Đơn hàng gần đây</h3>
             <Button type="link" size="small" onClick={() => onNavigate("orders")}>
               Xem tất cả
             </Button>
           </div>
+          {orders.length === 0 && (
+            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có đơn hàng" className="!my-4">
+              <Button size="small" icon={<LuPlus size={14} />} onClick={() => onNavigate("orders")}>
+                Tạo đơn
+              </Button>
+            </Empty>
+          )}
           <div className="space-y-2.5">
             {orders.slice(0, 4).map((o) => (
               <div key={o.id} className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5">
@@ -383,7 +391,7 @@ export function OverviewSection({
 
         <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
           <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-sm font-bold text-slate-900">Trạng thái Store & Mini App</h3>
+            <h3 className="text-base font-semibold text-slate-900">Trạng thái Store & Mini App</h3>
             <Button type="link" size="small" onClick={() => onNavigate("miniapp")}>
               Cấu hình Miniapp
             </Button>
@@ -699,7 +707,7 @@ export function BookingsSection({
             rowKey="id"
             size="small"
             dataSource={[...filteredList].sort((x, y) => (y.date + y.timeSlot).localeCompare(x.date + x.timeSlot))}
-            pagination={{ pageSize: 10 }}
+            pagination={{ pageSize: 10, hideOnSinglePage: true }}
             columns={[
               {
                 title: "Thời gian",
@@ -815,7 +823,7 @@ export function EventsSection({
         rowKey="id"
         size="small"
         dataSource={events}
-        pagination={{ pageSize: 6 }}
+        pagination={{ pageSize: 6, hideOnSinglePage: true }}
         columns={[
           {
             title: "Sự kiện",
@@ -943,7 +951,7 @@ export function InventorySection({
     <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
       <div className="mb-4 flex items-center justify-between">
         <div>
-          <h3 className="flex items-center gap-2 text-base font-bold text-slate-900">
+          <h3 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
             <LuWarehouse size={18} className="text-brand-600" /> Quản lý Kho hàng
           </h3>
           <p className="text-xs text-slate-500">Điều chỉnh số lượng tồn kho và theo dõi sản phẩm sắp hết.</p>
@@ -954,7 +962,7 @@ export function InventorySection({
         rowKey="id"
         size="small"
         dataSource={store.products}
-        pagination={{ pageSize: 8 }}
+        pagination={{ pageSize: 8, hideOnSinglePage: true }}
         columns={[
           {
             title: "SKU / Sản phẩm",
@@ -1018,7 +1026,7 @@ export function SupportSection({
   return (
     <div className="grid gap-5 lg:grid-cols-12">
       <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5 lg:col-span-5">
-        <h3 className="mb-1 flex items-center gap-2 text-base font-bold text-slate-900">
+        <h3 className="mb-1 flex items-center gap-2 text-base font-semibold text-slate-900">
           <LuHeadphones size={18} className="text-brand-600" /> Gửi yêu cầu hỗ trợ
         </h3>
         <p className="mb-4 text-xs text-slate-500">
@@ -1064,7 +1072,8 @@ export function SupportSection({
       </div>
 
       <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5 lg:col-span-7">
-        <h3 className="mb-3 text-base font-bold text-slate-900">Lịch sử hỗ trợ ({tickets.length})</h3>
+        <h3 className="mb-3 text-base font-semibold text-slate-900">Lịch sử hỗ trợ ({tickets.length})</h3>
+        {tickets.length === 0 && <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa gửi yêu cầu hỗ trợ nào" className="!my-8" />}
         <div className="space-y-3">
           {tickets.map((tk) => (
             <div key={tk.id} className="rounded-xl border border-slate-100 bg-slate-50 p-3.5">

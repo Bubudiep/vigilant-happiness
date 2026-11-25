@@ -302,7 +302,7 @@ export function LoyaltySection({
                   rowKey="id"
                   size="small"
                   dataSource={vouchers}
-                  pagination={{ pageSize: 8 }}
+                  pagination={{ pageSize: 8, hideOnSinglePage: true }}
                   columns={[
                     {
                       title: "Mã Voucher",

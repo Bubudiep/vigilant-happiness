@@ -83,7 +83,8 @@ Quota Zalo: Development 11/300, Testing 19/60.
 | T44c Xoá ảnh đang dùng → 409 (`?force=1` để ép) | `backend-d2` | [x] API 52/52 |
 | T46 Nút "Xoá gian hàng" (trang Cấu hình app khách) | `frontend-2b` | [x] test 60/60 |
 | T47 Chuẩn hoá giao diện quản trị (font, cỡ chữ, bố cục bộ lọc / form) | `frontend-2b` | [x] chưa xem bằng trình duyệt |
-| T47b Hoàn thiện T47: StatCard, form 2 cột, tabular-nums, chip lọc, thang chữ gọn | `frontend-2b` + `demo-f7` | [x] chưa xem bằng trình duyệt |
+| T47b Hoàn thiện T47: StatCard, form 2 cột, tabular-nums, chip lọc, thang chữ gọn | `frontend-2b` + `demo-f7` | [x] |
+| T48 Sửa UI theo ảnh chụp (Chrome headless) | `demo-88` | [x] |
 | T45 Nhãn tiếng Việt cho action audit mới | `frontend-2b` | [x] test 45/45 (`data/audit-labels.ts`) |
 | T44b Thư viện ảnh dùng cờ `inUse/usedIn` + xử lý 409 | `frontend-2b` | [x] test 53/53 |
 | T36 Ảnh trình thiết kế: bỏ data URL, tải lên media | `frontend-2b` | [x] chưa thử thật |
@@ -169,6 +170,8 @@ Quy ước khi chạy song song: phiên backend chỉ sửa `backend/`, phiên f
 - **Đã làm (25/11):** `src/fonts.css` (8 woff2 có `unicode-range`, JS chính chỉ +1,4KB), token antd + Table/Card/Modal/Drawer, `src/components/ui/` (`PageHeader`, `FilterBar` + `FilterSelect`/`FilterRange`, `SectionCard`, `StatCard`, `FormLayout`); chữ < 12px → 12px; ~20 header → `PageHeader`, 12 trang dùng `FilterBar`; sidebar 2 console h-9 14/500. Font đổi toàn cục nên trang chủ cũng dùng Be Vietnam Pro.
 - **T47b (25/11):** thang chữ gọn hơn — Tailwind đọc biến CSS, `<html class="admin-ui">` ở /admin, /controller: 2xs 11 · xs 12 · sm 13 · base 14 · lg 16 · xl 18 (trang chủ + khung điện thoại `.phone-ui` giữ mặc định); antd 13 / control 32. Bỏ hết `text-[Npx]` trong trang quản trị (trừ AdminLogin). `StatCard` + `StatGrid` (Khách nợ, Tổng quan, mã voucher, Dung lượng); form modal/drawer lưới `gap-x-4 sm:grid-cols-N`; cột tiền căn phải `tabular-nums`; chip lọc Đơn hàng / Cấu hình app → `FilterSelect`.
 - **Cần nhìn:** bảng nhiều cột, drawer hẹp, FilterBar trên mobile, badge 11px, StatCard 4 cột ở Tổng quan, form khoản nợ / dự án ở màn hẹp.
+- **T48 (25/11, đã chụp màn hình thật 1440 / 390 bằng Chrome headless + phiên admin dev tạm):** FilterBar mobile (bộ lọc + nút cùng hàng); Cấu hình app (cột App đủ rộng, một card, mobile ẩn cột phụ + cuộn trong card); Nhật ký (cột co gọn, ellipsis + tooltip, ẩn IP/Đối tượng ở màn nhỏ); Tệp khách hàng theo PageHeader + FilterBar; phân trang ẩn khi 1 trang; badge sidebar ẩn khi 0; Tổng quan (Empty cho đơn hàng, bỏ khoảng trống, nhãn KPI không viết hoa); Thư viện ảnh (lọc lên thanh FilterBar, "Tải ảnh lên ▾" chọn loại); tab Tin nhắn + Dự án & Ticket dùng antd Tabs như Gói dịch vụ; tiêu đề Kho / Hỗ trợ theo thang.
+- **Quy ước bố cục:** nút chính ("Thêm / Tạo …") ở cuối FilterBar; trang không có bộ lọc thì ở PageHeader. Tabs = chuyển khu vực con; Segmented = lọc / đổi kiểu xem trong một danh sách.
 
 ### T35. Kiểm tra giao diện + T11 còn lại (frontend)
 - Mở bằng trình duyệt: `/controller/inbox` (2 tab Hội thoại / Chăm sóc, badge), `/controller/storage`, album (lưới dùng thumbnail). Sửa lỗi hiển thị / mobile.

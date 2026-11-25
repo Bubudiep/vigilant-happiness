@@ -1,4 +1,4 @@
-import { Alert, App as AntApp, Button, Drawer, Empty, Input, InputNumber, Modal, Popconfirm, Segmented, Select, Table, Tag, Tooltip } from "antd";
+import { Alert, App as AntApp, Button, Drawer, Empty, Input, InputNumber, Modal, Popconfirm, Segmented, Select, Table, Tabs, Tag, Tooltip } from "antd";
 import dayjs from "dayjs";
 import { useCallback, useEffect, useState } from "react";
 import { LuBan, LuCheck, LuPlus, LuRefreshCw, LuSend, LuShieldAlert, LuTrash2 } from "react-icons/lu";
@@ -97,15 +97,13 @@ export function PortalSection() {
         title="Dự án & Ticket khách hàng"
         description={<>Khách đăng nhập Zalo trong Mini App reMini (số Zalo trùng SĐT khách hàng) sẽ thấy tiến độ và ticket ở tab "Tài khoản".</>}
       />
-      <FilterBar
-        filters={<><Segmented
-          value={tab}
-          onChange={(v) => setTab(v as typeof tab)}
-          options={[
-            { value: "projects", label: "Tiến độ dự án" },
-            { value: "tickets", label: "Ticket hỗ trợ" },
-          ]}
-        /></>}
+      <Tabs
+        activeKey={tab}
+        onChange={(v) => setTab(v as typeof tab)}
+        items={[
+          { key: "projects", label: "Tiến độ dự án" },
+          { key: "tickets", label: "Ticket hỗ trợ" },
+        ]}
       />
       {tab === "projects" ? <ProjectsPanel /> : <TicketsPanel />}
     </div>
@@ -176,12 +174,16 @@ function ProjectsPanel() {
 
   return (
     <>
-      <div className="mb-3 flex justify-end gap-2">
-        <Button icon={<LuRefreshCw size={14} />} onClick={projects.load} loading={projects.loading} />
-        <Button type="primary" icon={<LuPlus size={15} />} onClick={() => setOpen(true)}>
-          Tạo dự án
-        </Button>
-      </div>
+      <FilterBar
+        actions={
+          <>
+            <Button icon={<LuRefreshCw size={14} />} onClick={projects.load} loading={projects.loading} />
+            <Button type="primary" icon={<LuPlus size={15} />} onClick={() => setOpen(true)}>
+              Tạo dự án
+            </Button>
+          </>
+        }
+      />
 
       {(projects.data ?? []).length === 0 && !projects.loading ? (
         <Empty description="Chưa có dự án" />
@@ -401,7 +403,7 @@ function TicketsPanel() {
         size="small"
         loading={tickets.loading}
         dataSource={tickets.data ?? []}
-        pagination={{ pageSize: 12 }}
+        pagination={{ pageSize: 12, hideOnSinglePage: true }}
         onRow={(r) => ({ onClick: () => setOpenId(r.id), className: "cursor-pointer" })}
         locale={{ emptyText: <Empty description="Không có ticket" /> }}
         columns={[
@@ -575,7 +577,7 @@ export function AntiSpamSection() {
               size="small"
               loading={events.loading}
               dataSource={events.data ?? []}
-              pagination={{ pageSize: 15 }}
+              pagination={{ pageSize: 15, hideOnSinglePage: true }}
               columns={[
                 { title: "Lúc", width: 100, render: (_, r) => <span className="text-xs">{dayjs(r.createdAt).format("HH:mm DD/MM")}</span> },
                 { title: "Kết quả", width: 90, render: (_, r) => <Tag color={r.action === "blocked" ? "red" : "gold"}>{r.action === "blocked" ? "Chặn" : "Nghi ngờ"} {r.score}</Tag> },
@@ -610,7 +612,7 @@ export function AntiSpamSection() {
               size="small"
               loading={leads.loading}
               dataSource={leads.data ?? []}
-              pagination={{ pageSize: 15 }}
+              pagination={{ pageSize: 15, hideOnSinglePage: true }}
               locale={{ emptyText: <Empty description="Không có yêu cầu nghi spam" /> }}
               columns={[
                 { title: "Khách", render: (_, r) => <div><div className="text-sm font-semibold">{r.name}</div><div className="font-mono text-xs">{r.phone}</div></div> },
@@ -658,7 +660,7 @@ export function AntiSpamSection() {
                 size="small"
                 loading={blocks.loading}
                 dataSource={blocks.data ?? []}
-                pagination={{ pageSize: 15 }}
+                pagination={{ pageSize: 15, hideOnSinglePage: true }}
                 locale={{ emptyText: <Empty description="Chưa chặn ai" /> }}
                 columns={[
                   { title: "Loại", width: 70, render: (_, r) => <Tag>{r.kind}</Tag> },

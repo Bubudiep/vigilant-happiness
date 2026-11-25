@@ -238,7 +238,7 @@ export function InboxSection({ onUnreadChange, storeId }: { onUnreadChange?: () 
           <div className="space-y-2 border-b border-slate-100 p-3">
             <div className="flex gap-2">
               <Select
-                size="small"
+               
                 value={status}
                 onChange={setStatus}
                 className="flex-1"
@@ -250,7 +250,6 @@ export function InboxSection({ onUnreadChange, storeId }: { onUnreadChange?: () 
               />
               {!storeId && (
                 <Select
-                  size="small"
                   value={channel}
                   onChange={setChannel}
                   className="flex-1"
@@ -261,9 +260,9 @@ export function InboxSection({ onUnreadChange, storeId }: { onUnreadChange?: () 
                   ]}
                 />
               )}
-              <Button size="small" icon={<LuRefreshCw size={13} />} onClick={loadList} loading={loading} />
+              <Button icon={<LuRefreshCw size={14} />} onClick={loadList} loading={loading} />
             </div>
-            <Input.Search size="small" allowClear placeholder="Tìm tên / SĐT / nội dung" onSearch={setQ} />
+            <Input.Search allowClear placeholder="Tìm tên / SĐT / nội dung" onSearch={setQ} />
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto">
             {list.length === 0 && <Empty className="mt-10" description="Chưa có hội thoại" />}
@@ -494,7 +493,7 @@ export function CareSection({ onChanged }: { onChanged?: () => void }) {
           size="small"
           loading={loading}
           dataSource={rows}
-          pagination={{ pageSize: 12 }}
+          pagination={{ pageSize: 12, hideOnSinglePage: true }}
           scroll={{ x: 640 }}
           locale={{ emptyText: <Empty description="Không có việc nào" /> }}
           columns={[

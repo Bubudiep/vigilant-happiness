@@ -162,7 +162,7 @@ export function CallbacksSection() {
           size="small"
           loading={loading}
           dataSource={leads}
-          pagination={{ pageSize: 12 }}
+          pagination={{ pageSize: 12, hideOnSinglePage: true }}
           locale={{ emptyText: <Empty description="Chưa có yêu cầu nào" /> }}
           columns={[
             ...(tab === "callback"

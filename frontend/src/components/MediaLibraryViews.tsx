@@ -1,6 +1,6 @@
-import { App as AntApp, Button, Empty, Modal, Popconfirm, Segmented, Spin, Tag } from "antd";
+import { App as AntApp, Button, Dropdown, Empty, Modal, Popconfirm, Segmented, Spin, Tag } from "antd";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { LuRefreshCw, LuTrash2, LuUpload } from "react-icons/lu";
+import { LuChevronDown, LuRefreshCw, LuTrash2, LuUpload } from "react-icons/lu";
 import { shrinkImage } from "../data/album-api";
 import { fmtBytes } from "../data/format";
 import { deleteStoreMedia, fetchStoreMedia, uploadStoreMedia } from "../data/media-api";
@@ -8,7 +8,7 @@ import { findMediaInUse, mediaUsage, StoreMediaItem, usedInLabel } from "../data
 import { ApiError } from "../data/platform-api";
 import type { StoreConfig } from "../data/store-api";
 import { StorageBar } from "./AlbumViews";
-import { FilterBar, FilterSelect, PageHeader } from "./ui";
+import { FilterBar, PageHeader } from "./ui";
 
 const TYPES: { value: string; label: string }[] = [
   { value: "all", label: "Tất cả" },
@@ -58,7 +58,7 @@ export function MediaLibrarySection({ store }: { store: StoreConfig }) {
   const [uploading, setUploading] = useState<{ done: number; total: number } | null>(null);
   const [dragOver, setDragOver] = useState(false);
 
-  const upload = async (list: FileList | File[] | null) => {
+  const upload = async (list: FileList | File[] | null, as: string = uploadType) => {
     const files = Array.from(list ?? []).filter((f) => f.type.startsWith("image/"));
     if (!files.length) return message.warning("Chọn file ảnh (JPG, PNG, WebP, GIF)");
     setUploading({ done: 0, total: files.length });
@@ -69,7 +69,7 @@ export function MediaLibrarySection({ store }: { store: StoreConfig }) {
       try {
         const blob = await shrinkImage(f);
         if (blob.size > MAX_UPLOAD_BYTES) throw new ApiError("Ảnh lớn hơn 10MB sau khi nén", 413);
-        await uploadStoreMedia(store.id, blob, f.name, uploadType);
+        await uploadStoreMedia(store.id, blob, f.name, as);
         ok++;
       } catch (e) {
         const msg = e instanceof ApiError ? e.message : "lỗi tải lên";
@@ -84,7 +84,7 @@ export function MediaLibrarySection({ store }: { store: StoreConfig }) {
     setUploading(null);
     if (ok) message.success(`Đã tải lên ${ok} ảnh`);
     if (errors.length) message.error({ content: errors.slice(0, 3).join(" · ") + (errors.length > 3 ? ` (+${errors.length - 3} lỗi)` : ""), duration: 6 });
-    if (type !== "all" && type !== uploadType) setType("all");
+    if (type !== "all" && type !== as) setType("all");
     load();
   };
 
@@ -124,19 +124,33 @@ export function MediaLibrarySection({ store }: { store: StoreConfig }) {
         description={<>Ảnh dùng cho thiết kế, sản phẩm, banner — tải lên hoặc kéo thả vào đây. Xoá sản phẩm không tự xoá ảnh — ảnh thừa vẫn tính vào hạn mức dung lượng.</>}
       />
       <FilterBar
-        filters={<><FilterSelect size="middle" value={uploadType} onChange={setUploadType} options={UPLOAD_TYPES} aria-label="Loại ảnh tải lên" /></>}
-        actions={<><Button icon={<LuRefreshCw size={14} />} loading={loading} onClick={load}>
-              Làm mới
-            </Button>
-<Button
-              type="primary"
-              icon={<LuUpload size={14} />}
-              loading={!!uploading}
-              onClick={() => fileRef.current?.click()}
+        filters={
+          <>
+            <Segmented value={type} onChange={(v) => setType(String(v))} options={TYPES} />
+            <span className="text-xs tabular-nums text-slate-500">
+              {shown.length} ảnh · {fmtBytes(total)}
+            </span>
+          </>
+        }
+        actions={
+          <>
+            <Button icon={<LuRefreshCw size={14} />} loading={loading} onClick={load} aria-label="Làm mới" />
+            <Dropdown
+              trigger={["click"]}
+              disabled={!!uploading}
+              menu={{
+                items: UPLOAD_TYPES.map((t) => ({ key: t.value, label: `Ảnh ${t.label.toLowerCase()}` })),
+                onClick: ({ key }) => {
+                  setUploadType(key);
+                  fileRef.current?.click();
+                },
+              }}
             >
-              {uploading ? `Đang tải ${uploading.done}/${uploading.total}` : "Tải ảnh lên"}
-            </Button>
-<input
+              <Button type="primary" icon={<LuUpload size={14} />} loading={!!uploading}>
+                {uploading ? `Đang tải ${uploading.done}/${uploading.total}` : "Tải ảnh lên"} <LuChevronDown size={14} />
+              </Button>
+            </Dropdown>
+            <input
               ref={fileRef}
               type="file"
               accept="image/jpeg,image/png,image/webp,image/gif"
@@ -146,14 +160,10 @@ export function MediaLibrarySection({ store }: { store: StoreConfig }) {
                 upload(e.target.files);
                 e.target.value = "";
               }}
-            /></>}
+            />
+          </>
+        }
       />
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-          <Segmented size="small" value={type} onChange={(v) => setType(String(v))} options={TYPES} />
-          <span className="text-xs text-slate-500">
-            {shown.length} ảnh · {fmtBytes(total)}
-          </span>
-        </div>
 
         <div
           className={`mt-4 rounded-xl transition ${dragOver ? "bg-brand-50 ring-2 ring-dashed ring-brand-400" : ""}`}
@@ -166,7 +176,7 @@ export function MediaLibrarySection({ store }: { store: StoreConfig }) {
           onDrop={(e) => {
             e.preventDefault();
             setDragOver(false);
-            if (!uploading) upload(e.dataTransfer.files);
+            if (!uploading) upload(e.dataTransfer.files, UPLOAD_TYPES.some((t) => t.value === type) ? type : "general");
           }}
         >
           {!items ? (
@@ -174,7 +184,7 @@ export function MediaLibrarySection({ store }: { store: StoreConfig }) {
               <Spin />
             </div>
           ) : shown.length === 0 ? (
-            <Empty description="Chưa có ảnh nào — bấm “Tải ảnh lên” hoặc kéo thả ảnh vào đây" />
+            <Empty description="Chưa có ảnh nào — bấm “Tải ảnh lên” hoặc kéo thả ảnh vào đây (ảnh kéo thả lưu theo loại đang lọc)" />
           ) : (
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
               {shown.map((m) => {

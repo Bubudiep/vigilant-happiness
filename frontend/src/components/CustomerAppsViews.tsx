@@ -1,4 +1,4 @@
-import { App as AntApp, Button, Drawer, Modal, Dropdown, Form, Input, Popover, QRCode, Select, Switch, Table, Tag, Tooltip } from "antd";
+import { App as AntApp, Button, Drawer, Modal, Dropdown, Form, Grid, Input, Popover, QRCode, Select, Switch, Table, Tag, Tooltip } from "antd";
 import dayjs from "dayjs";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { LuEllipsis, LuExternalLink, LuLayoutTemplate, LuPencil, LuQrCode, LuRefreshCw, LuSearch, LuSmartphone, LuStore, LuTrash2 } from "react-icons/lu";
@@ -43,6 +43,7 @@ const templateName = (id: string) => demoTemplates.find((t) => t.id === id)?.nam
 export function CustomerAppsSection() {
   const { message } = AntApp.useApp();
   const navigate = useNavigate();
+  const wide = !!Grid.useBreakpoint().lg; // bảng đầy đủ + cuộn ngang từ lg; nhỏ hơn: ẩn cột phụ
   const [rows, setRows] = useState<AppRow[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [keyword, setKeyword] = useState("");
@@ -133,20 +134,18 @@ export function CustomerAppsSection() {
         }
         actions={<Button icon={<LuRefreshCw size={14} />} onClick={load} loading={loading} />}
       />
-      </div>
-
-      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <Table<AppRow>
           rowKey="id"
           size="middle"
           loading={loading && !rows}
           dataSource={shown}
           pagination={{ pageSize: 20, hideOnSinglePage: true }}
-          scroll={{ x: 1100 }}
+          scroll={{ x: wide ? 1110 : "max-content" }}
           columns={[
             {
               title: "App",
               key: "app",
+              width: wide ? 210 : undefined,
               render: (_, r) => (
                 <div className="flex items-center gap-2.5">
                   {r.logoUrl ? (
@@ -170,8 +169,9 @@ export function CustomerAppsSection() {
             },
             {
               title: "Khách sở hữu",
+              responsive: ["md"],
               key: "owner",
-              width: 200,
+              width: 160,
               render: (_, r) =>
                 r.customer ? (
                   <div className="text-xs">
@@ -184,8 +184,9 @@ export function CustomerAppsSection() {
             },
             {
               title: "Gói",
+              responsive: ["lg"],
               key: "plan",
-              width: 170,
+              width: 150,
               render: (_, r) => {
                 if (!r.subscription) return <span className="text-xs text-slate-400">—</span>;
                 const exp = dayjs(r.subscription.expiresAt);
@@ -204,8 +205,9 @@ export function CustomerAppsSection() {
             },
             {
               title: "Zalo",
+              responsive: ["lg"],
               key: "zalo",
-              width: 170,
+              width: 140,
               render: (_, r) => (
                 <div className="flex flex-col items-start gap-1 text-xs">
                   {r.zaloAppId ? (
@@ -223,8 +225,9 @@ export function CustomerAppsSection() {
             },
             {
               title: "Dữ liệu",
+              responsive: ["lg"],
               key: "count",
-              width: 110,
+              width: 100,
               render: (_, r) => (
                 <div className="text-xs text-slate-500">
                   {r._count?.products ?? 0} sản phẩm
@@ -235,21 +238,23 @@ export function CustomerAppsSection() {
             },
             {
               title: "Bật",
+              responsive: ["md"],
               key: "active",
-              width: 70,
+              width: 60,
               render: (_, r) => <Switch size="small" checked={r.active} onChange={(v) => toggleActive(r, v)} />,
             },
             {
               title: "Cập nhật",
+              responsive: ["lg"],
               key: "updated",
-              width: 110,
-              render: (_, r) => <span className="text-xs text-slate-500">{r.updatedAt ? dayjs(r.updatedAt).format("HH:mm DD/MM/YY") : "—"}</span>,
+              width: 120,
+              render: (_, r) => <span className="whitespace-nowrap text-xs tabular-nums text-slate-500">{r.updatedAt ? dayjs(r.updatedAt).format("HH:mm DD/MM/YY") : "—"}</span>,
             },
             {
               title: "",
               key: "actions",
-              fixed: "right",
-              width: 200,
+              fixed: wide ? "right" : undefined,
+              width: wide ? 150 : 110,
               render: (_, r) => (
                 <div className="flex items-center justify-end gap-1">
                   <Popover
@@ -265,8 +270,8 @@ export function CustomerAppsSection() {
                       <Button size="small" icon={<LuQrCode size={14} />} />
                     </Tooltip>
                   </Popover>
-                  <Button size="small" icon={<LuPencil size={13} />} onClick={() => setEditing(r)}>
-                    Cấu hình
+                  <Button size="small" icon={<LuPencil size={13} />} onClick={() => setEditing(r)} aria-label="Cấu hình">
+                    {wide && "Cấu hình"}
                   </Button>
                   <Dropdown
                     trigger={["click"]}

@@ -571,7 +571,7 @@ export function VoucherCodesDrawer({
               rowKey="id"
               size="small"
               dataSource={shown}
-              pagination={{ pageSize: 50, showSizeChanger: false }}
+              pagination={{ pageSize: 50, showSizeChanger: false, hideOnSinglePage: true }}
               rowSelection={{ selectedRowKeys: selected, onChange: (keys) => setSelected(keys as string[]) }}
               columns={[
                 { title: "Mã", dataIndex: "code", render: (c) => <span className="font-mono font-bold">{c}</span> },

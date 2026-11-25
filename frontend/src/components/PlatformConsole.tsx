@@ -1,4 +1,4 @@
-import { Button, Drawer, Spin, Tooltip } from "antd";
+import { Badge, Button, Drawer, Spin, Tabs, Tooltip } from "antd";
 import { lazy, Suspense, useEffect, useState } from "react";
 import {
   LuBookOpen,
@@ -244,24 +244,24 @@ export default function PlatformConsole({
             {active === "customers" && <CustomersPlatformSection />}
             {active === "inbox" && (
               <div className="space-y-3">
-                <div className="flex gap-1 rounded-xl bg-white p-1 shadow-sm ring-1 ring-slate-200 sm:w-fit">
-                  {([
+                {/* Cùng kiểu tab gạch chân với trang Gói dịch vụ */}
+                <Tabs
+                  activeKey={inboxTab}
+                  onChange={(k) => setSearchParams(k === "care" ? { tab: "care" } : {}, { replace: true })}
+                  className="[&_.ant-tabs-nav]:!mb-0"
+                  items={([
                     ["chat", "Hội thoại", summary?.unread],
                     ["care", "Chăm sóc", summary?.careDue],
-                  ] as const).map(([k, label, n]) => (
-                    <button
-                      key={k}
-                      type="button"
-                      onClick={() => setSearchParams(k === "care" ? { tab: "care" } : {}, { replace: true })}
-                      className={`flex items-center gap-2 rounded-lg px-4 py-1.5 text-sm font-semibold transition ${
-                        inboxTab === k ? "bg-brand-600 text-white" : "text-slate-600 hover:bg-slate-100"
-                      }`}
-                    >
-                      {label}
-                      {!!n && <span className={`rounded-full px-1.5 text-2xs ${inboxTab === k ? "bg-white/25" : "bg-rose-500 text-white"}`}>{n}</span>}
-                    </button>
-                  ))}
-                </div>
+                  ] as const).map(([k, label, n]) => ({
+                    key: k,
+                    label: (
+                      <span className="inline-flex items-center gap-1.5">
+                        {label}
+                        {!!n && <Badge count={n} size="small" />}
+                      </span>
+                    ),
+                  }))}
+                />
                 {inboxTab === "care" ? <CareSection onChanged={refreshSummary} /> : <InboxSection onUnreadChange={refreshSummary} />}
               </div>
             )}
