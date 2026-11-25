@@ -24,6 +24,7 @@ export interface ShellNavGroup<K extends string = string> {
 export function AdminShell<K extends string>({
   logo,
   groups,
+  paletteGroups,
   active,
   onSelect,
   collapsed,
@@ -37,6 +38,8 @@ export function AdminShell<K extends string>({
 }: {
   logo: ReactNode;
   groups: ShellNavGroup<K>[];
+  /** Danh sách cho Ctrl K (mặc định = groups) — VD liệt kê cả trang con của mục gộp */
+  paletteGroups?: ShellNavGroup<K>[];
   active: K;
   onSelect: (key: K) => void;
   collapsed: boolean;
@@ -196,7 +199,7 @@ export function AdminShell<K extends string>({
         </main>
       </div>
 
-      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} groups={groups} onSelect={onSelect} />
+      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} groups={paletteGroups ?? groups} onSelect={onSelect} />
     </div>
   );
 }

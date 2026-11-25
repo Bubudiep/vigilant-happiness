@@ -9,6 +9,7 @@ import {
   Select,
   Spin,
   Switch,
+  Tabs,
   Tooltip,
   App as AntApp,
 } from "antd";
@@ -113,6 +114,20 @@ const VALID_NAV_KEYS: StoreNavKey[] = [
   "oainbox",
   "settings",
 ];
+
+/**
+ * Mục gộp trên menu trái: một mục cha, các trang con chuyển bằng tab ngay đầu nội dung.
+ * Đường dẫn cũ (/admin/events, /admin/media…) vẫn dùng được — chỉ menu gọn lại.
+ */
+const NAV_TABS: Partial<Record<StoreNavKey, { label: string; tabs: StoreNavKey[] }>> = {
+  bookings: { label: "Lịch hẹn & Sự kiện", tabs: ["bookings", "events"] },
+  customers: { label: "Khách hàng", tabs: ["customers", "oainbox"] },
+  albums: { label: "Thư viện", tabs: ["albums", "media", "documents"] },
+  settings: { label: "Thiết lập & Hỗ trợ", tabs: ["settings", "support"] },
+};
+const NAV_PARENT = Object.fromEntries(
+  Object.entries(NAV_TABS).flatMap(([parent, g]) => g!.tabs.map((k) => [k, parent])),
+) as Partial<Record<StoreNavKey, StoreNavKey>>;
 
 
 /** Trạng thái tự lưu trên thanh trên cùng (thay cho nút "Lưu cấu hình"). */
@@ -504,12 +519,12 @@ export default function StoreConsole({
       alert: storeUnread > 0,
     },
     { key: "albums", label: "Album ảnh", icon: <LuImages size={17} /> },
-    { key: "media", label: "Thư viện ảnh", icon: <LuFolderOpen size={17} /> },
+    { key: "media", label: "Kho ảnh", icon: <LuFolderOpen size={17} /> },
     { key: "loyalty", label: "Hạng & Voucher", icon: <LuCrown size={17} />, badge: store.vouchers?.length },
     { key: "orders", label: "Đơn hàng", icon: <LuShoppingBag size={17} /> },
     { key: "reports", label: "Báo cáo", icon: <LuChartColumn size={17} /> },
     { key: "miniapp", label: "Miniapp", icon: <LuSmartphone size={17} /> },
-    { key: "documents", label: "Thư viện & Tài liệu", icon: <LuBookOpen size={17} />, badge: store.documents?.length },
+    { key: "documents", label: "Tài liệu", icon: <LuBookOpen size={17} />, badge: store.documents?.length },
     { key: "oainbox", label: "Tin nhắn OA", icon: <LuMessagesSquare size={17} /> },
     { key: "settings", label: "Thiết lập", icon: <LuSettings size={17} /> },
     { key: "support", label: "Hỗ trợ", icon: <LuLifeBuoy size={17} /> },
@@ -517,16 +532,25 @@ export default function StoreConsole({
 
   if (!store.loaded) for (const i of navItems) i.badge = i.alert ? i.badge : undefined;
 
-  // Nhóm menu trái (kiểu Jira): mỗi nhóm một tiêu đề nhỏ
-  const navOf = (...keys: StoreNavKey[]) => keys.map((k) => navItems.find((i) => i.key === k)!).filter(Boolean);
+  // Nhóm menu trái (kiểu Jira): mỗi nhóm một tiêu đề nhỏ; mục gộp (NAV_TABS) lấy nhãn cha, badge của trang con đầu
+  const itemOf = (k: StoreNavKey) => navItems.find((i) => i.key === k)!;
+  const navOf = (...keys: StoreNavKey[]) =>
+    keys.map((k) => (NAV_TABS[k] ? { ...itemOf(k), label: NAV_TABS[k]!.label } : itemOf(k))).filter(Boolean);
   const navGroups: ShellNavGroup<StoreNavKey>[] = [
-    { title: "Vận hành", items: navOf("overview", "pos", "orders", "bookings", "events") },
+    { title: "Vận hành", items: navOf("overview", "pos", "orders", "bookings") },
     { title: "Hàng hoá & nhân sự", items: navOf("products", "staff") },
-    { title: "Khách hàng", items: navOf("customers", "loyalty", "oainbox") },
-    { title: "Nội dung & Mini App", items: navOf("miniapp", "albums", "media", "documents") },
-    { title: "Phân tích & hệ thống", items: navOf("reports", "settings", "support") },
+    { title: "Khách hàng", items: navOf("customers", "loyalty") },
+    { title: "Mini App", items: navOf("miniapp", "albums") },
+    { title: "Hệ thống", items: navOf("reports", "settings") },
   ];
-  const activeLabel = navItems.find((i) => i.key === activeNav)?.label;
+  const navParent = NAV_PARENT[activeNav] ?? activeNav;
+  const navTabs = NAV_TABS[navParent];
+  const activeLabel = itemOf(activeNav)?.label;
+  // Tìm nhanh (Ctrl K) vẫn thấy từng trang con
+  const paletteGroups: ShellNavGroup<StoreNavKey>[] = navGroups.map((g) => ({
+    ...g,
+    items: g.items.flatMap((i) => (NAV_TABS[i.key] ? NAV_TABS[i.key]!.tabs.map(itemOf) : [i])),
+  }));
 
   const switcher = (variant: "top" | "sidebar", mini = false) => (
     <StoreSwitcher
@@ -553,7 +577,8 @@ export default function StoreConsole({
         </>
       }
       groups={navGroups}
-      active={activeNav}
+      paletteGroups={paletteGroups}
+      active={navParent}
       onSelect={setActiveNav}
       collapsed={sidebarCollapsed}
       onToggleCollapsed={() => setSidebarCollapsed((c) => !c)}
@@ -591,8 +616,32 @@ export default function StoreConsole({
           />
         </>
       }
-      breadcrumb={[store.name, activeLabel]}
+      breadcrumb={navTabs ? [store.name, navTabs.label, activeLabel] : [store.name, activeLabel]}
     >
+          {navTabs && (
+            <Tabs
+              activeKey={activeNav}
+              onChange={(k) => setActiveNav(k as StoreNavKey)}
+              className="!mb-3"
+              items={navTabs.tabs.map((k) => {
+                const it = itemOf(k);
+                return {
+                  key: k,
+                  label: (
+                    <span className="flex items-center gap-1.5 [&>svg]:h-3.5 [&>svg]:w-3.5">
+                      {it.icon}
+                      {it.label}
+                      {!!it.badge && (
+                        <span className={`rounded px-1 text-2xs font-semibold leading-[14px] tabular-nums ${it.alert ? "bg-red-600 text-white" : "bg-slate-100 text-slate-600"}`}>
+                          {it.badge}
+                        </span>
+                      )}
+                    </span>
+                  ),
+                };
+              })}
+            />
+          )}
 
           {!store.loaded ? (
             <div className="flex min-h-[50vh] items-center justify-center rounded-2xl border border-slate-200 bg-white">
