@@ -140,6 +140,9 @@ npx prisma migrate deploy && npm run prisma:seed
 # Frontend
 cd frontend && npm run dev | npm run build   # build = tsc -b && vite build
 
+# VPS (AlmaLinux): cập nhật cả backend + web quản trị — xem backend/deploy/README.md
+bash deploy.sh                 # --backend | --frontend | --no-pull; SKIP_BACKUP=1 bỏ sao lưu
+
 # Mini App
 cd demo-mini-app-store && npx tsc --noEmit -p . && npm run build
 NODE_OPTIONS=--use-system-ca npx -y zmp-cli deploy -p -m "mô tả"      # deploy bản Development (mặc định từ 20/11/2026)
