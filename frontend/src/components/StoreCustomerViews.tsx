@@ -1,6 +1,7 @@
-import { App as AntApp, Badge, Button, Drawer, Dropdown, Empty, Input, Modal, Progress, Select, Spin, Table, Tabs, Tag, Tooltip } from "antd";
+import { App as AntApp, Badge, Button, Drawer, Dropdown, Empty, Grid, Input, Modal, Progress, Select, Spin, Table, Tabs, Tag, Tooltip } from "antd";
 import dayjs from "dayjs";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   LuCalendarCheck,
   LuCalendarPlus,
@@ -121,6 +122,7 @@ export function CustomersSection({
   const [convs, setConvs] = useState<Record<string, Conversation>>({});
   const [profile, setProfile] = useState<{ id: string; tab: string } | null>(null);
   const [chatWith, setChatWith] = useState<StoreCustomerItem | null>(null);
+  const wide = !!Grid.useBreakpoint().lg;
   const [bookingFor, setBookingFor] = useState<StoreCustomerItem | null>(null);
   const [sendTo, setSendTo] = useState<DropPayload | null>(null);
   const [dragRow, setDragRow] = useState<string | null>(null);
@@ -388,11 +390,18 @@ export function CustomersSection({
         }}
       />
 
+      {/* Màn rộng: khung chat mở luôn bên trái hồ sơ khách */}
+      {wide && profileCustomer && !chatWith && (
+        <ProfileChatPanel store={store} customer={profileCustomer} right={PROFILE_W} onClose={() => setProfile(null)} onRead={refresh} />
+      )}
+
       {/* Hồ sơ chi tiết (phụ) */}
       <Drawer
         open={!!profileCustomer}
         onClose={() => setProfile(null)}
-        size={420}
+        size={PROFILE_W}
+        // Không giữ focus trong Drawer — để gõ được ở khung chat bên cạnh
+        focusable={{ trap: !wide }}
         title="Hồ sơ khách hàng"
         styles={{ body: { padding: 0 } }}
       >
@@ -406,13 +415,63 @@ export function CustomersSection({
             }}
             albumsVersion={albumsVersion}
             onOpenAlbum={setAlbumOpen}
-            onMessage={() => setChatWith(profileCustomer)}
+            onMessage={() => (wide ? document.getElementById("profile-chat-input")?.focus() : setChatWith(profileCustomer))}
             onBooking={() => setBookingFor(profileCustomer)}
             onSendPhotos={() => setSendTo({ customer: profileCustomer, files: [], links: [] })}
           />
         )}
       </Drawer>
     </div>
+  );
+}
+
+// ───────────────────────── Khung chat cạnh hồ sơ khách ─────────────────────────
+
+const PROFILE_W = 420;
+
+/** Khung chat cố định bên trái Drawer hồ sơ (chỉ màn ≥ lg). Nằm trên lớp mờ của Drawer nên bấm vào không đóng hồ sơ. */
+function ProfileChatPanel({
+  store,
+  customer,
+  right,
+  onClose,
+  onRead,
+}: {
+  store: StoreConfig;
+  customer: StoreCustomerItem;
+  right: number;
+  onClose: () => void;
+  onRead: () => void;
+}) {
+  return createPortal(
+    <div
+      className="fixed bottom-0 top-0 z-[1001] flex w-[min(460px,calc(100vw-420px-24px))] flex-col border-r border-slate-200 bg-white shadow-xl"
+      style={{ right }}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div className="flex items-center gap-2.5 border-b border-slate-100 px-4 py-3">
+        <Avatar c={customer} color={tierColorOf(store, customer.tier)} size={32} />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5">
+            <span className="truncate text-sm font-semibold text-slate-900">{customer.name}</span>
+            {customer.zaloUserId && <Tag color="blue" className="!m-0">Zalo</Tag>}
+          </div>
+          <div className="text-xs tabular-nums text-slate-500">{customer.phone}</div>
+        </div>
+        <Tooltip title="Đóng hồ sơ & chat">
+          <Button type="text" size="small" icon={<LuX size={15} />} onClick={onClose} />
+        </Tooltip>
+      </div>
+      {!customer.zaloUserId && (
+        <div className="mx-3 mt-3 rounded-lg bg-amber-50 px-2.5 py-1.5 text-xs text-amber-800">
+          Khách chưa đăng nhập Mini App — tin vẫn được lưu, khách thấy khi đăng nhập Zalo (khớp theo SĐT).
+        </div>
+      )}
+      <div className="min-h-0 flex-1 p-3">
+        <CustomerThread key={customer.id} storeId={store.id} customerId={customer.id} refreshKey="" fill onRead={onRead} />
+      </div>
+    </div>,
+    document.body,
   );
 }
 

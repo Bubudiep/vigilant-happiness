@@ -3,7 +3,6 @@ import {
   Button,
   Form,
   Input,
-  InputNumber,
   Modal,
   Popconfirm,
   Popover,
@@ -14,6 +13,7 @@ import {
   Empty,
   Table,
   Tag,
+  Tooltip,
   App as AntApp,
 } from "antd";
 import dayjs from "dayjs";
@@ -34,10 +34,12 @@ import {
   LuTrash2,
   LuTrendingUp,
   LuUsers,
-  LuWarehouse,
 } from "react-icons/lu";
 import { siteConfig } from "../data/site";
+import { StorePlanCard } from "./StorePlanCard";
 import {
+  isService,
+  LOW_STOCK,
   StoreBookingItem,
   StoreConfig,
   StoreDocumentItem,
@@ -57,7 +59,7 @@ export type StoreNavKey =
   | "loyalty"
   | "orders"
   | "miniapp"
-  | "inventory"
+  | "staff"
   | "documents"
   | "support"
   | "oainbox"
@@ -109,6 +111,22 @@ export function BookingCreateModal({
   staffOptions?: string[];
 }) {
   const [form] = Form.useForm();
+  const serviceName = Form.useWatch("serviceName", form) as string | undefined;
+  // Gợi ý dịch vụ: ưu tiên mặt hàng loại Dịch vụ
+  const services = store.products.filter(isService);
+  const quickServices = (services.length ? services : store.products).slice(0, 4);
+  // Gợi ý người phụ trách: nhân viên đang làm (ai làm được dịch vụ đang chọn lên đầu) + tên từng nhận lịch
+  const staffChoices = (() => {
+    const active = (store.staff ?? []).filter((m) => m.status === "active");
+    const can = (n: string) => !!serviceName && !!active.find((m) => m.name === n)?.services.includes(serviceName);
+    const names = [...new Set([...active.map((m) => m.name), ...staffOptions])];
+    return names
+      .sort((a, b) => Number(can(b)) - Number(can(a)))
+      .map((n) => {
+        const m = active.find((x) => x.name === n);
+        return { value: n, label: m?.position ? `${n} · ${m.position}${can(n) ? " ✓" : ""}` : n };
+      });
+  })();
 
   useEffect(() => {
     if (!open) return;
@@ -165,7 +183,7 @@ export function BookingCreateModal({
           date: dayjs().format("YYYY-MM-DD"),
           timeSlot: "10:00",
           status: "confirmed",
-          serviceName: store.products[0]?.name || "Tư vấn dịch vụ",
+          serviceName: quickServices[0]?.name || "Tư vấn dịch vụ",
         }}
       >
         {store.customers.length > 0 && !defaults?.customerName && (
@@ -196,9 +214,9 @@ export function BookingCreateModal({
           <Input placeholder="VD: Chăm sóc da chuyên sâu, Tư vấn sản phẩm..." />
         </Form.Item>
 
-        {store.products.length > 0 && (
+        {quickServices.length > 0 && (
           <div className="-mt-2 mb-3 flex flex-wrap gap-1.5">
-            {store.products.slice(0, 4).map((p) => (
+            {quickServices.map((p) => (
               <button
                 key={p.id}
                 type="button"
@@ -224,7 +242,7 @@ export function BookingCreateModal({
           <Form.Item name="staffName" label="Nhân viên phụ trách">
             <AutoComplete
               placeholder="VD: Lan Anh"
-              options={staffOptions.map((n) => ({ value: n }))}
+              options={staffChoices}
               filterOption={(input, opt) => String(opt?.value ?? "").toLowerCase().includes(input.toLowerCase())}
             />
           </Form.Item>
@@ -244,6 +262,19 @@ export function BookingCreateModal({
   );
 }
 
+/** Cột của bảng lịch hẹn ở Tổng quan */
+const BOARD_DAYS = [
+  { offset: -1, label: "Hôm qua" },
+  { offset: 0, label: "Hôm nay" },
+  { offset: 1, label: "Ngày mai" },
+];
+const BOOKING_STATUS_COLOR: Record<StoreBookingItem["status"], string> = {
+  pending: "orange",
+  confirmed: "blue",
+  completed: "green",
+  cancelled: "red",
+};
+
 export function OverviewSection({
   store,
   onNavigate,
@@ -254,7 +285,8 @@ export function OverviewSection({
   updateCurrentStore: (updater: (s: StoreConfig) => StoreConfig) => void;
 }) {
   const { message } = AntApp.useApp();
-  const [bookingModalOpen, setBookingModalOpen] = useState(false);
+  // Mở form đặt lịch; date = ngày điền sẵn (bấm "+" ở cột Hôm nay / Ngày mai)
+  const [bookingModal, setBookingModal] = useState<{ open: boolean; date?: string }>({ open: false });
 
   const orders = store.orders ?? [];
   const bookings = store.bookings ?? [];
@@ -262,7 +294,8 @@ export function OverviewSection({
   const todayBookings = bookings.filter((b) => b.date === todayStr);
   const pendingBookings = bookings.filter((b) => b.status === "pending").length;
   const totalRevenue = store.customers.reduce((sum, c) => sum + c.totalSpent, 0);
-  const lowStockCount = store.products.filter((p) => (p.stock ?? 25) <= 10).length;
+  const lowStockCount = store.products.filter((p) => !isService(p) && (p.stock ?? 0) <= LOW_STOCK).length;
+  const serviceCount = store.products.filter(isService).length;
 
   const handleCreateBooking = (item: StoreBookingItem) => {
     updateCurrentStore((s) => ({ ...s, bookings: [item, ...(s.bookings ?? [])] }));
@@ -299,16 +332,24 @@ export function OverviewSection({
           hint={`${orders.filter((o) => o.status === "pending").length} đơn chờ xác nhận`}
         />
         <StatCard
-          label="Sản phẩm & Kho"
+          label="Sản phẩm & Dịch vụ"
           icon={<LuPackage className="text-amber-600" size={18} />}
           value={store.products.length.toLocaleString("vi-VN")}
-          hint={lowStockCount > 0 ? `${lowStockCount} sản phẩm sắp hết hàng` : "Tồn kho ổn định"}
+          hint={
+            lowStockCount > 0
+              ? `${lowStockCount} sản phẩm sắp hết hàng`
+              : serviceCount
+                ? `${serviceCount} dịch vụ · tồn kho ổn định`
+                : "Tồn kho ổn định"
+          }
         />
       </StatGrid>
 
+      <StorePlanCard storeId={store.id} refreshKey={`${store.products.length}-${store.staff?.length ?? 0}`} onSupport={() => onNavigate("support")} />
+
       {/* Widget Lịch hẹn & Đặt lịch cho khách ngay trên trang Tổng quan */}
       <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
-        <div className={`${bookings.length ? "mb-3.5" : ""} flex flex-wrap items-center justify-between gap-2`}>
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <h3 className="flex items-center gap-2 text-base font-semibold text-slate-900">
               <LuCalendarCheck size={17} className="text-brand-600" /> Lịch hẹn sắp tới & Đặt lịch cho khách
@@ -318,7 +359,7 @@ export function OverviewSection({
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <Button type="primary" size="small" icon={<LuPlus size={14} />} onClick={() => setBookingModalOpen(true)}>
+            <Button type="primary" size="small" icon={<LuPlus size={14} />} onClick={() => setBookingModal({ open: true })}>
               Đặt lịch cho khách
             </Button>
             <Button type="link" size="small" onClick={() => onNavigate("bookings")}>
@@ -327,40 +368,70 @@ export function OverviewSection({
           </div>
         </div>
 
-        {bookings.length > 0 && <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {bookings.slice(0, 6).map((b) => (
-            <div key={b.id} className="flex flex-col justify-between rounded-xl border border-slate-200/80 bg-slate-50/70 p-3.5">
-              <div>
-                <div className="flex items-center justify-between gap-2">
-                  <span className="inline-flex items-center gap-1 rounded-md bg-brand-600/10 px-2 py-0.5 text-xs font-bold text-brand-700">
-                    <LuClock size={12} /> {b.timeSlot} · {dayjs(b.date).format("DD/MM")}
-                  </span>
-                  <span className="font-mono text-xs font-semibold text-slate-400">{b.code}</span>
+        <div className="mt-3.5 grid gap-3 md:grid-cols-3">
+          {BOARD_DAYS.map(({ offset, label }) => {
+            const day = dayjs().add(offset, "day");
+            const key = day.format("YYYY-MM-DD");
+            const list = bookings.filter((b) => b.date === key).sort((x, y) => x.timeSlot.localeCompare(y.timeSlot));
+            const active = list.filter((b) => b.status !== "cancelled").length;
+            return (
+              <div key={key} className={`flex min-w-0 flex-col rounded-xl border ${offset === 0 ? "border-brand-200 bg-brand-50/40" : "border-slate-200 bg-slate-50/70"}`}>
+                <div className="flex items-center justify-between gap-2 border-b border-slate-200/70 px-3 py-2">
+                  <div className="min-w-0">
+                    <span className={`text-sm font-semibold ${offset === 0 ? "text-brand-700" : "text-slate-800"}`}>{label}</span>
+                    <span className="ml-1.5 text-xs text-slate-500">
+                      {WEEKDAY[day.day()]} {day.format("DD/MM")}
+                    </span>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1">
+                    <span className="rounded-full bg-white px-1.5 text-xs font-semibold tabular-nums text-slate-600 ring-1 ring-slate-200">{active}</span>
+                    {offset >= 0 && (
+                      <Tooltip title={`Đặt lịch ${label.toLowerCase()}`}>
+                        <Button size="small" type="text" icon={<LuPlus size={14} />} onClick={() => setBookingModal({ open: true, date: key })} />
+                      </Tooltip>
+                    )}
+                  </div>
                 </div>
-                <div className="mt-2 text-xs font-bold text-slate-900">
-                  {b.customerName} <span className="font-normal text-slate-500">· {b.phone}</span>
+                <div className="flex max-h-[420px] flex-col gap-2 overflow-y-auto p-2">
+                  {list.length === 0 && <div className="py-6 text-center text-xs text-slate-400">Không có lịch hẹn</div>}
+                  {list.map((b) => (
+                    <div
+                      key={b.id}
+                      className={`rounded-lg border border-slate-200 bg-white p-2.5 ${b.status === "cancelled" ? "opacity-60" : ""}`}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="inline-flex items-center gap-1 text-xs font-bold tabular-nums text-brand-700">
+                          <LuClock size={12} /> {b.timeSlot}
+                        </span>
+                        <Select
+                          size="small"
+                          variant="borderless"
+                          value={b.status}
+                          popupMatchSelectWidth={false}
+                          className="-mr-2"
+                          onChange={(next) => handleQuickStatus(b.id, next)}
+                          options={BOOKING_STATUS_OPTIONS.map((o) => ({
+                            value: o.value,
+                            label: (
+                              <Tag className="!m-0" color={BOOKING_STATUS_COLOR[o.value as StoreBookingItem["status"]]}>
+                                {o.label}
+                              </Tag>
+                            ),
+                          }))}
+                        />
+                      </div>
+                      <div className={`mt-1 truncate text-xs font-semibold text-slate-900 ${b.status === "cancelled" ? "line-through" : ""}`}>
+                        {b.customerName} <span className="font-normal text-slate-500">· {b.phone}</span>
+                      </div>
+                      <div className="truncate text-xs text-slate-600">{b.serviceName}</div>
+                      <div className="truncate text-xs text-slate-400">{b.staffName ? `Phụ trách: ${b.staffName}` : "Chưa phân công"}</div>
+                    </div>
+                  ))}
                 </div>
-                <div className="mt-0.5 truncate text-xs text-slate-600">{b.serviceName}</div>
-                {b.staffName && <div className="mt-0.5 text-xs text-slate-400">Phụ trách: {b.staffName}</div>}
               </div>
-              <div className="mt-3 flex items-center justify-between gap-2 border-t border-slate-200/70 pt-2.5">
-                <Tag
-                  className="m-0 text-xs"
-                  color={b.status === "completed" ? "green" : b.status === "confirmed" ? "blue" : b.status === "pending" ? "orange" : "red"}
-                >
-                  {BOOKING_STATUS_OPTIONS.find((o) => o.value === b.status)?.label}
-                </Tag>
-                <Select
-                  size="small"
-                  value={b.status}
-                  style={{ width: 122 }}
-                  onChange={(next) => handleQuickStatus(b.id, next)}
-                  options={BOOKING_STATUS_OPTIONS}
-                />
-              </div>
-            </div>
-          ))}
-        </div>}
+            );
+          })}
+        </div>
       </div>
 
       <div className="grid gap-5 lg:grid-cols-2">
@@ -429,8 +500,9 @@ export function OverviewSection({
       </div>
 
       <BookingCreateModal
-        open={bookingModalOpen}
-        onClose={() => setBookingModalOpen(false)}
+        open={bookingModal.open}
+        defaults={{ date: bookingModal.date }}
+        onClose={() => setBookingModal({ open: false })}
         store={store}
         onCreate={handleCreateBooking}
       />
@@ -474,9 +546,12 @@ export function BookingsSection({
     (b) => dayKeys.includes(b.date) && (statusFilter === "all" || b.status === statusFilter) && !(hideCancelled && b.status === "cancelled"),
   );
   const staffNames = Array.from(
-    new Set([...bookings.map((b) => b.staffName?.trim()).filter((n): n is string => !!n)]),
+    new Set([
+      ...(store.staff ?? []).filter((m) => m.status === "active").map((m) => m.name),
+      ...bookings.map((b) => b.staffName?.trim()).filter((n): n is string => !!n),
+    ]),
   ).sort((x, y) => x.localeCompare(y, "vi"));
-  // Mỗi hàng = 1 nhân viên đã từng nhận lịch (để đặt lịch mới vào ô trống) + hàng "Chưa phân công"
+  // Mỗi hàng = 1 nhân viên đang làm (trang Nhân sự) hoặc đã từng nhận lịch (để đặt lịch mới vào ô trống) + hàng "Chưa phân công"
   const rows = [...staffNames, UNASSIGNED];
 
   const cell = (staff: string, date: string) =>
@@ -935,76 +1010,6 @@ export function EventsSection({
           </Button>
         </Form>
       </Modal>
-    </div>
-  );
-}
-
-export function InventorySection({
-  store,
-  updateCurrentStore,
-}: {
-  store: StoreConfig;
-  updateCurrentStore: (updater: (s: StoreConfig) => StoreConfig) => void;
-}) {
-  const { message } = AntApp.useApp();
-
-  const updateStock = (productId: string, stock: number) => {
-    updateCurrentStore((s) => ({
-      ...s,
-      products: s.products.map((p) => (p.id === productId ? { ...p, stock } : p)),
-    }));
-    message.success("Đã cập nhật tồn kho");
-  };
-
-  return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
-      <div className="mb-4 flex items-center justify-between">
-        <div>
-          <h3 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <LuWarehouse size={18} className="text-brand-600" /> Quản lý Kho hàng
-          </h3>
-          <p className="text-xs text-slate-500">Điều chỉnh số lượng tồn kho và theo dõi sản phẩm sắp hết.</p>
-        </div>
-      </div>
-
-      <Table
-        rowKey="id"
-        size="small"
-        dataSource={store.products}
-        pagination={{ pageSize: 8, hideOnSinglePage: true }}
-        columns={[
-          {
-            title: "SKU / Sản phẩm",
-            render: (_, r) => (
-              <div>
-                <div className="font-semibold text-slate-900">{r.name}</div>
-                <div className="text-xs text-slate-500">SKU: {r.sku || r.id.toUpperCase()} · {r.category}</div>
-              </div>
-            ),
-          },
-          {
-            title: "Tồn kho",
-            width: 150,
-            render: (_, r) => (
-              <InputNumber
-                min={0}
-                size="small"
-                value={r.stock ?? 25}
-                onChange={(val) => updateStock(r.id, Number(val ?? 0))}
-              />
-            ),
-          },
-          {
-            title: "Tình trạng",
-            render: (_, r) => {
-              const qty = r.stock ?? 25;
-              if (qty === 0) return <Tag color="red">Hết hàng</Tag>;
-              if (qty <= 10) return <Tag color="orange">Sắp hết ({qty})</Tag>;
-              return <Tag color="green">Còn hàng</Tag>;
-            },
-          },
-        ]}
-      />
     </div>
   );
 }

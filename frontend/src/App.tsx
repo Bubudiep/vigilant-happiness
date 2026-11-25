@@ -15,6 +15,7 @@ function useAdminUiClass() {
   }, [pathname]);
 }
 
+import { AdminTheme } from "./components/ui/AdminTheme";
 const StoreConsole = lazy(() => import("./components/StoreConsole"));
 const PlatformConsole = lazy(() => import("./components/PlatformConsole"));
 
@@ -82,10 +83,14 @@ function ProtectedRoute({
       {(account) =>
         area === "home" ? (
           <Navigate to={account.isAdmin ? "/controller" : "/admin/overview"} replace />
-        ) : area === "controller" ? (
-          <PlatformConsole user={authUser} account={account} onLogout={onLogout} />
         ) : (
-          <StoreConsole user={authUser} account={account} onLogout={onLogout} />
+          <AdminTheme>
+            {area === "controller" ? (
+              <PlatformConsole user={authUser} account={account} onLogout={onLogout} />
+            ) : (
+              <StoreConsole user={authUser} account={account} onLogout={onLogout} />
+            )}
+          </AdminTheme>
         )
       }
     </AccountGate>

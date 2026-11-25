@@ -11,6 +11,7 @@ import {
   serializeDocument,
   serializeEvent,
   serializeOrder,
+  serializeStaff,
   serializeTier,
   serializeVoucher,
   SPECS,
@@ -18,7 +19,7 @@ import {
 import { markVoucherUsed, quoteVoucher, reclaimVoucher, releaseVoucher } from "./voucher-redeem";
 import { StoresService } from "./stores.service";
 
-export const COLLECTIONS = ["bookings", "events", "documents", "member-tiers", "vouchers", "orders"] as const;
+export const COLLECTIONS = ["bookings", "events", "documents", "member-tiers", "vouchers", "orders", "staff"] as const;
 export type Collection = (typeof COLLECTIONS)[number];
 
 /**
@@ -34,13 +35,14 @@ export class StoreDataService {
 
   /** Toàn bộ dữ liệu vận hành của store, đúng dạng web quản trị. */
   async loadAll(storeId: string) {
-    const [bookings, events, documents, memberTiers, vouchers, orders] = await Promise.all([
+    const [bookings, events, documents, memberTiers, vouchers, orders, staff] = await Promise.all([
       this.prisma.storeBooking.findMany({ where: { storeId }, orderBy: [{ bookingDate: "desc" }, { createdAt: "desc" }], take: 500 }),
       this.prisma.storeEvent.findMany({ where: { storeId }, orderBy: { startDate: "desc" } }),
       this.prisma.storeDocument.findMany({ where: { storeId }, orderBy: [{ sortOrder: "asc" }, { updatedAt: "desc" }] }),
       this.prisma.storeMemberTier.findMany({ where: { storeId }, orderBy: [{ sortOrder: "asc" }, { minSpent: "asc" }] }),
       this.prisma.storeVoucher.findMany({ where: { storeId }, orderBy: { createdAt: "desc" } }),
       this.prisma.storeOrder.findMany({ where: { storeId }, include: { items: true }, orderBy: { createdAt: "desc" }, take: 500 }),
+      this.prisma.storeStaff.findMany({ where: { storeId }, orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] }),
     ]);
     const codeStats = await this.codeStats(storeId);
     return {
@@ -50,6 +52,7 @@ export class StoreDataService {
       memberTiers: memberTiers.map(serializeTier),
       vouchers: vouchers.map((v) => ({ ...serializeVoucher(v), ...(codeStats.get(v.id) ?? { codeCount: 0, codeUsed: 0 }) })),
       orders: orders.map(serializeOrder),
+      staff: staff.map(serializeStaff),
     };
   }
 
@@ -100,6 +103,14 @@ export class StoreDataService {
         }
         case "orders":
           return this.createOrder(storeId, body as AdminOrderInput);
+        case "staff": {
+          const d = pickFields(body, SPECS.staff, ["name"]);
+          if (d.attendanceCode === "") d.attendanceCode = null;
+          if (d.phone) d.phone = normalizeVnPhone(String(d.phone)) ?? d.phone;
+          return serializeStaff(
+            await this.prisma.storeStaff.create({ data: { ...(d as Prisma.StoreStaffUncheckedCreateInput), storeId } }),
+          );
+        }
       }
     } catch (e) {
       throw this.mapError(e);
@@ -137,6 +148,14 @@ export class StoreDataService {
         }
         case "orders":
           return this.updateOrder(storeId, id, pickFields(body, SPECS.orders));
+        case "staff": {
+          const d = pickFields(body, SPECS.staff);
+          if (d.attendanceCode === "") d.attendanceCode = null;
+          if (d.phone) d.phone = normalizeVnPhone(String(d.phone)) ?? d.phone;
+          if (d.name === "") throw new BadRequestException("Thiếu tên nhân viên");
+          await this.mustUpdate(this.prisma.storeStaff.updateMany({ where: { id, storeId }, data: d as Prisma.StoreStaffUpdateManyMutationInput }));
+          return serializeStaff(await this.prisma.storeStaff.findUniqueOrThrow({ where: { id } }));
+        }
       }
     } catch (e) {
       throw this.mapError(e);
@@ -157,7 +176,9 @@ export class StoreDataService {
               ? await this.prisma.storeMemberTier.deleteMany({ where })
               : col === "vouchers"
                 ? await this.prisma.storeVoucher.deleteMany({ where })
-                : await this.prisma.storeOrder.deleteMany({ where });
+                : col === "staff"
+                  ? await this.prisma.storeStaff.deleteMany({ where })
+                  : await this.prisma.storeOrder.deleteMany({ where });
     if (!res.count) throw new NotFoundException("Không tìm thấy dữ liệu");
     return { id, deleted: true };
   }

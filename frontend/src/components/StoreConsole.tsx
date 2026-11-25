@@ -5,13 +5,11 @@ import {
   Input,
   InputNumber,
   Modal,
-  Popconfirm,
   QRCode,
   Result,
   Select,
   Spin,
   Switch,
-  Table,
   Tooltip,
   App as AntApp,
 } from "antd";
@@ -36,11 +34,10 @@ import {
   LuSparkles,
   LuSmartphone,
   LuStore,
-  LuTrash2,
   LuUsers,
   LuFolderOpen,
   LuImages,
-  LuWarehouse,
+  LuIdCard,
   LuMessagesSquare,
   LuSettings,
 } from "react-icons/lu";
@@ -49,18 +46,16 @@ import { ApiError } from "../data/platform-api";
 import { getZaloStoreUrl } from "../data/site";
 import {
   addStoreCustomer,
-  addStoreProduct,
   deleteStoreCustomer,
-  deleteStoreProduct,
   fetchStoreDetail,
   fetchStores,
   saveStoreConfig,
   StoreConfig,
+  isService,
+  LOW_STOCK,
   StoreCustomerItem,
-  StoreProductItem,
   StoreWithOwner,
   updateStoreCustomer,
-  updateStoreProduct,
 } from "../data/store-api";
 import { LAST_STORE_KEY } from "../data/store-delete";
 import { autosaveDecision, configKey, syncStoreChanges } from "../data/store-sync";
@@ -81,6 +76,8 @@ const AlbumsSection = lazy(() => named(import("./AlbumViews"), "AlbumsSection"))
 const MediaLibrarySection = lazy(() => named(import("./MediaLibraryViews"), "MediaLibrarySection"));
 const CustomersSection = lazy(() => named(import("./StoreCustomerViews"), "CustomersSection"));
 const OrdersSection = lazy(() => named(import("./StoreOrderViews"), "OrdersSection"));
+const ProductsSection = lazy(() => named(import("./StoreProductViews"), "ProductsSection"));
+const StaffSection = lazy(() => named(import("./StoreStaffViews"), "StaffSection"));
 
 const SectionLoading = () => (
   <div className="flex min-h-[40vh] items-center justify-center">
@@ -92,12 +89,10 @@ import {
   BookingsSection,
   DocumentsSection,
   EventsSection,
-  InventorySection,
   OverviewSection,
   StoreNavKey,
   SupportSection,
 } from "./StoreOperationsViews";
-import { PageHeader } from "./ui";
 
 const VALID_NAV_KEYS: StoreNavKey[] = [
   "overview",
@@ -110,7 +105,7 @@ const VALID_NAV_KEYS: StoreNavKey[] = [
   "loyalty",
   "orders",
   "miniapp",
-  "inventory",
+  "staff",
   "documents",
   "support",
   "oainbox",
@@ -159,6 +154,7 @@ export default function StoreConsole({
     const tab = searchParams.get("tab");
     const legacy = LEGACY_PLATFORM_SECTIONS[section === "customers" && tab ? tab : (section ?? "")];
     if (legacy) navigate(isAdmin ? `/controller/${legacy}` : "/admin/overview", { replace: true });
+    else if (section === "inventory") navigate("/admin/products", { replace: true }); // trang Kho đã gộp vào Sản phẩm
     else if (section && !VALID_NAV_KEYS.includes(section as StoreNavKey)) navigate("/admin/overview", { replace: true });
   }, [section, searchParams, isAdmin, navigate]);
 
@@ -182,10 +178,8 @@ export default function StoreConsole({
 
   // Modals
   const [publishModalOpen, setPublishModalOpen] = useState(false);
-  const [productModal, setProductModal] = useState<{ open: boolean; item?: StoreProductItem }>({ open: false });
   const [customerModal, setCustomerModal] = useState<{ open: boolean; item?: StoreCustomerItem }>({ open: false });
 
-  const [productForm] = Form.useForm();
   const [customerForm] = Form.useForm();
 
   const loadStores = async () => {
@@ -257,7 +251,7 @@ export default function StoreConsole({
 
   /**
    * Cập nhật giao diện ngay, rồi đẩy thay đổi của Lịch hẹn / Sự kiện / Tài liệu / Hạng / Voucher /
-   * Đơn hàng / Kho lên máy chủ. Thông tin store & thiết kế tự lưu (xem configKey).
+   * Đơn hàng / Nhân sự lên máy chủ. Thông tin store & thiết kế tự lưu (xem configKey).
    * Các lần đồng bộ chạy lần lượt (hàng đợi) để bản ghi vừa tạo được sửa đúng id thật.
    * Lỗi thì báo và tải lại dữ liệu thật của store.
    */
@@ -370,55 +364,6 @@ export default function StoreConsole({
     setSelectedId(created.id);
     setWizardOpen(false);
     navigate("/admin/miniapp");
-  };
-
-  // --- CRUD Sản phẩm (lưu thẳng lên máy chủ) ---
-  const openProductModal = (item?: StoreProductItem) => {
-    setProductModal({ open: true, item });
-    productForm.setFieldsValue(
-      item ?? { name: "", category: "Chung", price: 0, salePrice: undefined, unit: "", tag: "", active: true },
-    );
-  };
-
-  const saveProduct = async (values: Omit<StoreProductItem, "id">) => {
-    if (!store) return;
-    const sid = store.id;
-    try {
-      if (productModal.item) {
-        const saved = await updateStoreProduct(store.id, productModal.item.id, values);
-        patchStore(sid, (s) => ({ ...s, products: s.products.map((p) => (p.id === saved.id ? saved : p)) }));
-      } else {
-        const saved = await addStoreProduct(store.id, values);
-        patchStore(sid, (s) => ({ ...s, products: [saved, ...s.products] }));
-      }
-      setProductModal({ open: false });
-      message.success(productModal.item ? "Đã cập nhật sản phẩm" : "Đã thêm sản phẩm mới");
-    } catch (e) {
-      message.error(errMsg(e));
-    }
-  };
-
-  const toggleProduct = async (id: string, active: boolean) => {
-    if (!store) return;
-    const sid = store.id;
-    try {
-      const saved = await updateStoreProduct(store.id, id, { active });
-      patchStore(sid, (s) => ({ ...s, products: s.products.map((p) => (p.id === id ? saved : p)) }));
-    } catch (e) {
-      message.error(errMsg(e));
-    }
-  };
-
-  const deleteProduct = async (id: string) => {
-    if (!store) return;
-    const sid = store.id;
-    try {
-      await deleteStoreProduct(store.id, id);
-      patchStore(sid, (s) => ({ ...s, products: s.products.filter((p) => p.id !== id) }));
-      message.success("Đã xoá sản phẩm");
-    } catch (e) {
-      message.error(errMsg(e));
-    }
   };
 
   // --- CRUD Khách hàng (lưu thẳng lên máy chủ) ---
@@ -541,11 +486,14 @@ export default function StoreConsole({
   // QR mở Mini App của đúng gian hàng này (thiết kế + sản phẩm của shop), không phải mẫu minh hoạ
   const zaloPreviewUrl = getZaloStoreUrl(store.slug);
 
+  // Số sản phẩm (không tính dịch vụ) sắp hết / hết hàng — hiện ở menu "Sản phẩm & Dịch vụ"
+  const lowStock = store.products.filter((p) => !isService(p) && (p.stock ?? 0) <= LOW_STOCK).length;
   const navItems: { key: StoreNavKey; label: string; icon: React.ReactNode; badge?: number; alert?: boolean }[] = [
     { key: "overview", label: "Tổng quan", icon: <LuLayoutDashboard size={17} /> },
     { key: "bookings", label: "Lịch hẹn", icon: <LuCalendarCheck size={17} />, badge: store.bookings?.length },
     { key: "events", label: "Sự kiện", icon: <LuCalendarDays size={17} /> },
-    { key: "products", label: "Sản phẩm", icon: <LuPackage size={17} />, badge: store.products.length },
+    { key: "products", label: "Sản phẩm & Dịch vụ", icon: <LuPackage size={17} />, badge: lowStock || undefined },
+    { key: "staff", label: "Nhân sự", icon: <LuIdCard size={17} /> },
     {
       key: "customers",
       label: "Khách hàng",
@@ -558,7 +506,6 @@ export default function StoreConsole({
     { key: "loyalty", label: "Hạng & Voucher", icon: <LuCrown size={17} />, badge: store.vouchers?.length },
     { key: "orders", label: "Đơn hàng", icon: <LuShoppingBag size={17} /> },
     { key: "miniapp", label: "Miniapp", icon: <LuSmartphone size={17} /> },
-    { key: "inventory", label: "Kho", icon: <LuWarehouse size={17} /> },
     { key: "documents", label: "Thư viện & Tài liệu", icon: <LuBookOpen size={17} />, badge: store.documents?.length },
     { key: "oainbox", label: "Tin nhắn OA", icon: <LuMessagesSquare size={17} /> },
     { key: "settings", label: "Thiết lập", icon: <LuSettings size={17} /> },
@@ -741,9 +688,7 @@ export default function StoreConsole({
             <OrdersSection store={store} updateCurrentStore={updateCurrentStore} applyLocal={applyLocal} />
           )}
 
-          {activeNav === "inventory" && (
-            <InventorySection store={store} updateCurrentStore={updateCurrentStore} />
-          )}
+          {activeNav === "staff" && <StaffSection key={store.id} store={store} updateCurrentStore={updateCurrentStore} applyLocal={applyLocal} />}
 
           {activeNav === "documents" && (
             <DocumentsSection store={store} updateCurrentStore={updateCurrentStore} />
@@ -753,87 +698,7 @@ export default function StoreConsole({
             <SupportSection store={store} updateCurrentStore={updateCurrentStore} />
           )}
 
-          {activeNav === "products" && (
-            <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
-              <PageHeader
-        title={<>Sản phẩm / Dịch vụ ({store.products.length})</>}
-        description={<>Quản lý danh mục, giá bán và trạng thái hiển thị trên Mini App.</>}
-        actions={<><Button type="primary" icon={<LuPlus size={15} />} onClick={() => openProductModal()}>
-                  Thêm sản phẩm
-                </Button></>}
-      />
-              <Table
-                rowKey="id"
-                size="small"
-                pagination={{ pageSize: 8, hideOnSinglePage: true }}
-                dataSource={store.products}
-                columns={[
-                  {
-                    title: "Tên sản phẩm / Dịch vụ",
-                    dataIndex: "name",
-                    render: (v, rec) => (
-                      <div>
-                        <div className="font-semibold text-slate-900">{v}</div>
-                        <div className="text-xs text-slate-400">
-                          {rec.category} {rec.unit ? `· ${rec.unit}` : ""}
-                        </div>
-                      </div>
-                    ),
-                  },
-                  {
-                    title: "Giá bán",
-                    dataIndex: "price",
-                    align: "right",
-                    className: "tabular-nums",
-                    render: (price, rec) => (
-                      <div>
-                        <div className="font-bold text-brand-600">
-                          {(rec.salePrice ?? price).toLocaleString("vi-VN")}đ
-                        </div>
-                        {rec.salePrice ? (
-                          <div className="text-xs text-slate-400 line-through">
-                            {price.toLocaleString("vi-VN")}đ
-                          </div>
-                        ) : null}
-                      </div>
-                    ),
-                  },
-                  {
-                    title: "Tồn kho",
-                    dataIndex: "stock",
-                    align: "right",
-                    className: "tabular-nums",
-                    render: (stock) => <span className="text-xs font-semibold">{stock ?? "—"}</span>,
-                  },
-                  {
-                    title: "Hiển thị",
-                    dataIndex: "active",
-                    render: (v, rec) => (
-                      <Switch
-                        size="small"
-                        checked={v}
-                        onChange={(checked) => toggleProduct(rec.id, checked)}
-                      />
-                    ),
-                  },
-                  {
-                    title: "",
-                    align: "right",
-                    render: (_, rec) => (
-                      <div className="flex justify-end gap-1">
-                        <Button size="small" onClick={() => openProductModal(rec)}>
-                          Sửa
-                        </Button>
-                        <Popconfirm title="Xoá sản phẩm?" onConfirm={() => deleteProduct(rec.id)}>
-                          <Button size="small" danger icon={<LuTrash2 size={13} />} />
-                        </Popconfirm>
-                      </div>
-                    ),
-                  },
-                ]}
-              />
-            </div>
-          )}
+          {activeNav === "products" && <ProductsSection key={store.id} store={store} onLocal={applyLocal} />}
 
           {activeNav === "customers" && (
             <CustomersSection
@@ -984,42 +849,6 @@ export default function StoreConsole({
 
 
       <CreateStoreWizard open={wizardOpen} onClose={() => setWizardOpen(false)} onCreated={handleStoreCreated} />
-
-      {/* Modal thêm / sửa Sản phẩm */}
-      <Modal
-        title={productModal.item ? "Sửa sản phẩm / dịch vụ" : "Thêm sản phẩm / dịch vụ"}
-        open={productModal.open}
-        onCancel={() => setProductModal({ open: false })}
-        footer={null}
-      >
-        <Form form={productForm} layout="vertical" onFinish={saveProduct}>
-          <Form.Item label="Tên sản phẩm / dịch vụ" name="name" rules={[{ required: true }]}>
-            <Input />
-          </Form.Item>
-          <div className="grid gap-x-4 sm:grid-cols-2">
-            <Form.Item label="Danh mục" name="category">
-              <Input placeholder="Áo, Cà phê, Gói khám..." />
-            </Form.Item>
-            <Form.Item label="Đơn vị / Size" name="unit">
-              <Input placeholder="Hộp 500g, Size M/L..." />
-            </Form.Item>
-          </div>
-          <div className="grid gap-x-4 sm:grid-cols-2">
-            <Form.Item label="Giá gốc (đ)" name="price" rules={[{ required: true }]}>
-              <InputNumber className="w-full" min={0} step={1000} />
-            </Form.Item>
-            <Form.Item label="Giá khuyến mãi (đ)" name="salePrice">
-              <InputNumber className="w-full" min={0} step={1000} />
-            </Form.Item>
-          </div>
-          <Form.Item label="Hiển thị trên app" name="active" valuePropName="checked">
-            <Switch />
-          </Form.Item>
-          <Button type="primary" htmlType="submit" block className="font-bold">
-            Lưu sản phẩm
-          </Button>
-        </Form>
-      </Modal>
 
       {/* Modal thêm / sửa Khách hàng */}
       <Modal

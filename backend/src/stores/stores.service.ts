@@ -147,9 +147,11 @@ export class StoresService {
           orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
           select: {
             id: true,
+            kind: true,
             name: true,
             category: true,
             description: true,
+            durationMin: true,
             price: true,
             salePrice: true,
             unit: true,

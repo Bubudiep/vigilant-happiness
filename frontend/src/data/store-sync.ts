@@ -2,7 +2,7 @@ import { api } from "./platform-api";
 import type { StoreConfig } from "./store-api";
 
 /**
- * Các màn hình vận hành (Lịch hẹn, Sự kiện, Tài liệu, Hạng & Voucher, Đơn hàng, Kho) sửa store qua
+ * Các màn hình vận hành (Lịch hẹn, Sự kiện, Tài liệu, Hạng & Voucher, Đơn hàng, Nhân sự) sửa store qua
  * `updateCurrentStore`. Hàm này so bản trước / sau theo id và đẩy đúng thay đổi lên máy chủ:
  * thêm → POST, xoá → DELETE, sửa → PATCH. Bản ghi mới nhận id thật từ máy chủ.
  */
@@ -14,9 +14,10 @@ const COLLECTIONS: { key: keyof StoreConfig; path: string; create: boolean; remo
   { key: "documents", path: "data/documents", create: true, remove: true },
   { key: "memberTiers", path: "data/member-tiers", create: true, remove: true },
   { key: "vouchers", path: "data/vouchers", create: true, remove: true },
+  { key: "staff", path: "data/staff", create: true, remove: true },
   // Đơn hàng do khách đặt từ Mini App — ở đây chỉ đổi trạng thái
   { key: "orders", path: "data/orders", create: false, remove: false },
-  // Sản phẩm thêm/xoá ở trang Sản phẩm (gọi API trực tiếp) — ở đây chỉ đồng bộ chỉnh sửa (VD tồn kho ở trang Kho)
+  // Sản phẩm thêm/xoá/sửa ở trang Sản phẩm (gọi API trực tiếp) — ở đây chỉ đồng bộ chỉnh sửa qua updateCurrentStore
   { key: "products", path: "products", create: false, remove: false },
 ];
 

@@ -9,7 +9,7 @@ const col = (c: string): Collection => {
 };
 
 /**
- * Chủ shop quản lý dữ liệu vận hành của store: /stores/:id/data/<bookings|events|documents|member-tiers|vouchers|orders>
+ * Chủ shop quản lý dữ liệu vận hành của store: /stores/:id/data/<bookings|events|documents|member-tiers|vouchers|orders|staff>
  * Danh sách đọc kèm trong GET /stores/:id.
  */
 @ApiTags("stores")

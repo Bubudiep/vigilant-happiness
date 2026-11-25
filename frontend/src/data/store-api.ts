@@ -21,8 +21,12 @@ export interface StoreSliderItem {
   cta?: string;
 }
 
+export type ProductKind = "product" | "service";
+
 export interface StoreProductItem {
   id: string;
+  /** product = hàng hoá (có tồn kho) | service = dịch vụ (không quản lý kho). Thiếu = product */
+  kind?: ProductKind;
   name: string;
   category: string;
   price: number;
@@ -31,8 +35,47 @@ export interface StoreProductItem {
   tag?: string;
   sku?: string;
   stock?: number;
+  /** Thời lượng dịch vụ (phút) */
+  durationMin?: number | null;
   imageUrl?: string;
+  description?: string;
   active: boolean;
+}
+
+export const isService = (p: Pick<StoreProductItem, "kind">) => p.kind === "service";
+/** Ngưỡng "sắp hết hàng" của sản phẩm */
+export const LOW_STOCK = 10;
+
+export type StaffStatus = "active" | "leave" | "quit";
+export type EmploymentType = "full_time" | "part_time" | "probation" | "freelance";
+
+/** Nhân sự của gian hàng */
+export interface StoreStaffItem {
+  id: string;
+  code?: string | null;
+  /** Mã nhân viên trên máy chấm công */
+  attendanceCode?: string | null;
+  name: string;
+  phone?: string | null;
+  email?: string | null;
+  position?: string | null;
+  department?: string | null;
+  avatarUrl?: string | null;
+  status: StaffStatus;
+  employmentType: EmploymentType;
+  /** YYYY-MM-DD */
+  startDate?: string | null;
+  birthday?: string | null;
+  baseSalary?: number | null;
+  commissionPercent?: number | null;
+  /** 0 = CN, 1..6 = T2..T7 */
+  workDays: number[];
+  shiftStart?: string | null;
+  shiftEnd?: string | null;
+  services: string[];
+  note?: string | null;
+  sortOrder?: number;
+  createdAt?: string;
 }
 
 export interface StoreEventItem {
@@ -182,6 +225,7 @@ export interface StoreConfig {
   documents?: StoreDocumentItem[];
   memberTiers?: StoreMemberTierItem[];
   vouchers?: StoreVoucherItem[];
+  staff?: StoreStaffItem[];
   tickets?: StoreSupportTicket[];
   builder?: BuilderSchema;
   /** Đã lưu App Secret Mini App riêng của store (không đọc lại được) */
@@ -348,3 +392,27 @@ export const deleteVoucherCodes = (storeId: string, voucherId: string, ids?: str
     method: "POST",
     body: JSON.stringify({ ids }),
   });
+
+/** Gói đang dùng + hạn mức của gian hàng (trang Tổng quan) */
+export interface StorePlanInfo {
+  subscription: {
+    status: string;
+    billingCycle: string;
+    startedAt: string;
+    expiresAt: string;
+    autoRenew: boolean;
+    daysLeft: number | null;
+    plan: {
+      code: string;
+      name: string;
+      priceMonthly: number;
+      priceYearly: number;
+      maxProducts: number;
+      maxStaff: number;
+      storageQuotaMb: number | null;
+      features: string[];
+    };
+  } | null;
+  usage: { products: number; staff: number; usedBytes: number; quotaBytes: number | null };
+}
+export const fetchStorePlan = (storeId: string) => api<StorePlanInfo>(`/stores/${storeId}/plan`);

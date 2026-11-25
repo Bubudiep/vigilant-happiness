@@ -19,6 +19,7 @@ import { LuMinus, LuPackagePlus, LuPlus, LuSearch, LuShoppingCart, LuTicket, LuT
 import { ApiError } from "../data/platform-api";
 import {
   createStoreOrder,
+  isService,
   PaymentMethod,
   previewVoucher,
   StoreConfig,
@@ -392,7 +393,7 @@ function OrderCreateDrawer({
       if (found) return ls.map((l) => (l === found ? { ...l, quantity: l.quantity + 1 } : l));
       return [
         ...ls,
-        { key: `p_${id}`, productId: id, name: p.name, unitPrice: p.salePrice ?? p.price, quantity: 1, imageUrl: p.imageUrl, stock: p.stock },
+        { key: `p_${id}`, productId: id, name: p.name, unitPrice: p.salePrice ?? p.price, quantity: 1, imageUrl: p.imageUrl, stock: isService(p) ? undefined : p.stock },
       ];
     });
     setProductPick(null);
@@ -552,7 +553,7 @@ function OrderCreateDrawer({
                     <span className="truncate">{p.name}</span>
                     <span className="shrink-0 text-xs text-slate-500">
                       {money(p.salePrice ?? p.price)}
-                      {typeof p.stock === "number" && ` · tồn ${p.stock}`}
+                      {isService(p) ? " · dịch vụ" : typeof p.stock === "number" && ` · tồn ${p.stock}`}
                     </span>
                   </div>
                 ),

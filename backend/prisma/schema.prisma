@@ -259,6 +259,8 @@ model Store {
   products         StoreProduct[]
   customers        StoreCustomer[]
   staff            CustomerStaff[]
+  employees        StoreStaff[]
+  attendance       StoreAttendance[]
   media            StoreMedia[]
   banners          StoreBanner[]
   orders           StoreOrder[]
@@ -323,6 +325,8 @@ model StoreProduct {
   storeId     String
   store       Store            @relation(fields: [storeId], references: [id], onDelete: Cascade)
   sku         String?
+  /// product = hàng hoá (có tồn kho) | service = dịch vụ (không quản lý kho)
+  kind        String           @default("product")
   name        String
   category    String           @default("Chung")
   description String?
@@ -331,6 +335,8 @@ model StoreProduct {
   unit        String?
   tag         String?
   stock       Int              @default(0)
+  /// Thời lượng dịch vụ (phút) — chỉ dùng khi kind = service
+  durationMin Int?
   imageUrl    String?
   gallery     Json?
   active      Boolean          @default(true)
@@ -341,6 +347,71 @@ model StoreProduct {
 
   @@index([storeId, active, sortOrder])
   @@index([storeId, sku])
+}
+
+/// Nhân sự của gian hàng (quản lý hồ sơ, ca làm, lương) — khác CustomerStaff (tài khoản đăng nhập cổng khách hàng)
+model StoreStaff {
+  id                String    @id @default(cuid())
+  storeId           String
+  store             Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  code              String?
+  /// Mã nhân viên trên máy chấm công (để nhận dữ liệu từ máy) — duy nhất trong store
+  attendanceCode    String?
+  name              String
+  phone             String?
+  email             String?
+  /// Chức danh: Bác sĩ, Kỹ thuật viên, Thu ngân…
+  position          String?
+  department        String?
+  avatarUrl         String?
+  /// active = đang làm | leave = nghỉ phép | quit = đã nghỉ việc
+  status            String    @default("active")
+  /// full_time | part_time | probation | freelance
+  employmentType    String    @default("full_time")
+  startDate         DateTime?
+  birthday          DateTime?
+  baseSalary        Int?
+  commissionPercent Float?
+  /// Ngày làm trong tuần: [1..6, 0 = CN]
+  workDays          Json?
+  shiftStart        String?
+  shiftEnd          String?
+  /// Tên các dịch vụ nhân viên làm được (để phân lịch hẹn)
+  services          Json?
+  note              String?
+  sortOrder         Int       @default(0)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  attendance        StoreAttendance[]
+
+  @@unique([storeId, attendanceCode])
+  @@index([storeId, status, sortOrder])
+}
+
+/// Bảng chấm công: mỗi nhân viên 1 dòng / ngày (giờ Việt Nam). Nguồn: nhập tay, nút chấm trên web, hoặc máy chấm công.
+model StoreAttendance {
+  id            String     @id @default(cuid())
+  storeId       String
+  store         Store      @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  staffId       String
+  staff         StoreStaff @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  /// Ngày làm YYYY-MM-DD (giờ VN)
+  workDate      String
+  checkInAt     DateTime?
+  checkOutAt    DateTime?
+  /// present = có mặt | late = đi muộn | half = nửa công | leave = nghỉ phép | absent = vắng
+  status        String     @default("present")
+  lateMinutes   Int        @default(0)
+  workedMinutes Int        @default(0)
+  /// manual | web | device
+  source        String     @default("manual")
+  deviceId      String?
+  note          String?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  @@unique([staffId, workDate])
+  @@index([storeId, workDate])
 }
 
 /// Tệp khách hàng của từng Store — cũng là tài khoản của khách trong Mini App của store đó.

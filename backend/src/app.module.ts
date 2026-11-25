@@ -4,6 +4,7 @@ import { AlbumsModule } from "./albums/albums.module";
 import { AntiSpamModule } from "./antispam/antispam.module";
 import { AuditModule } from "./audit/audit.module";
 import { StorageStatsModule } from "./storage-stats/storage-stats.module";
+import { AttendanceModule } from "./attendance/attendance.module";
 import { AuthModule } from "./auth/auth.module";
 import { CustomersModule } from "./customers/customers.module";
 import { DebtsModule } from "./debts/debts.module";
@@ -33,6 +34,7 @@ import { TemplatesModule } from "./templates/templates.module";
     NotifyModule,
     AuditModule,
     StorageStatsModule,
+    AttendanceModule,
     JobsModule,
     HealthModule,
     LeadsModule,

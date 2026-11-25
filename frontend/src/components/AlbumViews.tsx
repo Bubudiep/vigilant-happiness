@@ -1135,6 +1135,7 @@ export function CustomerThread({
   customerId,
   refreshKey,
   tall = false,
+  fill = false,
   onRead,
 }: {
   storeId: string;
@@ -1142,6 +1143,8 @@ export function CustomerThread({
   refreshKey: string;
   /** Khung chat cao (dùng trong hồ sơ khách) */
   tall?: boolean;
+  /** Chiếm hết chiều cao khung cha (khung chat cạnh hồ sơ khách), ẩn tiêu đề */
+  fill?: boolean;
   /** Gọi sau khi mở hội thoại (tin khách gửi đã được đánh dấu đọc) */
   onRead?: () => void;
 }) {
@@ -1165,10 +1168,10 @@ export function CustomerThread({
         .catch(() => undefined);
     load();
     // Đang mở hội thoại → hỏi tin mới mỗi 15 giây
-    const t = tall ? setInterval(load, 15000) : undefined;
+    const t = tall || fill ? setInterval(load, 15000) : undefined;
     return () => clearInterval(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [storeId, customerId, refreshKey, tall]);
+  }, [storeId, customerId, refreshKey, tall, fill]);
 
   const send = async () => {
     if (!text.trim()) return;
@@ -1184,10 +1187,14 @@ export function CustomerThread({
     }
   };
 
+  const big = tall || fill;
   return (
-    <div>
-      <div className="mb-1 text-xs font-semibold text-slate-600">Tin nhắn với khách</div>
-      <div ref={box} className={`${tall ? "h-[52vh]" : "max-h-56"} space-y-1.5 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-2`}>
+    <div className={fill ? "flex h-full min-h-0 flex-col" : ""}>
+      {!fill && <div className="mb-1 text-xs font-semibold text-slate-600">Tin nhắn với khách</div>}
+      <div
+        ref={box}
+        className={`${fill ? "min-h-0 flex-1" : tall ? "h-[52vh]" : "max-h-56"} space-y-1.5 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-2`}
+      >
         {msgs.length === 0 && <div className="py-3 text-center text-xs text-slate-400">Chưa có tin nhắn</div>}
         {msgs.map((m) => (
           <div key={m.id} className={`flex ${m.direction === "out" ? "justify-end" : "justify-start"}`}>
@@ -1206,8 +1213,9 @@ export function CustomerThread({
         ))}
       </div>
       <div className="mt-2 flex items-end gap-1.5">
-        {tall ? (
+        {big ? (
           <Input.TextArea
+            id={fill ? "profile-chat-input" : undefined}
             value={text}
             autoSize={{ minRows: 2, maxRows: 5 }}
             placeholder="Nhắn cho khách… (Enter để gửi, Shift+Enter xuống dòng) — khách xem trong Mini App của quán"
@@ -1223,8 +1231,8 @@ export function CustomerThread({
         ) : (
           <Input size="small" value={text} placeholder="Nhắn cho khách…" onChange={(e) => setText(e.target.value)} onPressEnter={send} />
         )}
-        <Button size={tall ? "middle" : "small"} type="primary" icon={<LuSend size={tall ? 15 : 12} />} loading={sending} onClick={send}>
-          {tall ? "Gửi" : null}
+        <Button size={big ? "middle" : "small"} type="primary" icon={<LuSend size={big ? 15 : 12} />} loading={sending} onClick={send}>
+          {big ? "Gửi" : null}
         </Button>
       </div>
     </div>

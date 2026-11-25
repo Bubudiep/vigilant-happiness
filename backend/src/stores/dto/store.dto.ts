@@ -1,5 +1,5 @@
 import { PartialType } from "@nestjs/swagger";
-import { IsArray, IsBoolean, IsInt, IsObject, IsOptional, IsString, Matches, MaxLength, Min } from "class-validator";
+import { IsArray, IsBoolean, IsIn, IsInt, IsObject, IsOptional, IsString, Matches, MaxLength, Min } from "class-validator";
 
 export class CreateStoreDto {
   @IsOptional()
@@ -143,6 +143,11 @@ export class UpsertProductDto {
   @MaxLength(60)
   sku?: string;
 
+  /** product = hàng hoá (có tồn kho) | service = dịch vụ (không quản lý kho) */
+  @IsOptional()
+  @IsIn(["product", "service"])
+  kind?: "product" | "service";
+
   @IsString()
   @MaxLength(140)
   name!: string;
@@ -170,6 +175,12 @@ export class UpsertProductDto {
   @IsInt()
   @Min(0)
   stock?: number;
+
+  /** Thời lượng dịch vụ (phút) */
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  durationMin?: number | null;
 
   @IsOptional()
   @IsArray()

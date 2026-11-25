@@ -4,3 +4,4 @@ export { PageHeader } from "./PageHeader";
 export { SectionCard } from "./SectionCard";
 export { StatCard, StatGrid } from "./StatCard";
 export { numCol } from "./numCol";
+export { AdminTheme } from "./AdminTheme";

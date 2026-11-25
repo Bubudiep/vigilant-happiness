@@ -86,6 +86,13 @@ Quota Zalo: Development 11/300, Testing 19/60.
 | T47b Hoàn thiện T47: StatCard, form 2 cột, tabular-nums, chip lọc, thang chữ gọn | `frontend-2b` + `demo-f7` | [x] |
 | T48 Sửa UI theo ảnh chụp (Chrome headless) | `demo-88` | [x] |
 | T49 Dữ liệu mẫu `npm run seed:demo` (3 gian hàng: cà phê, spa, siêu âm 5D) | `demo-88` | [x] |
+| T50 Mặt hàng loại Dịch vụ (`StoreProduct.kind`, `durationMin`, không tồn kho); gộp trang Kho vào Sản phẩm (sửa tồn kho ngay trên bảng) | `demo-88` | [x] |
+| T51 Nhân sự gian hàng (`StoreStaff`, collection `data/staff`): hồ sơ, ca làm, dịch vụ đảm nhận, lương; gợi ý phân công lịch hẹn | `demo-88` | [x] |
+| T52 Chấm công (`StoreAttendance`, `/stores/:id/attendance`): bảng tuần, chấm vào/ra, tự tính đi muộn, tự cập nhật trạng thái nhân viên theo chấm công hôm nay | `demo-88` | [x] |
+| T52b Kết nối máy chấm công: endpoint nhận lượt quẹt → `AttendanceService.punch()` theo `StoreStaff.attendanceCode` | — | [ ] chờ chọn loại máy (ZKTeco push / SDK…) |
+| T53 Tổng quan: bảng lịch hẹn Hôm qua / Hôm nay / Ngày mai + thẻ gói đang dùng & hạn mức (`GET /stores/:id/plan`) | `demo-88` | [x] |
+| T54 Khung chat mở cạnh hồ sơ khách (màn ≥ lg) | `demo-88` | [x] |
+| T55 Thang chữ quản trị 9/10/11px (`ui/AdminTheme.tsx` + `index.css`) | `demo-88` | [x] người dùng đang thử |
 | T45 Nhãn tiếng Việt cho action audit mới | `frontend-2b` | [x] test 45/45 (`data/audit-labels.ts`) |
 | T44b Thư viện ảnh dùng cờ `inUse/usedIn` + xử lý 409 | `frontend-2b` | [x] test 53/53 |
 | T36 Ảnh trình thiết kế: bỏ data URL, tải lên media | `frontend-2b` | [x] chưa thử thật |

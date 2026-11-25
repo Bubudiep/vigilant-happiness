@@ -89,6 +89,28 @@ export const serializeTier = (t: { createdAt?: Date; updatedAt?: Date; [k: strin
 };
 
 /** Mã đơn / lịch hẹn: DH-2211-4821 */
+/** Nhân sự: ngày dạng YYYY-MM-DD, danh sách Json luôn là mảng */
+export const serializeStaff = (m: {
+  startDate: Date | null;
+  birthday: Date | null;
+  workDays: unknown;
+  services: unknown;
+  createdAt: Date;
+  updatedAt: Date;
+  [k: string]: unknown;
+}) => {
+  const { createdAt, updatedAt: _u, ...rest } = m;
+  const day = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
+  return {
+    ...rest,
+    startDate: day(m.startDate),
+    birthday: day(m.birthday),
+    workDays: Array.isArray(m.workDays) ? m.workDays : [],
+    services: Array.isArray(m.services) ? m.services : [],
+    createdAt: createdAt.toISOString(),
+  };
+};
+
 export const makeCode = (prefix: string) => {
   const d = new Date();
   const dd = String(d.getDate()).padStart(2, "0");
@@ -106,7 +128,7 @@ export const randomVoucherCode = (prefix: string, length: number) => {
 
 // ───────────────────────── Kiểm tra dữ liệu gửi lên ─────────────────────────
 
-type FieldType = "string" | "text" | "int" | "float" | "bool" | "date" | { oneOf: readonly string[] };
+type FieldType = "string" | "text" | "int" | "float" | "bool" | "date" | "strings" | "ints" | { oneOf: readonly string[] };
 export type FieldSpec = Record<string, FieldType>;
 
 /**
@@ -132,6 +154,16 @@ export function pickFields(body: unknown, spec: FieldSpec, required: string[] = 
       const n = Number(v);
       if (!Number.isFinite(n) || n < 0 || n > 1e12) throw new BadRequestException(`${key} phải là số hợp lệ`);
       out[key] = type === "int" ? Math.round(n) : n;
+    } else if (type === "strings" || type === "ints") {
+      // Danh sách ngắn lưu dạng Json (VD dịch vụ nhân viên làm được, ngày làm trong tuần)
+      if (!Array.isArray(v) || v.length > 100) throw new BadRequestException(`${key} phải là danh sách`);
+      if (type === "strings") {
+        out[key] = [...new Set(v.map((x) => String(x).trim().slice(0, 140)).filter(Boolean))];
+      } else {
+        const nums = v.map(Number);
+        if (nums.some((n) => !Number.isInteger(n) || n < 0 || n > 6)) throw new BadRequestException(`${key} không hợp lệ`);
+        out[key] = [...new Set(nums)].sort();
+      }
     } else if (type === "bool") {
       out[key] = v === true || v === "true";
     } else if (type === "date") {
@@ -153,6 +185,8 @@ export function pickFields(body: unknown, spec: FieldSpec, required: string[] = 
 export const BOOKING_STATUS = ["pending", "confirmed", "completed", "cancelled"] as const;
 export const ORDER_STATUS = ["pending", "confirmed", "shipping", "completed", "cancelled"] as const;
 export const PAYMENT_METHODS = ["cod", "cash", "bank_transfer", "card", "ewallet"] as const;
+export const STAFF_STATUS = ["active", "leave", "quit"] as const;
+export const EMPLOYMENT_TYPES = ["full_time", "part_time", "probation", "freelance"] as const;
 
 export const SPECS = {
   bookings: {
@@ -207,6 +241,28 @@ export const SPECS = {
     startDate: "date",
     endDate: "date",
     active: "bool",
+  },
+  staff: {
+    code: "string",
+    attendanceCode: "string",
+    name: "string",
+    phone: "string",
+    email: "string",
+    position: "string",
+    department: "string",
+    avatarUrl: "string",
+    status: { oneOf: STAFF_STATUS },
+    employmentType: { oneOf: EMPLOYMENT_TYPES },
+    startDate: "date",
+    birthday: "date",
+    baseSalary: "int",
+    commissionPercent: "float",
+    workDays: "ints",
+    shiftStart: "string",
+    shiftEnd: "string",
+    services: "strings",
+    note: "text",
+    sortOrder: "int",
   },
   orders: {
     status: { oneOf: ORDER_STATUS },

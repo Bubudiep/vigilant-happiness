@@ -10,6 +10,7 @@
  * Từ chối chạy khi NODE_ENV=production.
  */
 import { hasFlag, newPrisma } from "./_common";
+import type { Prisma } from "@prisma/client";
 
 if (process.env.NODE_ENV === "production") {
   console.error("✖ Không chạy seed:demo trên production.");
@@ -55,9 +56,9 @@ async function clean() {
 async function seedPlatform() {
   const plans = await Promise.all(
     [
-      { code: "demo_basic", name: "Cơ bản", priceMonthly: 299_000, priceYearly: 2_990_000, maxProducts: 100, storageQuotaMb: 2048, sortOrder: 1, features: ["1 Mini App", "100 sản phẩm", "2GB ảnh"] },
-      { code: "demo_pro", name: "Chuyên nghiệp", priceMonthly: 699_000, priceYearly: 6_990_000, maxProducts: 1000, storageQuotaMb: 10240, sortOrder: 2, features: ["App ID riêng", "1.000 sản phẩm", "10GB ảnh", "Zalo OA riêng"] },
-      { code: "demo_business", name: "Doanh nghiệp", priceMonthly: 1_490_000, priceYearly: 14_900_000, maxStores: 5, maxProducts: 10000, storageQuotaMb: null, sortOrder: 3, features: ["5 gian hàng", "Không giới hạn ảnh", "Hỗ trợ ưu tiên"] },
+      { code: "demo_basic", name: "Cơ bản", priceMonthly: 299_000, priceYearly: 2_990_000, maxProducts: 100, maxStaff: 5, storageQuotaMb: 2048, sortOrder: 1, features: ["1 Mini App", "100 sản phẩm", "2GB ảnh"] },
+      { code: "demo_pro", name: "Chuyên nghiệp", priceMonthly: 699_000, priceYearly: 6_990_000, maxProducts: 1000, maxStaff: 15, storageQuotaMb: 10240, sortOrder: 2, features: ["App ID riêng", "1.000 sản phẩm", "10GB ảnh", "Zalo OA riêng"] },
+      { code: "demo_business", name: "Doanh nghiệp", priceMonthly: 1_490_000, priceYearly: 14_900_000, maxStores: 5, maxProducts: 10000, maxStaff: 50, storageQuotaMb: null, sortOrder: 3, features: ["5 gian hàng", "Không giới hạn ảnh", "Hỗ trợ ưu tiên"] },
     ].map((p) => prisma.subscriptionPlan.create({ data: { description: `Gói ${p.name} (dữ liệu mẫu)`, ...p } })),
   );
 
@@ -284,9 +285,11 @@ type StoreSpec = {
   stock: string;
   customerIdx: number;
   primary: string;
-  products: [string, string, number, number?][];
+  /** [tên, danh mục, giá, giá KM?, thời lượng phút?] — có thời lượng = mặt hàng loại Dịch vụ (không tồn kho) */
+  products: [string, string, number, (number | null)?, number?][];
   services: string[];
-  staff?: string[];
+  /** Nhân sự: [tên, chức danh, lương cơ bản, dịch vụ đảm nhận, hoa hồng %?, trạng thái?] */
+  team: [string, string, number, string[], number?, ("active" | "leave" | "quit")?][];
   /** Loại album riêng của shop (null = mặc định Hôm nay / Ảnh cưới / Đám hỏi / Khác) */
   albumKinds?: AlbumKind[];
   albumTitle?: (customerName: string, i: number) => string;
@@ -312,14 +315,16 @@ async function seedStore(spec: StoreSpec, owner: { id: string }, subscriptionId:
   const sid = store.id;
 
   await prisma.storeProduct.createMany({
-    data: spec.products.map(([name, category, price, sale], i) => ({
+    data: spec.products.map(([name, category, price, sale, duration], i) => ({
       storeId: sid,
+      kind: duration ? "service" : "product",
+      durationMin: duration ?? null,
       sku: `${spec.slug.slice(5, 8).toUpperCase()}-${String(i + 1).padStart(3, "0")}`,
       name,
       category,
       price,
       salePrice: sale ?? null,
-      stock: i % 5 === 3 ? int(0, 6) : int(15, 120),
+      stock: duration ? 0 : i % 5 === 3 ? int(0, 6) : int(15, 120),
       imageUrl: `/stock/${spec.stock}/prod-${(i % 6) + 1}.jpg`,
       active: i !== spec.products.length - 1,
       sortOrder: i,
@@ -404,7 +409,76 @@ async function seedStore(spec: StoreSpec, owner: { id: string }, subscriptionId:
   }
 
   // Lịch hẹn: hôm qua → +5 ngày, nhiều nhân viên
-  const STAFF = spec.staff ?? ["Ngọc Anh", "Minh Tuấn", "Thu Hà"];
+  // Nhân sự
+  await prisma.storeStaff.createMany({
+    data: spec.team.map(([name, position, baseSalary, services, commissionPercent, status], i) => ({
+      storeId: sid,
+      code: `NV${String(i + 1).padStart(3, "0")}`,
+      attendanceCode: String(101 + i),
+      name,
+      phone: phone(),
+      position,
+      department: /BS|KTV|Kỹ thuật|Barista|Điều dưỡng/i.test(name + position) ? "Chuyên môn" : "Vận hành",
+      status: status ?? "active",
+      employmentType: i === spec.team.length - 1 ? "part_time" : i === spec.team.length - 2 ? "probation" : "full_time",
+      startDate: daysFromNow(-int(60, 900), 0),
+      baseSalary,
+      commissionPercent: commissionPercent ?? null,
+      workDays: i % 2 ? [0, 2, 3, 4, 5, 6] : [1, 2, 3, 4, 5, 6],
+      shiftStart: i % 3 === 2 ? "13:00" : "08:00",
+      shiftEnd: i % 3 === 2 ? "21:30" : "17:30",
+      services,
+      sortOrder: i,
+    })),
+  });
+  // Chấm công 14 ngày gần nhất (giờ VN): đúng giờ / muộn / thỉnh thoảng vắng; người "nghỉ phép" nghỉ từ hôm qua
+  const members = await prisma.storeStaff.findMany({ where: { storeId: sid }, orderBy: { sortOrder: "asc" } });
+  const VN = 7 * 3_600_000;
+  const vnDay = (offset: number) => new Date(Date.now() + VN + offset * DAY).toISOString().slice(0, 10);
+  const at = (date: string, hhmm: string, plusMin: number) => {
+    const [h, m] = hhmm.split(":").map(Number);
+    return new Date(new Date(`${date}T00:00:00Z`).getTime() - VN + (h * 60 + m + plusMin) * 60_000);
+  };
+  const att: Prisma.StoreAttendanceCreateManyInput[] = [];
+  for (const m of members) {
+    const days = (m.workDays as number[] | null) ?? [];
+    for (let d = -13; d <= 0; d++) {
+      const date = vnDay(d);
+      const wd = new Date(`${date}T00:00:00Z`).getUTCDay();
+      if (!days.includes(wd)) continue;
+      if (m.status === "leave" && d >= -1) {
+        att.push({ storeId: sid, staffId: m.id, workDate: date, status: "leave", note: "Nghỉ phép năm", source: "manual" });
+        continue;
+      }
+      const r = rnd();
+      if (r < 0.05) {
+        att.push({ storeId: sid, staffId: m.id, workDate: date, status: "absent", source: "manual" });
+        continue;
+      }
+      const start = m.shiftStart ?? "08:00";
+      const end = m.shiftEnd ?? "17:30";
+      const late = r > 0.82 ? int(8, 35) : 0;
+      const inAt = at(date, start, late ? late : -int(0, 12));
+      // Hôm nay: chưa ai chấm ra; vài người chưa tới
+      if (d === 0 && rnd() < 0.25) continue;
+      const outAt = d === 0 ? null : at(date, end, int(-5, 25));
+      const lateMinutes = late > 5 ? late : 0;
+      att.push({
+        storeId: sid,
+        staffId: m.id,
+        workDate: date,
+        checkInAt: inAt,
+        checkOutAt: outAt,
+        status: lateMinutes ? "late" : "present",
+        lateMinutes,
+        workedMinutes: outAt ? Math.round((outAt.getTime() - inAt.getTime()) / 60_000) : 0,
+        source: rnd() > 0.5 ? "web" : "manual",
+      });
+    }
+  }
+  await prisma.storeAttendance.createMany({ data: att });
+
+  const STAFF = spec.team.filter((t) => (t[5] ?? "active") === "active" && t[3].length).map((t) => t[0]);
   const SLOT = ["09:00", "10:30", "13:00", "14:30", "16:00", "18:30"];
   const BST = ["pending", "confirmed", "confirmed", "completed", "cancelled"] as const;
   for (let i = 0; i < 22; i++) {
@@ -508,6 +582,14 @@ async function main() {
         ["Nước ép cam (ngừng bán)", "Nước ép", 40_000],
       ],
       services: ["Đặt bàn 2 người", "Đặt bàn nhóm", "Tiệc sinh nhật", "Workshop pha chế"],
+      team: [
+        ["Phạm Quốc Huy", "Quản lý cửa hàng", 12_000_000, ["Tiệc sinh nhật", "Đặt bàn nhóm"], 1],
+        ["Ngọc Anh", "Barista", 7_500_000, ["Workshop pha chế"], 2],
+        ["Minh Tuấn", "Barista", 7_000_000, ["Workshop pha chế", "Đặt bàn 2 người"]],
+        ["Thu Hà", "Thu ngân", 6_500_000, ["Đặt bàn 2 người", "Đặt bàn nhóm"]],
+        ["Gia Bảo", "Phục vụ", 5_500_000, [], undefined, "leave"],
+        ["Lan Chi", "Phục vụ", 3_200_000, []],
+      ],
     },
     {
       slug: "demo-lotusspa",
@@ -517,16 +599,27 @@ async function main() {
       customerIdx: 1,
       primary: "#be185d",
       products: [
-        ["Chăm sóc da cơ bản 60'", "Chăm sóc da", 350_000],
-        ["Massage body đá nóng 90'", "Massage", 550_000, 480_000],
-        ["Gội đầu dưỡng sinh", "Gội đầu", 150_000],
-        ["Liệu trình trị mụn 10 buổi", "Liệu trình", 3_500_000, 2_990_000],
-        ["Tắm trắng thảo dược", "Body", 650_000],
-        ["Massage chân 45'", "Massage", 220_000],
-        ["Nặn mụn chuẩn y khoa", "Chăm sóc da", 280_000],
-        ["Combo thư giãn cuối tuần", "Combo", 890_000],
+        ["Chăm sóc da cơ bản 60'", "Chăm sóc da", 350_000, null, 60],
+        ["Massage body đá nóng 90'", "Massage", 550_000, 480_000, 90],
+        ["Gội đầu dưỡng sinh", "Gội đầu", 150_000, null, 45],
+        ["Liệu trình trị mụn 10 buổi", "Liệu trình", 3_500_000, 2_990_000, 75],
+        ["Serum vitamin C 30ml", "Mỹ phẩm", 450_000, 390_000],
+        ["Tắm trắng thảo dược", "Body", 650_000, null, 90],
+        ["Massage chân 45'", "Massage", 220_000, null, 45],
+        ["Kem chống nắng SPF50", "Mỹ phẩm", 320_000],
+        ["Nặn mụn chuẩn y khoa", "Chăm sóc da", 280_000, null, 60],
+        ["Mặt nạ collagen (hộp 5 miếng)", "Mỹ phẩm", 250_000],
+        ["Combo thư giãn cuối tuần", "Combo", 890_000, null, 150],
       ],
-      services: ["Chăm sóc da 60'", "Massage body 90'", "Gội đầu dưỡng sinh", "Liệu trình trị mụn"],
+      services: ["Chăm sóc da cơ bản 60'", "Massage body đá nóng 90'", "Gội đầu dưỡng sinh", "Liệu trình trị mụn 10 buổi", "Massage chân 45'"],
+      team: [
+        ["Võ Thanh Tâm", "Quản lý spa", 13_000_000, [], 1],
+        ["Mai Linh", "Kỹ thuật viên da", 8_000_000, ["Chăm sóc da cơ bản 60'", "Liệu trình trị mụn 10 buổi", "Nặn mụn chuẩn y khoa"], 10],
+        ["Hồng Nhung", "Kỹ thuật viên massage", 7_500_000, ["Massage body đá nóng 90'", "Massage chân 45'", "Gội đầu dưỡng sinh"], 10],
+        ["Thảo Vy", "Kỹ thuật viên", 7_000_000, ["Gội đầu dưỡng sinh", "Massage chân 45'", "Chăm sóc da cơ bản 60'"], 8],
+        ["Kim Ngân", "Lễ tân", 6_000_000, []],
+        ["Bích Trâm", "Kỹ thuật viên", 4_000_000, ["Gội đầu dưỡng sinh"], 8],
+      ],
     },
     {
       slug: "demo-babysee",
@@ -536,20 +629,28 @@ async function main() {
       customerIdx: 8,
       primary: "#0ea5e9",
       products: [
-        ["Siêu âm 5D (tuần 20–32)", "Siêu âm", 450_000, 390_000],
-        ["Siêu âm hình thái học", "Siêu âm", 550_000],
-        ["Siêu âm tim thai", "Siêu âm", 400_000],
-        ["Đo độ mờ da gáy (tuần 11–14)", "Sàng lọc", 350_000],
-        ["Xét nghiệm NIPT cơ bản", "Xét nghiệm", 3_900_000, 3_500_000],
-        ["Khám thai định kỳ", "Khám thai", 200_000],
-        ["Gói theo dõi thai kỳ 8 mốc", "Gói khám", 6_900_000, 5_990_000],
-        ["In ảnh 5D khổ A4 + USB video", "Dịch vụ thêm", 150_000],
-        ["Siêu âm Doppler mạch máu", "Siêu âm", 380_000],
-        ["Tư vấn dinh dưỡng thai kỳ", "Tư vấn", 250_000],
-        ["Đo loãng xương (tạm ngừng)", "Xét nghiệm", 180_000],
+        ["Siêu âm 5D (tuần 20–32)", "Siêu âm", 450_000, 390_000, 30],
+        ["Siêu âm hình thái học", "Siêu âm", 550_000, null, 40],
+        ["Siêu âm tim thai", "Siêu âm", 400_000, null, 30],
+        ["Đo độ mờ da gáy (tuần 11–14)", "Sàng lọc", 350_000, null, 20],
+        ["Xét nghiệm NIPT cơ bản", "Xét nghiệm", 3_900_000, 3_500_000, 15],
+        ["Khám thai định kỳ", "Khám thai", 200_000, null, 20],
+        ["Gói theo dõi thai kỳ 8 mốc", "Gói khám", 6_900_000, 5_990_000, 30],
+        ["In ảnh 5D khổ A4 + USB video", "Bán kèm", 150_000],
+        ["Sữa bầu (hộp 800g)", "Bán kèm", 420_000, 395_000],
+        ["Siêu âm Doppler mạch máu", "Siêu âm", 380_000, null, 30],
+        ["Tư vấn dinh dưỡng thai kỳ", "Tư vấn", 250_000, null, 30],
+        ["Đo loãng xương (tạm ngừng)", "Xét nghiệm", 180_000, null, 15],
       ],
       services: ["Siêu âm 5D", "Siêu âm hình thái học", "Siêu âm tim thai", "Đo độ mờ da gáy", "Khám thai định kỳ", "Xét nghiệm NIPT"],
-      staff: ["BS. Trần Minh Khoa", "BS. Lê Thu Hằng", "KTV. Ngọc Bích"],
+      team: [
+        ["BS. Trần Minh Khoa", "Bác sĩ siêu âm", 28_000_000, ["Siêu âm 5D", "Siêu âm hình thái học", "Siêu âm tim thai", "Đo độ mờ da gáy"], 5],
+        ["BS. Lê Thu Hằng", "Bác sĩ sản khoa", 26_000_000, ["Khám thai định kỳ", "Xét nghiệm NIPT", "Siêu âm hình thái học"], 5],
+        ["KTV. Ngọc Bích", "Kỹ thuật viên", 9_000_000, ["Siêu âm 5D", "Đo độ mờ da gáy"], 3],
+        ["Hoàng Yến", "Điều dưỡng", 8_500_000, ["Xét nghiệm NIPT", "Khám thai định kỳ"]],
+        ["Phương Thảo", "Lễ tân – Thu ngân", 7_000_000, []],
+        ["BS. Đỗ Quang Vinh", "Bác sĩ siêu âm", 15_000_000, ["Siêu âm 5D", "Siêu âm tim thai"], 5, "leave"],
+      ],
       albumKinds: [
         { key: "sieu_am_5d", label: "Siêu âm 5D", color: "#0ea5e9", icon: "baby", hint: "Ảnh + video 5D gửi mẹ bầu" },
         { key: "hinh_thai", label: "Hình thái học", color: "#8b5cf6", icon: "sparkles", hint: "Ảnh siêu âm hình thái tuần 20–24" },
