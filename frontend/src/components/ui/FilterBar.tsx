@@ -22,7 +22,7 @@ export function FilterBar({ search, filters, actions, className = "" }: { search
 /** Select lọc rộng 160 (mobile: full ô lưới). */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function FilterSelect(props: SelectProps<any>) {
-  return <Select {...props} className={`w-full sm:!w-40 ${props.className ?? ""}`} />;
+  return <Select popupMatchSelectWidth={false} {...props} className={`w-full sm:!w-40 ${props.className ?? ""}`} />;
 }
 
 /** RangePicker lọc rộng 260. */

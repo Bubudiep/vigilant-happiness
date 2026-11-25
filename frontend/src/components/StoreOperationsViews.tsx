@@ -9,7 +9,7 @@ import {
   Popover,
   Segmented,
   Select,
-  Statistic,
+ 
   Switch,
   Table,
   Tag,
@@ -43,7 +43,7 @@ import {
   StoreEventItem,
   StoreSupportTicket,
 } from "../data/store-api";
-import { FilterBar, FilterSelect, PageHeader } from "./ui";
+import { FilterBar, FilterSelect, PageHeader, StatCard, StatGrid } from "./ui";
 
 export type StoreNavKey =
   | "overview"
@@ -173,7 +173,7 @@ export function BookingCreateModal({
             />
           </Form.Item>
         )}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid gap-x-4 sm:grid-cols-2">
           <Form.Item name="customerName" label="Tên khách hàng" rules={[{ required: true, message: "Nhập tên khách" }]}>
             <Input placeholder="VD: Nguyễn Minh Anh" />
           </Form.Item>
@@ -193,7 +193,7 @@ export function BookingCreateModal({
                 key={p.id}
                 type="button"
                 onClick={() => form.setFieldValue("serviceName", p.name)}
-                className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-xs font-medium text-slate-600 hover:border-brand-400 hover:text-brand-600"
+                className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-2xs font-medium text-slate-600 hover:border-brand-400 hover:text-brand-600"
               >
                 + {p.name}
               </button>
@@ -201,7 +201,7 @@ export function BookingCreateModal({
           </div>
         )}
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid gap-x-4 sm:grid-cols-2">
           <Form.Item name="date" label="Ngày hẹn" rules={[{ required: true, message: "Chọn ngày" }]}>
             <Input type="date" />
           </Form.Item>
@@ -210,7 +210,7 @@ export function BookingCreateModal({
           </Form.Item>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid gap-x-4 sm:grid-cols-2">
           <Form.Item name="staffName" label="Nhân viên phụ trách">
             <AutoComplete
               placeholder="VD: Lan Anh"
@@ -269,57 +269,32 @@ export function OverviewSection({
 
   return (
     <div className="space-y-5">
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <div className="rounded-xl border border-slate-200 bg-white p-4">
-          <div className="flex items-center justify-between text-slate-500">
-            <span className="text-xs font-semibold uppercase">Doanh thu tích lũy</span>
-            <LuTrendingUp className="text-emerald-600" size={18} />
-          </div>
-          <div className="mt-2">
-            <Statistic value={totalRevenue} suffix="đ" styles={{ content: { fontSize: 22, fontWeight: 800 } }} />
-          </div>
-          <div className="mt-1 text-xs text-slate-500">Từ {store.customers.length} khách hàng</div>
-        </div>
-
-        <div className="rounded-xl border border-slate-200 bg-white p-4">
-          <div className="flex items-center justify-between text-slate-500">
-            <span className="text-xs font-semibold uppercase">Lịch hẹn hôm nay</span>
-            <LuCalendarCheck className="text-sky-600" size={18} />
-          </div>
-          <div className="mt-2">
-            <Statistic value={todayBookings.length} styles={{ content: { fontSize: 22, fontWeight: 800 } }} />
-          </div>
-          <div className="mt-1 text-xs text-slate-500">
-            {pendingBookings} lịch chờ xác nhận · Tổng {bookings.length}
-          </div>
-        </div>
-
-        <div className="rounded-xl border border-slate-200 bg-white p-4">
-          <div className="flex items-center justify-between text-slate-500">
-            <span className="text-xs font-semibold uppercase">Đơn hàng</span>
-            <LuShoppingBag className="text-brand-600" size={18} />
-          </div>
-          <div className="mt-2">
-            <Statistic value={orders.length} styles={{ content: { fontSize: 22, fontWeight: 800 } }} />
-          </div>
-          <div className="mt-1 text-xs text-slate-500">
-            {orders.filter((o) => o.status === "pending").length} đơn chờ xác nhận
-          </div>
-        </div>
-
-        <div className="rounded-xl border border-slate-200 bg-white p-4">
-          <div className="flex items-center justify-between text-slate-500">
-            <span className="text-xs font-semibold uppercase">Sản phẩm & Kho</span>
-            <LuPackage className="text-amber-600" size={18} />
-          </div>
-          <div className="mt-2">
-            <Statistic value={store.products.length} styles={{ content: { fontSize: 22, fontWeight: 800 } }} />
-          </div>
-          <div className="mt-1 text-xs text-slate-500">
-            {lowStockCount > 0 ? `${lowStockCount} sản phẩm sắp hết hàng` : "Tồn kho ổn định"}
-          </div>
-        </div>
-      </div>
+      <StatGrid>
+        <StatCard
+          label="Doanh thu tích lũy"
+          icon={<LuTrendingUp className="text-emerald-600" size={18} />}
+          value={`${totalRevenue.toLocaleString("vi-VN")}đ`}
+          hint={`Từ ${store.customers.length} khách hàng`}
+        />
+        <StatCard
+          label="Lịch hẹn hôm nay"
+          icon={<LuCalendarCheck className="text-sky-600" size={18} />}
+          value={todayBookings.length.toLocaleString("vi-VN")}
+          hint={`${pendingBookings} lịch chờ xác nhận · Tổng ${bookings.length}`}
+        />
+        <StatCard
+          label="Đơn hàng"
+          icon={<LuShoppingBag className="text-brand-600" size={18} />}
+          value={orders.length.toLocaleString("vi-VN")}
+          hint={`${orders.filter((o) => o.status === "pending").length} đơn chờ xác nhận`}
+        />
+        <StatCard
+          label="Sản phẩm & Kho"
+          icon={<LuPackage className="text-amber-600" size={18} />}
+          value={store.products.length.toLocaleString("vi-VN")}
+          hint={lowStockCount > 0 ? `${lowStockCount} sản phẩm sắp hết hàng` : "Tồn kho ổn định"}
+        />
+      </StatGrid>
 
       {/* Widget Lịch hẹn & Đặt lịch cho khách ngay trên trang Tổng quan */}
       <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
@@ -540,7 +515,7 @@ export function BookingsSection({
             key={o.value}
             type="button"
             onClick={() => patchBooking(b.id, { status: o.value as StoreBookingItem["status"] }, `Đã chuyển sang "${o.label}"`)}
-            className={`rounded-full border px-2 py-0.5 text-xs font-semibold transition ${
+            className={`rounded-full border px-2 py-0.5 text-2xs font-semibold transition ${
               b.status === o.value ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 text-slate-600 hover:border-slate-400"
             }`}
           >
@@ -906,7 +881,7 @@ export function EventsSection({
           <Form.Item name="title" label="Tên sự kiện" rules={[{ required: true, message: "Nhập tên sự kiện" }]}>
             <Input placeholder="VD: Tuần lễ tri ân khách hàng" />
           </Form.Item>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid gap-x-4 sm:grid-cols-2">
             <Form.Item name="type" label="Loại">
               <Select
                 options={[
@@ -927,7 +902,7 @@ export function EventsSection({
               />
             </Form.Item>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid gap-x-4 sm:grid-cols-2">
             <Form.Item name="startDate" label="Ngày bắt đầu">
               <Input />
             </Form.Item>
@@ -1058,7 +1033,7 @@ export function SupportSection({
           <Form.Item name="subject" label="Tiêu đề" rules={[{ required: true, message: "Nhập tiêu đề hỗ trợ" }]}>
             <Input placeholder="VD: Cần hỗ trợ kết nối Zalo Pay / OA" />
           </Form.Item>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid gap-x-4 sm:grid-cols-2">
             <Form.Item name="category" label="Danh mục">
               <Select
                 options={[

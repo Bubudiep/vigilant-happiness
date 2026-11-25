@@ -117,7 +117,7 @@ export default function CreateStoreWizard({
 
       {step === 0 && (
         <div>
-          <h2 className="text-xl font-extrabold text-slate-900">Bạn kinh doanh lĩnh vực nào?</h2>
+          <h2 className="text-lg font-extrabold text-slate-900">Bạn kinh doanh lĩnh vực nào?</h2>
           <p className="mt-1 text-sm text-slate-500">Chọn một mẫu gần nhất — bạn có thể tuỳ biến toàn bộ giao diện sau.</p>
 
           <div className="mt-4 flex flex-wrap gap-1.5">
@@ -203,7 +203,7 @@ export default function CreateStoreWizard({
               if ("name" in changed && !slugTouched) form.setFieldValue("slug", slugify(changed.name ?? ""));
             }}
           >
-            <h2 className="mb-4 text-xl font-extrabold text-slate-900">Thông tin cửa hàng</h2>
+            <h2 className="mb-4 text-lg font-extrabold text-slate-900">Thông tin cửa hàng</h2>
             <Form.Item label="Tên cửa hàng" name="name" rules={[{ required: true, message: "Nhập tên cửa hàng" }]}>
               <Input size="large" placeholder="VD: Cà phê Nhà Gỗ" autoFocus />
             </Form.Item>
@@ -260,7 +260,7 @@ export default function CreateStoreWizard({
                 </div>
                 <div className="mt-3 flex flex-wrap gap-1">
                   {tpl.features.map((f) => (
-                    <span key={f} className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">
+                    <span key={f} className="rounded-full bg-slate-100 px-2 py-0.5 text-2xs font-semibold text-slate-600">
                       {f}
                     </span>
                   ))}

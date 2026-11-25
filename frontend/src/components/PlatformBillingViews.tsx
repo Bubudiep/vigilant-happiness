@@ -205,7 +205,7 @@ function PlanModal({ plan, onClose, onSaved }: { plan: PlanRow | "new" | null; o
   return (
     <Modal open={!!plan} title={plan === "new" ? "Thêm gói dịch vụ" : "Sửa gói dịch vụ"} onCancel={onClose} onOk={submit} okText="Lưu" confirmLoading={saving} width={620} destroyOnHidden>
       <Form form={form} layout="vertical" requiredMark={false} className="pt-2">
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid gap-x-4 sm:grid-cols-2">
           <Form.Item name="name" label="Tên gói" rules={[{ required: true, message: "Nhập tên" }]}>
             <Input maxLength={100} placeholder="VD: Gói Pro" />
           </Form.Item>
@@ -222,7 +222,7 @@ function PlanModal({ plan, onClose, onSaved }: { plan: PlanRow | "new" | null; o
         <Form.Item name="description" label="Mô tả">
           <Input.TextArea rows={2} maxLength={300} />
         </Form.Item>
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid gap-x-4 sm:grid-cols-3">
           <Form.Item name="maxStores" label="Số store">
             <InputNumber className="w-full" min={1} />
           </Form.Item>
@@ -246,7 +246,7 @@ function PlanModal({ plan, onClose, onSaved }: { plan: PlanRow | "new" | null; o
         <Form.Item name="features" label="Tính năng (gõ rồi Enter)">
           <Select mode="tags" tokenSeparators={[","]} placeholder="VD: Tích điểm, Đặt lịch, OA riêng" />
         </Form.Item>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid gap-x-4 sm:grid-cols-2">
           <Form.Item name="sortOrder" label="Thứ tự hiển thị">
             <InputNumber className="w-full" />
           </Form.Item>
@@ -380,6 +380,8 @@ function SubscriptionsTab({ plans }: { plans: PlanRow[] }) {
           {
             title: "Đã thu",
             key: "paid",
+            align: "right",
+            className: "tabular-nums",
             width: 150,
             render: (_, s) => (
               <div className="text-xs">
@@ -556,7 +558,7 @@ function CreateSubscriptionModal({ open, plans, onClose, onCreated }: { open: bo
         <Form.Item name="customerId" label="Khách hàng" rules={[{ required: true, message: "Chọn khách" }]}>
           <Select showSearch optionFilterProp="label" options={customers.map((c) => ({ value: c.id, label: `${c.companyName || c.name} · ${c.phone}` }))} />
         </Form.Item>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid gap-x-4 sm:grid-cols-2">
           <Form.Item name="planId" label="Gói" rules={[{ required: true, message: "Chọn gói" }]}>
             <Select options={plans.map((p) => ({ value: p.id, label: p.name }))} />
           </Form.Item>
@@ -596,7 +598,7 @@ function CreateSubscriptionModal({ open, plans, onClose, onCreated }: { open: bo
             <span>{money(quote ? quote.finalAmount : price)}</span>
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid gap-x-4 sm:grid-cols-2">
           <Form.Item name="pricePaid" label="Số tiền thực thu (nếu khác)">
             <InputNumber className="w-full" min={0} {...moneyInput} addonAfter="đ" placeholder="Theo giá ở trên" />
           </Form.Item>
@@ -650,7 +652,7 @@ function EditSubscriptionModal({ sub, plans, onClose, onSaved }: { sub: Subscrip
   return (
     <Modal open={!!sub} title={sub ? `Sửa gói · ${sub.customer.companyName || sub.customer.name}` : ""} onCancel={onClose} onOk={submit} okText="Lưu" confirmLoading={saving} destroyOnHidden>
       <Form form={form} layout="vertical" requiredMark={false} className="pt-2">
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid gap-x-4 sm:grid-cols-2">
           <Form.Item name="planId" label="Gói">
             <Select options={plans.map((p) => ({ value: p.id, label: p.name }))} />
           </Form.Item>
@@ -883,7 +885,7 @@ function VoucherModal({ voucher, plans, onClose, onSaved }: { voucher: PlatformV
   return (
     <Modal open={!!voucher} title={voucher === "new" ? "Tạo voucher gói" : "Sửa voucher gói"} onCancel={onClose} onOk={submit} okText="Lưu" confirmLoading={saving} width={620} destroyOnHidden>
       <Form form={form} layout="vertical" requiredMark={false} className="pt-2">
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid gap-x-4 sm:grid-cols-2">
           <Form.Item
             name="code"
             label="Mã"

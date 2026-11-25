@@ -519,13 +519,13 @@ export function AlbumsSection({ store, initialCustomerId }: { store: StoreConfig
                     </div>
                   )}
                   <span
-                    className="absolute left-2 top-2 flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-bold text-white shadow"
+                    className="absolute left-2 top-2 flex items-center gap-1 rounded-full px-2 py-0.5 text-2xs font-bold text-white shadow"
                     style={{ background: k.color }}
                   >
                     {k.icon && <span className="[&>svg]:h-3 [&>svg]:w-3">{k.icon}</span>}
                     {k.short}
                   </span>
-                  <span className="absolute bottom-2 right-2 rounded-full bg-black/55 px-2 py-0.5 text-xs font-semibold text-white">
+                  <span className="absolute bottom-2 right-2 rounded-full bg-black/55 px-2 py-0.5 text-2xs font-semibold text-white">
                     {a.photoCount} ảnh{a.links.length ? ` · ${a.links.length} link` : ""}
                   </span>
                 </div>
@@ -951,7 +951,7 @@ export function AlbumDrawer({
                   <div key={p.id} className="group relative aspect-square overflow-hidden rounded-xl bg-slate-100">
                     <img src={p.thumbUrl ?? p.url} alt={p.filename} loading="lazy" className="h-full w-full cursor-zoom-in object-cover" onClick={() => setPreview(p.url)} />
                     {album.coverPhotoId === p.id && (
-                      <span className="absolute left-1.5 top-1.5 rounded-full bg-amber-400 px-1.5 py-0.5 text-xs font-bold text-white shadow">Bìa</span>
+                      <span className="absolute left-1.5 top-1.5 rounded-full bg-amber-400 px-1.5 py-0.5 text-2xs font-bold text-white shadow">Bìa</span>
                     )}
                     <div className="absolute inset-x-0 bottom-0 flex justify-end gap-1 bg-gradient-to-t from-black/60 to-transparent p-1.5 opacity-0 transition group-hover:opacity-100">
                       {album.coverPhotoId !== p.id && (

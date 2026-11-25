@@ -158,7 +158,7 @@ export default function PlatformConsole({
     <div className="space-y-1">
       {groups.map((g, gi) => (
         <div key={g.title} className={gi > 0 ? "mt-3 border-t border-white/10 pt-3" : ""}>
-          {!mini && <div className="px-3 pb-2 pt-1 text-[11px] font-bold uppercase tracking-wider text-slate-500">{g.title}</div>}
+          {!mini && <div className="px-3 pb-2 pt-1 text-2xs font-bold uppercase tracking-wider text-slate-500">{g.title}</div>}
           <div className="space-y-1">
             {g.items.map((item) => {
               const on = active === item.key;
@@ -179,7 +179,7 @@ export default function PlatformConsole({
                     {!mini && <span className="truncate">{item.label}</span>}
                   </span>
                   {!mini && !!item.badge && (
-                    <span className="rounded-full bg-rose-500 px-2 py-0.5 text-xs font-bold text-white">{item.badge}</span>
+                    <span className="rounded-full bg-rose-500 px-2 py-0.5 text-2xs font-bold text-white">{item.badge}</span>
                   )}
                 </button>
               );
@@ -213,7 +213,7 @@ export default function PlatformConsole({
               <LuGauge size={17} />
             </span>
             <span className="text-sm font-extrabold sm:text-base">Trang điều hành</span>
-            <span className="hidden rounded-full bg-white/10 px-2 py-0.5 text-xs font-semibold text-slate-300 md:inline">reMini</span>
+            <span className="hidden rounded-full bg-white/10 px-2 py-0.5 text-2xs font-semibold text-slate-300 md:inline">reMini</span>
           </div>
           <div className="flex items-center gap-2">
             <Button icon={<LuStore size={15} />} onClick={() => navigate("/admin/overview")}>
@@ -258,7 +258,7 @@ export default function PlatformConsole({
                       }`}
                     >
                       {label}
-                      {!!n && <span className={`rounded-full px-1.5 text-xs ${inboxTab === k ? "bg-white/25" : "bg-rose-500 text-white"}`}>{n}</span>}
+                      {!!n && <span className={`rounded-full px-1.5 text-2xs ${inboxTab === k ? "bg-white/25" : "bg-rose-500 text-white"}`}>{n}</span>}
                     </button>
                   ))}
                 </div>

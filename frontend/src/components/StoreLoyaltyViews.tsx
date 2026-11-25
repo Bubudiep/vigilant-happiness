@@ -231,7 +231,7 @@ export function LoyaltySection({
                               <span className="inline-flex items-center gap-1.5 text-sm font-extrabold">
                                 <LuCrown size={15} /> {tier.name}
                               </span>
-                              <span className="rounded-full bg-white/20 px-2 py-0.5 text-xs font-bold">
+                              <span className="rounded-full bg-white/20 px-2 py-0.5 text-2xs font-bold">
                                 Giảm {tier.discountPercent}%
                               </span>
                             </div>
@@ -447,7 +447,7 @@ export function LoyaltySection({
         destroyOnHidden
       >
         <Form form={tierForm} layout="vertical" onFinish={saveTier}>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid gap-x-4 sm:grid-cols-2">
             <Form.Item name="name" label="Tên hạng" rules={[{ required: true, message: "Nhập tên hạng" }]}>
               <Input placeholder="VD: Bạch Kim" />
             </Form.Item>
@@ -455,7 +455,7 @@ export function LoyaltySection({
               <Input placeholder="VD: platinum" />
             </Form.Item>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid gap-x-4 sm:grid-cols-2">
             <Form.Item name="minSpent" label="Chi tiêu tối thiểu (đ)" rules={[{ required: true }]}>
               <InputNumber className="w-full" min={0} step={500000} />
             </Form.Item>
@@ -463,7 +463,7 @@ export function LoyaltySection({
               <InputNumber className="w-full" min={0} step={50} />
             </Form.Item>
           </div>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid gap-x-4 sm:grid-cols-3">
             <Form.Item name="discountPercent" label="Chiết khấu (%)">
               <InputNumber className="w-full" min={0} max={100} />
             </Form.Item>
@@ -492,7 +492,7 @@ export function LoyaltySection({
         destroyOnHidden
       >
         <Form form={voucherForm} layout="vertical" onFinish={saveVoucher}>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid gap-x-4 sm:grid-cols-2">
             <Form.Item name="code" label="Mã Voucher" rules={[{ required: true, message: "Nhập mã voucher" }]}>
               <Input placeholder="VD: SALE20" className="uppercase" />
             </Form.Item>
@@ -508,7 +508,7 @@ export function LoyaltySection({
           <Form.Item name="title" label="Tên chương trình / Mô tả" rules={[{ required: true, message: "Nhập tên voucher" }]}>
             <Input placeholder="VD: Giảm 20% cho đơn từ 399K" />
           </Form.Item>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid gap-x-4 sm:grid-cols-3">
             <Form.Item name="discountType" label="Loại ưu đãi">
               <Select
                 options={[
@@ -525,7 +525,7 @@ export function LoyaltySection({
               <InputNumber className="w-full" min={1} />
             </Form.Item>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid gap-x-4 sm:grid-cols-2">
             <Form.Item name="minOrderValue" label="Đơn tối thiểu (đ)">
               <InputNumber className="w-full" min={0} step={50000} />
             </Form.Item>
@@ -533,7 +533,7 @@ export function LoyaltySection({
               <InputNumber className="w-full" min={0} step={10000} />
             </Form.Item>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid gap-x-4 sm:grid-cols-2">
             <Form.Item name="startDate" label="Ngày bắt đầu">
               <Input type="date" />
             </Form.Item>

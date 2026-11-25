@@ -25,7 +25,7 @@ import {
   StoreCustomerItem,
   StoreOrderItem,
 } from "../data/store-api";
-import { FilterBar, PageHeader } from "./ui";
+import { FilterBar, FilterSelect, PageHeader } from "./ui";
 
 const money = (n: number) => `${Math.round(n).toLocaleString("vi-VN")}đ`;
 const errMsg = (e: unknown, fallback: string) => (e instanceof ApiError ? e.message : fallback);
@@ -98,6 +98,13 @@ export function OrdersSection({
             onChange={(e) => setQ(e.target.value)}
           />
         }
+        filters={
+          <FilterSelect
+            value={statusFilter}
+            onChange={setStatusFilter}
+            options={[{ value: "all", label: "Tất cả" }, ...ORDER_STATUS].map((o) => ({ value: o.value, label: `${o.label} (${counts[o.value] ?? 0})` }))}
+          />
+        }
         actions={
           <Button type="primary" icon={<LuPlus size={15} />} onClick={() => setCreating(true)}>
             Tạo đơn
@@ -105,21 +112,6 @@ export function OrdersSection({
         }
       />
 
-      <div className="mb-3 flex flex-wrap gap-1.5">
-        {[{ value: "all", label: "Tất cả" }, ...ORDER_STATUS].map((s) => (
-          <button
-            key={s.value}
-            type="button"
-            onClick={() => setStatusFilter(s.value)}
-            className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
-              statusFilter === s.value ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-            }`}
-          >
-            {s.label}
-            <span className={`ml-1.5 ${statusFilter === s.value ? "text-white/70" : "text-slate-400"}`}>{counts[s.value] ?? 0}</span>
-          </button>
-        ))}
-      </div>
 
       <Table
         rowKey="id"
@@ -161,6 +153,8 @@ export function OrdersSection({
           {
             title: "Tổng tiền",
             dataIndex: "total",
+            align: "right",
+            className: "tabular-nums",
             render: (v, r) => (
               <div>
                 <span className="font-bold text-brand-600">{money(v)}</span>

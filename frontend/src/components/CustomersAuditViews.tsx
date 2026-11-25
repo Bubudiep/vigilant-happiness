@@ -202,8 +202,10 @@ export function CustomersPlatformSection() {
           <div className="space-y-3 pt-2">
             <Input placeholder="Tên người liên hệ *" value={edit.name} onChange={(e) => setEdit({ ...edit, name: e.target.value })} />
             <Input placeholder="Tên công ty / cửa hàng" value={edit.companyName} onChange={(e) => setEdit({ ...edit, companyName: e.target.value })} />
-            <Input placeholder="SĐT Zalo *  (VD 0977 001 122)" value={edit.phone} onChange={(e) => setEdit({ ...edit, phone: e.target.value })} />
-            <Input placeholder="Email" value={edit.email} onChange={(e) => setEdit({ ...edit, email: e.target.value })} />
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Input placeholder="SĐT Zalo *  (VD 0977 001 122)" value={edit.phone} onChange={(e) => setEdit({ ...edit, phone: e.target.value })} />
+              <Input placeholder="Email" value={edit.email} onChange={(e) => setEdit({ ...edit, email: e.target.value })} />
+            </div>
           </div>
         )}
       </Modal>

@@ -9,7 +9,7 @@ import { fmtBytes } from "../data/format";
 import { fetchStoreStorage, type StoreStorage } from "../data/platform-api";
 import { deleteStore, forgetDeletedStore, slugConfirmed } from "../data/store-delete";
 import { fetchStores, StoreWithOwner } from "../data/store-api";
-import { FilterBar, PageHeader } from "./ui";
+import { FilterBar, FilterSelect, PageHeader } from "./ui";
 
 const errMsg = (e: unknown, fb = "Thao tác thất bại") => (e instanceof ApiError ? e.message : fb);
 
@@ -115,28 +115,24 @@ export function CustomerAppsSection() {
             onChange={(e) => setKeyword(e.target.value)}
           />
         }
+        filters={
+          <FilterSelect
+            popupMatchSelectWidth={false}
+            value={filter}
+            onChange={setFilter}
+            options={(
+              [
+                ["all", "Tất cả"],
+                ["own_app", "Có App ID riêng"],
+                ["no_plan", "Chưa gắn gói"],
+                ["expiring", "Gói sắp / đã hết hạn"],
+                ["off", "Đang tắt"],
+              ] as const
+            ).map(([k, label]) => ({ value: k, label: `${label} (${counts[k]})` }))}
+          />
+        }
         actions={<Button icon={<LuRefreshCw size={14} />} onClick={load} loading={loading} />}
       />
-        <div className="mt-3 flex flex-wrap gap-1.5">
-          {(
-            [
-              ["all", "Tất cả"],
-              ["own_app", "Có App ID riêng"],
-              ["no_plan", "Chưa gắn gói"],
-              ["expiring", "Gói sắp / đã hết hạn"],
-              ["off", "Đang tắt"],
-            ] as const
-          ).map(([k, label]) => (
-            <button
-              key={k}
-              type="button"
-              onClick={() => setFilter(k)}
-              className={`rounded-full px-3 py-1 text-xs font-semibold transition ${filter === k ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
-            >
-              {label} <span className="opacity-60">{counts[k]}</span>
-            </button>
-          ))}
-        </div>
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -416,7 +412,7 @@ function AppConfigDrawer({ app, onClose, onSaved, onDeleted }: { app: AppRow | n
             <Form.Item name="subtitle" label="Mô tả ngắn">
               <Input maxLength={200} />
             </Form.Item>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid gap-x-4 sm:grid-cols-2">
               <Form.Item name="phone" label="SĐT cửa hàng">
                 <Input maxLength={20} />
               </Form.Item>

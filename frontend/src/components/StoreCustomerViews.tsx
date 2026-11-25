@@ -733,7 +733,7 @@ function CustomerProfile({
         </div>
         <div className="mt-2 text-base font-extrabold text-slate-900">{customer.name}</div>
         <div className="mt-1 flex flex-wrap justify-center gap-1.5">
-          <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-bold text-white" style={{ background: tierColor }}>
+          <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-2xs font-bold text-white" style={{ background: tierColor }}>
             <LuCrown size={11} /> {customer.tier}
           </span>
           {customer.zaloUserId ? (

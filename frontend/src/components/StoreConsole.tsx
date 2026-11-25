@@ -574,7 +574,7 @@ export default function StoreConsole({
       {navGroups.map((group, gi) => (
         <div key={group.title} className={gi > 0 ? "mt-3 border-t border-slate-100 pt-3" : ""}>
           {!collapsed && (
-            <div className="px-3 pb-2 pt-1 text-[11px] font-bold uppercase tracking-wider text-slate-400">
+            <div className="px-3 pb-2 pt-1 text-2xs font-bold uppercase tracking-wider text-slate-400">
               {group.title}
             </div>
           )}
@@ -603,7 +603,7 @@ export default function StoreConsole({
             </span>
             {!collapsed && typeof item.badge === "number" && (
               <span
-                className={`rounded-full px-2 py-0.5 text-xs font-bold ${
+                className={`rounded-full px-2 py-0.5 text-2xs font-bold ${
                   active ? "bg-white/20 text-white" : item.alert ? "bg-rose-500 text-white" : "bg-slate-100 text-slate-600"
                 }`}
               >
@@ -783,6 +783,8 @@ export default function StoreConsole({
                   {
                     title: "Giá bán",
                     dataIndex: "price",
+                    align: "right",
+                    className: "tabular-nums",
                     render: (price, rec) => (
                       <div>
                         <div className="font-bold text-brand-600">
@@ -799,6 +801,8 @@ export default function StoreConsole({
                   {
                     title: "Tồn kho",
                     dataIndex: "stock",
+                    align: "right",
+                    className: "tabular-nums",
                     render: (stock) => <span className="text-xs font-semibold">{stock ?? "—"}</span>,
                   },
                   {
@@ -912,7 +916,7 @@ export default function StoreConsole({
       >
         <div className="grid gap-5 pt-2 md:grid-cols-12">
           <div className="md:col-span-8">
-            <Form layout="vertical" className="grid gap-x-3 sm:grid-cols-2">
+            <Form layout="vertical" className="grid gap-x-4 sm:grid-cols-2">
               <Form.Item label="Tên thương hiệu Store">
                 <Input
                   value={store.name}
@@ -992,7 +996,7 @@ export default function StoreConsole({
           <Form.Item label="Tên sản phẩm / dịch vụ" name="name" rules={[{ required: true }]}>
             <Input />
           </Form.Item>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid gap-x-4 sm:grid-cols-2">
             <Form.Item label="Danh mục" name="category">
               <Input placeholder="Áo, Cà phê, Gói khám..." />
             </Form.Item>
@@ -1000,7 +1004,7 @@ export default function StoreConsole({
               <Input placeholder="Hộp 500g, Size M/L..." />
             </Form.Item>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid gap-x-4 sm:grid-cols-2">
             <Form.Item label="Giá gốc (đ)" name="price" rules={[{ required: true }]}>
               <InputNumber className="w-full" min={0} step={1000} />
             </Form.Item>
@@ -1025,7 +1029,7 @@ export default function StoreConsole({
         footer={null}
       >
         <Form form={customerForm} layout="vertical" onFinish={saveCustomer}>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid gap-x-4 sm:grid-cols-2">
             <Form.Item label="Họ tên" name="name" rules={[{ required: true }]}>
               <Input />
             </Form.Item>
@@ -1033,7 +1037,7 @@ export default function StoreConsole({
               <Input />
             </Form.Item>
           </div>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid gap-x-4 sm:grid-cols-3">
             <Form.Item label="Hạng" name="tier">
               <Select
                 options={[

@@ -17,7 +17,7 @@ import {
   updateDebt,
 } from "../data/platform-api";
 import { downloadCsv } from "./PlatformViews";
-import { FilterBar, FilterSelect, PageHeader } from "./ui";
+import { FilterBar, FilterSelect, PageHeader, StatCard, StatGrid } from "./ui";
 
 const errMsg = (e: unknown, fb = "Thao tác thất bại") => (e instanceof ApiError ? e.message : fb);
 const vnd = (n: number) => `${n.toLocaleString("vi-VN")}đ`;
@@ -140,22 +140,19 @@ export function DebtsSection() {
     ]);
 
   const cards = [
-    { label: "Tổng còn nợ", value: summary ? vnd(summary.totalDebt) : "—", tone: "text-slate-900" },
-    { label: `Quá hạn (${summary?.overdueCount ?? 0} khoản)`, value: summary ? vnd(summary.overdueAmount) : "—", tone: "text-red-600" },
-    { label: "Số khách đang nợ", value: summary ? String(summary.debtorCount) : "—", tone: "text-slate-900" },
-    { label: "Đã thu được", value: summary ? vnd(summary.collectedTotal) : "—", tone: "text-green-600" },
+    { label: "Tổng còn nợ", value: summary ? vnd(summary.totalDebt) : "—", tone: "default" as const },
+    { label: `Quá hạn (${summary?.overdueCount ?? 0} khoản)`, value: summary ? vnd(summary.overdueAmount) : "—", tone: "danger" as const },
+    { label: "Số khách đang nợ", value: summary ? String(summary.debtorCount) : "—", tone: "default" as const },
+    { label: "Đã thu được", value: summary ? vnd(summary.collectedTotal) : "—", tone: "success" as const },
   ];
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <StatGrid>
         {cards.map((c) => (
-          <div key={c.label} className="rounded-xl border border-slate-200 bg-white p-4">
-            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">{c.label}</div>
-            <div className={`mt-1 text-xl font-bold ${c.tone}`}>{c.value}</div>
-          </div>
+          <StatCard key={c.label} label={c.label} value={c.value} tone={c.tone} />
         ))}
-      </div>
+      </StatGrid>
 
       <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
         <PageHeader
@@ -207,9 +204,9 @@ export function DebtsSection() {
                 ),
               },
               { title: "Nội dung", dataIndex: "title", render: (v: string) => <span className="text-xs">{v}</span> },
-              { title: "Tổng nợ", align: "right", render: (_, r) => <span className="text-xs">{vnd(r.amount)}</span> },
-              { title: "Đã thu", align: "right", render: (_, r) => <span className="text-xs text-green-600">{vnd(r.paid)}</span> },
-              { title: "Còn nợ", align: "right", render: (_, r) => <b className={r.remaining ? "text-red-600" : "text-slate-400"}>{vnd(r.remaining)}</b> },
+              { title: "Tổng nợ", align: "right", className: "tabular-nums", render: (_, r) => <span className="text-xs">{vnd(r.amount)}</span> },
+              { title: "Đã thu", align: "right", className: "tabular-nums", render: (_, r) => <span className="text-xs text-green-600">{vnd(r.paid)}</span> },
+              { title: "Còn nợ", align: "right", className: "tabular-nums", render: (_, r) => <b className={r.remaining ? "text-red-600" : "text-slate-400"}>{vnd(r.remaining)}</b> },
               {
                 title: "Hạn",
                 width: 100,
@@ -254,6 +251,7 @@ export function DebtsSection() {
               />
             )}
             <Input placeholder="Nội dung (VD: Phí thiết kế đợt 2) *" value={form.title} maxLength={200} onChange={(e) => setForm({ ...form, title: e.target.value })} />
+            <div className="grid gap-3 sm:grid-cols-2">
             <InputNumber<number>
               className="w-full"
               min={1}
@@ -266,6 +264,7 @@ export function DebtsSection() {
               suffix="đ"
             />
             <DatePicker className="w-full" placeholder="Hạn thanh toán (không bắt buộc)" format="DD/MM/YYYY" value={form.dueDate} onChange={(v) => setForm({ ...form, dueDate: v })} />
+            </div>
             <Input.TextArea rows={2} placeholder="Ghi chú" value={form.note} maxLength={500} onChange={(e) => setForm({ ...form, note: e.target.value })} />
             {form.id && <p className="text-xs text-slate-500">Số nợ không được nhỏ hơn số đã thu.</p>}
           </div>

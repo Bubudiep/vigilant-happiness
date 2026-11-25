@@ -2,7 +2,7 @@ import { Alert, Button, Progress, Spin, Table } from "antd";
 import { useCallback, useEffect, useState } from "react";
 import { LuRefreshCw } from "react-icons/lu";
 import { fmtBytes } from "../data/format";
-import { PageHeader, SectionCard, StatCard } from "./ui";
+import { PageHeader, SectionCard, StatCard, StatGrid } from "./ui";
 import { ApiError, fetchStorageOverview, StorageOverview, StorageStoreRow } from "../data/platform-api";
 
 export { fmtBytes };
@@ -56,12 +56,12 @@ export function StorageSection() {
         </SectionCard>
       )}
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <StatGrid>
         <StatCard label="Ảnh gian hàng" value={fmtBytes(data.files.stores)} hint="Album + ảnh sản phẩm/banner" />
         <StatCard label="Ảnh hộp thư reMini" value={fmtBytes(data.files.inbox.bytes)} hint={`${data.files.inbox.files} ảnh`} />
         <StatCard label="Tổng ảnh (theo DB)" value={fmtBytes(data.files.total)} />
         <StatCard label="Trên ổ / Database" value={`${fmtBytes(onDisk)} / ${data.db == null ? "—" : fmtBytes(data.db)}`} hint="uploads + uploads-private / Postgres" />
-      </div>
+      </StatGrid>
 
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
       <Table<StorageStoreRow>
@@ -97,11 +97,12 @@ export function StorageSection() {
               );
             },
           },
-          { title: "Album", align: "right", render: (_, r) => `${fmtBytes(r.albumBytes)} (${r.albumPhotos} ảnh)` },
-          { title: "Ảnh SP/banner", align: "right", render: (_, r) => `${fmtBytes(r.mediaBytes)} (${r.mediaFiles})` },
+          { title: "Album", align: "right", className: "tabular-nums", render: (_, r) => `${fmtBytes(r.albumBytes)} (${r.albumPhotos} ảnh)` },
+          { title: "Ảnh SP/banner", align: "right", className: "tabular-nums", render: (_, r) => `${fmtBytes(r.mediaBytes)} (${r.mediaFiles})` },
           {
             title: "Tổng",
             align: "right",
+            className: "tabular-nums",
             sorter: (a, b) => a.totalBytes - b.totalBytes,
             defaultSortOrder: "descend",
             render: (_, r) => <b>{fmtBytes(r.totalBytes)}</b>,
@@ -109,6 +110,7 @@ export function StorageSection() {
           {
             title: "% tổng",
             align: "right",
+            className: "tabular-nums",
             width: 90,
             render: (_, r) => (data.files.stores ? `${((r.totalBytes / data.files.stores) * 100).toFixed(1)}%` : "—"),
           },

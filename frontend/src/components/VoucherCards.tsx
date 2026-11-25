@@ -27,6 +27,7 @@ import {
   StoreVoucherItem,
   VoucherCodeItem,
 } from "../data/store-api";
+import { StatCard, StatGrid } from "./ui";
 
 const errMsg = (e: unknown, fallback: string) => (e instanceof ApiError ? e.message : fallback);
 
@@ -476,18 +477,11 @@ export function VoucherCodesDrawer({
     >
       {voucher && (
         <div className="space-y-4">
-          <div className="grid grid-cols-3 gap-3">
-            {[
-              { label: "Tổng mã thẻ", value: list.length, cls: "text-slate-900" },
-              { label: "Chưa dùng", value: list.length - used, cls: "text-emerald-600" },
-              { label: "Đã dùng", value: used, cls: "text-slate-400" },
-            ].map((s) => (
-              <div key={s.label} className="rounded-2xl border border-slate-200 bg-white p-3">
-                <div className="text-xs font-semibold text-slate-500">{s.label}</div>
-                <div className={`text-2xl font-extrabold ${s.cls}`}>{s.value.toLocaleString("vi-VN")}</div>
-              </div>
-            ))}
-          </div>
+          <StatGrid cols={3}>
+            <StatCard label="Tổng mã thẻ" value={list.length.toLocaleString("vi-VN")} />
+            <StatCard label="Chưa dùng" value={(list.length - used).toLocaleString("vi-VN")} tone="success" />
+            <StatCard label="Đã dùng" value={used.toLocaleString("vi-VN")} />
+          </StatGrid>
 
           {/* Sinh mã */}
           <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">

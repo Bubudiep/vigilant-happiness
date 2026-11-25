@@ -313,12 +313,13 @@ function ProjectsPanel() {
             ]}
           />
           {draft.customerId === "__new" && (
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid gap-3 sm:grid-cols-2">
               <Input placeholder="Tên khách hàng" value={draft.newCustomerName} onChange={(e) => setDraft({ ...draft, newCustomerName: e.target.value })} />
               <Input placeholder="SĐT Zalo của khách" value={draft.newCustomerPhone} onChange={(e) => setDraft({ ...draft, newCustomerPhone: e.target.value })} />
             </div>
           )}
           <Input placeholder="Tên dự án, VD: Mini App LUMI Studio" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
+          <div className="grid gap-3 sm:grid-cols-2">
           <Select
             className="w-full"
             allowClear
@@ -337,7 +338,8 @@ function ProjectsPanel() {
             onChange={(v) => setDraft({ ...draft, storeId: v ?? "" })}
             options={storeOptionsFor(draft.customerId && draft.customerId !== "__new" ? draft.customerId : undefined)}
           />
-          <div className="grid grid-cols-2 gap-2">
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
             <label className="text-xs text-slate-500">
               Ngày bắt đầu
               <Input type="date" value={draft.startDate} onChange={(e) => setDraft({ ...draft, startDate: e.target.value })} />
