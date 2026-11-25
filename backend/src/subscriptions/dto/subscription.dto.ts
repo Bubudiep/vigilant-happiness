@@ -37,6 +37,12 @@ export class UpsertPlanDto {
   @Min(1)
   maxStaff?: number;
 
+  /** Hạn mức dung lượng ảnh mỗi gian hàng (MB); null / bỏ trống = không giới hạn */
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  storageQuotaMb?: number | null;
+
   @IsOptional()
   @IsArray()
   features?: string[];

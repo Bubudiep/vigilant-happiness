@@ -67,7 +67,7 @@ export class StorageStatsService {
       this.prisma.storeAlbumPhoto.groupBy({ by: ["storeId"], _sum: { size: true }, _count: { _all: true } }),
       this.prisma.storeMedia.groupBy({ by: ["storeId"], _sum: { sizeBytes: true }, _count: { _all: true } }),
       this.prisma.attachment.aggregate({ _sum: { size: true }, _count: { _all: true } }),
-      this.prisma.store.findMany({ select: { id: true, name: true, slug: true, customer: { select: { name: true, companyName: true } } } }),
+      this.prisma.store.findMany({ select: { id: true, name: true, slug: true, customer: { select: { name: true, companyName: true } }, subscription: { select: { plan: { select: { name: true, storageQuotaMb: true } } } } } }),
     ]);
 
     const rows = new Map(
@@ -83,6 +83,9 @@ export class StorageStatsService {
           mediaBytes: 0,
           mediaFiles: 0,
           totalBytes: 0,
+          /** Hạn mức theo gói của store; null = không giới hạn / không gói */
+          quotaBytes: (s.subscription?.plan?.storageQuotaMb != null ? s.subscription.plan.storageQuotaMb * 1024 * 1024 : null) as number | null,
+          planName: (s.subscription?.plan?.name ?? null) as string | null,
         },
       ]),
     );

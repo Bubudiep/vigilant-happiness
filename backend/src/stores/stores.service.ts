@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import type { AuthContext } from "../common/guards/app-auth.guard";
 import { AuthService } from "../auth/auth.service";
 import { openSecret, sealSecret } from "../common/secret-box";
+import { albumPhotoPaths, attachmentPath, mediaFilePath, removeFiles, removeStoreUploadsDir } from "../common/store-files";
 import { PrismaService } from "../prisma/prisma.service";
 import { DEFAULT_TIERS } from "./store-data";
 import {
@@ -298,8 +299,38 @@ export class StoresService {
 
   async removeCustomer(auth: AuthContext, storeId: string, customerId: string) {
     await this.assertAccess(auth, storeId);
+    // Xoá khách → cascade album + ảnh của khách đó: gom file trước, xoá DB rồi xoá file
+    const photos = await this.prisma.storeAlbumPhoto.findMany({ where: { storeId, album: { customerId } }, select: { storageKey: true } });
     const res = await this.prisma.storeCustomer.deleteMany({ where: { id: customerId, storeId } });
     if (!res.count) throw new NotFoundException("Không tìm thấy khách hàng");
+    await removeFiles(photos.flatMap((p) => albumPhotoPaths(p.storageKey)));
     return { id: customerId, deleted: true };
+  }
+
+  /**
+   * Xoá hẳn gian hàng (chỉ quản trị — controller chặn): toàn bộ dữ liệu trong DB (cascade) và mọi file ảnh
+   * trên ổ: ảnh album + thumbnail, ảnh công khai (uploads/stores/<id>/), ảnh đính kèm của hội thoại OA riêng.
+   * Xoá DB trước, rồi xoá file; lỗi xoá file chỉ ghi log (npm run storage:orphans dọn phần sót).
+   */
+  async removeStore(storeId: string) {
+    const store = await this.prisma.store.findUnique({ where: { id: storeId }, select: { id: true, name: true } });
+    if (!store) throw new NotFoundException("Không tìm thấy store");
+    const [photos, media, attachments] = await Promise.all([
+      this.prisma.storeAlbumPhoto.findMany({ where: { storeId }, select: { storageKey: true } }),
+      this.prisma.storeMedia.findMany({ where: { storeId }, select: { storageKey: true } }),
+      // đính kèm của hội thoại thuộc store: Conversation bị cascade, Attachment chỉ SetNull → phải xoá riêng
+      this.prisma.attachment.findMany({ where: { conversation: { storeId } }, select: { id: true, storageKey: true } }),
+    ]);
+    await this.prisma.$transaction([
+      this.prisma.attachment.deleteMany({ where: { id: { in: attachments.map((a) => a.id) } } }),
+      this.prisma.store.delete({ where: { id: storeId } }),
+    ]);
+    const removed = await removeFiles([
+      ...photos.flatMap((p) => albumPhotoPaths(p.storageKey)),
+      ...media.map((m) => mediaFilePath(m.storageKey)),
+      ...attachments.map((a) => attachmentPath(a.storageKey)),
+    ]);
+    await removeStoreUploadsDir(storeId);
+    return { id: storeId, name: store.name, deleted: true, files: removed };
   }
 }

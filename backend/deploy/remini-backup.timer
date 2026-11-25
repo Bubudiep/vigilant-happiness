@@ -1,0 +1,12 @@
+[Unit]
+Description=Sao lưu reMini hằng đêm
+
+[Timer]
+# Giờ máy chủ (đặt múi giờ Asia/Ho_Chi_Minh — xem README). Cron dọn dữ liệu của API chạy 03:15, tránh trùng giờ.
+OnCalendar=*-*-* 02:30:00
+RandomizedDelaySec=10min
+# Máy tắt đúng giờ hẹn thì chạy bù khi bật lại
+Persistent=true
+
+[Install]
+WantedBy=timers.target

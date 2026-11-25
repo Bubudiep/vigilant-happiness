@@ -1,5 +1,6 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { Cron, CronExpression } from "@nestjs/schedule";
+import * as fs from "fs";
 import { NotifyService } from "../notify/notify.service";
 import { PrismaService } from "../prisma/prisma.service";
 
@@ -26,10 +27,29 @@ export function shouldRemind(dayStartUtc: Date, slot: string, now: number): bool
   return now >= start - REMIND_BEFORE_MIN * 60000 && now < end;
 }
 
+export const DISK_WARN_PCT = 80;
+export const DISK_CRITICAL_PCT = 90;
+/** Mỗi mức cảnh báo tối đa 1 lần / 12 giờ. */
+export const DISK_ALERT_COOLDOWN_MS = 12 * 3600 * 1000;
+
+/** Mức cảnh báo theo % ổ đã dùng; null = bình thường. */
+export function diskLevel(usedPct: number): "warn" | "critical" | null {
+  if (usedPct >= DISK_CRITICAL_PCT) return "critical";
+  if (usedPct >= DISK_WARN_PCT) return "warn";
+  return null;
+}
+
+/** Có nên gửi cảnh báo mức này lúc `now` không (chưa gửi bao giờ, hoặc đã quá 12h kể từ lần gửi trước)? */
+export function shouldAlertDisk(lastSentAt: number | undefined, now: number): boolean {
+  return lastSentAt === undefined || now - lastSentAt >= DISK_ALERT_COOLDOWN_MS;
+}
+
 @Injectable()
 export class JobsService {
   private readonly log = new Logger(JobsService.name);
   private running = new Set<string>();
+  /** Lần cuối gửi cảnh báo ổ theo mức (trong bộ nhớ — khởi động lại sẽ nhắc lại, chấp nhận được). */
+  private diskAlertAt: Partial<Record<"warn" | "critical", number>> = {};
 
   constructor(
     private readonly prisma: PrismaService,
@@ -93,6 +113,25 @@ export class JobsService {
         const who = t.customer?.companyName || t.customer?.name || t.conversation?.displayName || "Khách hàng";
         this.notify.notify({ type: "care.due", title: t.title, customer: who, note: t.note });
       }
+    });
+  }
+
+  /** Mỗi giờ: cảnh báo ổ chứa uploads ≥ 80% (cảnh báo) / ≥ 90% (khẩn); mỗi mức tối đa 1 lần / 12 giờ. */
+  @Cron(CronExpression.EVERY_HOUR)
+  checkDisk() {
+    return this.once("checkDisk", async () => {
+      const s = await fs.promises.statfs(process.cwd());
+      const total = Number(s.blocks) * Number(s.bsize);
+      const free = Number(s.bavail) * Number(s.bsize);
+      if (!total) return;
+      const usedPct = ((total - free) / total) * 100;
+      const level = diskLevel(usedPct);
+      if (!level) return;
+      const now = Date.now();
+      if (!shouldAlertDisk(this.diskAlertAt[level], now)) return;
+      this.diskAlertAt[level] = now;
+      this.log.warn(`Ổ đĩa đã dùng ${usedPct.toFixed(1)}% (${level})`);
+      this.notify.notify({ type: "disk.warning", level, usedPct, freeBytes: free, totalBytes: total });
     });
   }
 

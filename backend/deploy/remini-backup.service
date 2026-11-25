@@ -1,0 +1,16 @@
+[Unit]
+Description=Sao lưu reMini (PostgreSQL + uploads)
+After=postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=oneshot
+User=remini
+Group=remini
+# Cấu hình tuỳ chọn (BACKUP_DIR, KEEP, RCLONE_REMOTE, PGUSER, PGDATABASE...) — xem backup.sh. Có thể không tồn tại.
+EnvironmentFile=-/etc/remini/backup.env
+ExecStart=/usr/bin/bash /opt/remini/app/backend/deploy/backup.sh
+# Không tranh CPU / đĩa với API đang phục vụ khách
+Nice=10
+IOSchedulingClass=idle
+TimeoutStartSec=3h

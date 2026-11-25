@@ -130,6 +130,26 @@ export class AlbumStorageService {
     await fs.promises.writeFile(path.join(this.thumbDir, path.basename(storageKey) + ".webp"), data);
   }
 
+  /** Đường dẫn file ảnh / thumbnail trên ổ (cho script bảo trì). */
+  pathOf(storageKey: string) {
+    return path.join(this.dir, path.basename(storageKey));
+  }
+
+  thumbPathOf(storageKey: string) {
+    return path.join(this.thumbDir, path.basename(storageKey) + ".webp");
+  }
+
+  /** Tạo thumbnail còn thiếu cho ảnh đã lưu. Trả true nếu vừa tạo, false nếu đã có / lỗi. */
+  async ensureThumb(storageKey: string): Promise<boolean> {
+    if (fs.existsSync(this.thumbPathOf(storageKey))) return false;
+    try {
+      await this.makeThumb(await fs.promises.readFile(this.pathOf(storageKey)), storageKey);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   /** Thumbnail nếu có; ảnh cũ chưa có thumbnail → null (gọi nơi dùng sẽ trả ảnh gốc). */
   streamThumb(storageKey: string) {
     const file = path.join(this.thumbDir, path.basename(storageKey) + ".webp");

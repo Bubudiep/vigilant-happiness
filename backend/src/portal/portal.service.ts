@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { randomBytes } from "crypto";
 import type { AuthContext } from "../common/guards/app-auth.guard";
@@ -220,11 +220,20 @@ export class PortalService {
     });
   }
 
-  createProject(dto: CreateProjectDto) {
-    const { milestones, startDate, dueDate, ...rest } = dto;
+  /** store gán cho dự án phải tồn tại và (nếu biết khách) thuộc đúng khách đó — lệch → 400. */
+  private async assertProjectStore(storeId: string, customerId: string) {
+    const st = await this.prisma.store.findUnique({ where: { id: storeId }, select: { customerId: true } });
+    if (!st) throw new BadRequestException("Gian hàng không tồn tại");
+    if (st.customerId !== customerId) throw new BadRequestException("Gian hàng không thuộc khách hàng của dự án");
+  }
+
+  async createProject(dto: CreateProjectDto) {
+    const { milestones, startDate, dueDate, storeId, ...rest } = dto;
+    if (storeId) await this.assertProjectStore(storeId, dto.customerId);
     return this.prisma.project.create({
       data: {
         ...rest,
+        storeId: storeId || null,
         startDate: startDate ? new Date(startDate) : undefined,
         dueDate: dueDate ? new Date(dueDate) : undefined,
         milestones: milestones?.length ? { create: milestones.map((title, i) => ({ title, sortOrder: i })) } : undefined,
@@ -234,14 +243,16 @@ export class PortalService {
   }
 
   async updateProject(id: string, dto: UpdateProjectDto) {
-    const { milestones: _ignored, startDate, dueDate, ...rest } = dto;
-    await this.prisma.project.findUniqueOrThrow({ where: { id } }).catch(() => {
-      throw new NotFoundException("Không tìm thấy dự án");
-    });
+    const { milestones: _ignored, startDate, dueDate, storeId, ...rest } = dto;
+    const cur = await this.prisma.project.findUnique({ where: { id }, select: { customerId: true } });
+    if (!cur) throw new NotFoundException("Không tìm thấy dự án");
+    // null hoặc "" = bỏ gán; có giá trị = kiểm tra theo khách (khách mới nếu đang đổi khách)
+    if (storeId) await this.assertProjectStore(storeId, rest.customerId ?? cur.customerId);
     return this.prisma.project.update({
       where: { id },
       data: {
         ...rest,
+        ...(storeId !== undefined ? { storeId: storeId || null } : {}),
         ...(startDate !== undefined ? { startDate: startDate ? new Date(startDate) : null } : {}),
         ...(dueDate !== undefined ? { dueDate: dueDate ? new Date(dueDate) : null } : {}),
       },

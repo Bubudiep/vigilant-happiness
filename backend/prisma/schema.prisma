@@ -142,6 +142,8 @@ model SubscriptionPlan {
   maxStores     Int            @default(1)
   maxProducts   Int            @default(100)
   maxStaff      Int            @default(5)
+  /// Hạn mức dung lượng ảnh của mỗi gian hàng thuộc gói (MB); null = không giới hạn
+  storageQuotaMb Int?
   features      Json
   isActive      Boolean        @default(true)
   sortOrder     Int            @default(0)

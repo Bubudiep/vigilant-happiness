@@ -3,7 +3,7 @@ import { createServer } from "node:http";
 import { test } from "node:test";
 import { AntiSpamService, hasDigitRun } from "../src/antispam/antispam.service";
 import { debtStatus } from "../src/debts/debts.service";
-import { parseSlot, shouldRemind } from "../src/jobs/jobs.service";
+import { diskLevel, parseSlot, shouldAlertDisk, shouldRemind } from "../src/jobs/jobs.service";
 import { NotifyService } from "../src/notify/notify.service";
 import { normalizeVnPhone } from "../src/oauth/zalo.service";
 
@@ -155,4 +155,28 @@ test("debtStatus: chưa trả / trả một phần / đủ / quá hạn", () => 
   assert.equal(debtStatus(1000, 400, new Date("2026-11-19"), now), "overdue");
   assert.equal(debtStatus(1000, 0, new Date("2026-11-20"), now), "unpaid", "đúng ngày hạn vẫn chưa quá hạn");
   assert.equal(debtStatus(1000, 0, new Date("2026-11-21"), now), "unpaid");
+});
+
+// ───────── Cảnh báo ổ đĩa (T32) ─────────
+test("diskLevel: <80 bình thường, ≥80 cảnh báo, ≥90 khẩn", () => {
+  assert.equal(diskLevel(79.9), null);
+  assert.equal(diskLevel(80), "warn");
+  assert.equal(diskLevel(89.99), "warn");
+  assert.equal(diskLevel(90), "critical");
+  assert.equal(diskLevel(100), "critical");
+});
+
+test("shouldAlertDisk: mỗi mức tối đa 1 lần / 12 giờ", () => {
+  const now = Date.now();
+  assert.equal(shouldAlertDisk(undefined, now), true);
+  assert.equal(shouldAlertDisk(now - 11 * 3600e3, now), false);
+  assert.equal(shouldAlertDisk(now - 12 * 3600e3, now), true);
+});
+
+test("notify: định dạng cảnh báo ổ đĩa", () => {
+  const e = { type: "disk.warning" as const, level: "critical" as const, usedPct: 92.3, freeBytes: 3 * 1024 ** 3, totalBytes: 40 * 1024 ** 3 };
+  const { text } = new NotifyService({ get: () => undefined } as never).format(e);
+  assert.match(text, /KHẨN/);
+  assert.match(text, /92\.3%/);
+  assert.match(text, /3\.0 \/ 40\.0 GB/);
 });

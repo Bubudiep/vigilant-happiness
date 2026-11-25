@@ -1,5 +1,5 @@
-import { ApiProperty, ApiPropertyOptional, PartialType } from "@nestjs/swagger";
-import { IsArray, IsIn, IsInt, IsISO8601, IsOptional, IsString, Max, MaxLength, Min, MinLength } from "class-validator";
+import { ApiProperty, ApiPropertyOptional, OmitType, PartialType } from "@nestjs/swagger";
+import { IsArray, IsIn, IsInt, IsISO8601, IsOptional, IsString, Max, MaxLength, Min, MinLength, ValidateIf } from "class-validator";
 
 export const PROJECT_STATUSES = ["consulting", "designing", "developing", "testing", "zalo_review", "live", "maintenance", "paused"];
 export const TICKET_STATUSES = ["open", "in_progress", "waiting_customer", "resolved", "closed"];
@@ -69,7 +69,15 @@ export class CreateProjectDto {
   milestones?: string[];
 }
 
-export class UpdateProjectDto extends PartialType(CreateProjectDto) {}
+/**
+ * Sửa dự án. `storeId`, `startDate`, `dueDate` nhận `null` (hoặc "") để bỏ gán / xoá ngày;
+ * không gửi trường = giữ nguyên.
+ */
+export class UpdateProjectDto extends PartialType(OmitType(CreateProjectDto, ["storeId", "startDate", "dueDate"] as const)) {
+  @ApiPropertyOptional({ nullable: true }) @IsOptional() @ValidateIf((_, v) => v !== null) @IsString() storeId?: string | null;
+  @ApiPropertyOptional({ nullable: true }) @IsOptional() @ValidateIf((_, v) => v !== null && v !== "") @IsISO8601() startDate?: string | null;
+  @ApiPropertyOptional({ nullable: true }) @IsOptional() @ValidateIf((_, v) => v !== null && v !== "") @IsISO8601() dueDate?: string | null;
+}
 
 export class CreateMilestoneDto {
   @ApiProperty() @IsString() @MaxLength(150) title!: string;

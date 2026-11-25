@@ -1,6 +1,7 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Param, Patch, Post, Req, UseGuards } from "@nestjs/common";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
-import { AdminOnly, AppAuthGuard } from "../common/guards/app-auth.guard";
+import { AuditService } from "../audit/audit.service";
+import { AdminOnly, AppAuthGuard, type AppRequest } from "../common/guards/app-auth.guard";
 import { CustomersService } from "./customers.service";
 import { CreatePlatformCustomerDto, UpdatePlatformCustomerDto, UpsertStaffDto } from "./dto/customer.dto";
 
@@ -11,7 +12,10 @@ import { CreatePlatformCustomerDto, UpdatePlatformCustomerDto, UpsertStaffDto } 
 @AdminOnly()
 @Controller("customers")
 export class CustomersController {
-  constructor(private readonly customersService: CustomersService) {}
+  constructor(
+    private readonly customersService: CustomersService,
+    private readonly audit: AuditService,
+  ) {}
 
   @Get()
   findAll() {
@@ -24,18 +28,24 @@ export class CustomersController {
   }
 
   @Post()
-  create(@Body() dto: CreatePlatformCustomerDto) {
-    return this.customersService.create(dto);
+  async create(@Req() req: AppRequest, @Body() dto: CreatePlatformCustomerDto) {
+    const c = await this.customersService.create(dto);
+    void this.audit.record(req, "customer.create", { type: "customer", id: c.id }, { name: dto.name });
+    return c;
   }
 
   @Patch(":id")
-  update(@Param("id") id: string, @Body() dto: UpdatePlatformCustomerDto) {
-    return this.customersService.update(id, dto);
+  async update(@Req() req: AppRequest, @Param("id") id: string, @Body() dto: UpdatePlatformCustomerDto) {
+    const c = await this.customersService.update(id, dto);
+    void this.audit.record(req, "customer.update", { type: "customer", id }, { fields: Object.keys(dto), status: (dto as { status?: string }).status });
+    return c;
   }
 
   @Delete(":id")
-  remove(@Param("id") id: string) {
-    return this.customersService.remove(id);
+  async remove(@Req() req: AppRequest, @Param("id") id: string) {
+    const r = await this.customersService.remove(id);
+    void this.audit.record(req, "customer.delete", { type: "customer", id });
+    return r;
   }
 
   @Get(":id/store-customers")
@@ -44,17 +54,23 @@ export class CustomersController {
   }
 
   @Post(":id/staff")
-  addStaff(@Param("id") id: string, @Body() dto: UpsertStaffDto) {
-    return this.customersService.addStaff(id, dto);
+  async addStaff(@Req() req: AppRequest, @Param("id") id: string, @Body() dto: UpsertStaffDto) {
+    const st = await this.customersService.addStaff(id, dto);
+    void this.audit.record(req, "customer.staff.add", { type: "customer", id }, { staffId: st.id, name: dto.name });
+    return st;
   }
 
   @Patch("staff/:staffId")
-  updateStaff(@Param("staffId") staffId: string, @Body() dto: UpsertStaffDto) {
-    return this.customersService.updateStaff(staffId, dto);
+  async updateStaff(@Req() req: AppRequest, @Param("staffId") staffId: string, @Body() dto: UpsertStaffDto) {
+    const st = await this.customersService.updateStaff(staffId, dto);
+    void this.audit.record(req, "customer.staff.update", { type: "staff", id: staffId }, { fields: Object.keys(dto) });
+    return st;
   }
 
   @Delete("staff/:staffId")
-  removeStaff(@Param("staffId") staffId: string) {
-    return this.customersService.removeStaff(staffId);
+  async removeStaff(@Req() req: AppRequest, @Param("staffId") staffId: string) {
+    const r = await this.customersService.removeStaff(staffId);
+    void this.audit.record(req, "customer.staff.remove", { type: "staff", id: staffId });
+    return r;
   }
 }

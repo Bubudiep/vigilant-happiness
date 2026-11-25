@@ -9,7 +9,8 @@ export type NotifyEvent =
   | { type: "ticket.customer_reply"; code: string; subject: string; customer: string; body: string }
   | { type: "message.created"; channel: string; from: string; preview: string }
   | { type: "care.due"; title: string; customer: string; note?: string | null }
-  | { type: "build.requested"; store: string; customer: string; appName?: string | null };
+  | { type: "build.requested"; store: string; customer: string; appName?: string | null }
+  | { type: "disk.warning"; level: "warn" | "critical"; usedPct: number; freeBytes: number; totalBytes: number };
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const cut = (s: string | null | undefined, n = 200) => (s && s.length > n ? s.slice(0, n) + "…" : (s ?? ""));
@@ -78,6 +79,16 @@ export class NotifyService {
         if (e.appName) lines.push(`Tên app: ${esc(e.appName)}`);
         link = this.adminLink("builds");
         break;
+      case "disk.warning": {
+        const gb = (n: number) => (n / 1024 ** 3).toFixed(1);
+        lines.push(
+          e.level === "critical" ? "🚨 <b>Ổ đĩa server sắp đầy (KHẨN)</b>" : "⚠️ <b>Ổ đĩa server đã dùng nhiều</b>",
+          `Đã dùng ${e.usedPct.toFixed(1)}% · còn trống ${gb(e.freeBytes)} / ${gb(e.totalBytes)} GB`,
+          e.level === "critical" ? "Dọn file mồ côi (npm run storage:orphans), xoá bớt ảnh hoặc mở rộng ổ ngay." : "Xem trang Dung lượng và cân nhắc dọn file / nâng ổ.",
+        );
+        link = this.adminLink("storage").replace("/admin/", "/controller/");
+        break;
+      }
     }
     if (link) lines.push(link);
     const html = lines.join("\n");

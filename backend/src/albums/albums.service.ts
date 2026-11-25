@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from "@nestjs/comm
 import { Prisma, StoreAlbum, StoreAlbumPhoto } from "@prisma/client";
 import { cleanFilename } from "../inbox/files.service";
 import { PrismaService } from "../prisma/prisma.service";
+import { formatBytes, StorageQuotaExceededException, StorageQuotaService } from "../storage-stats/storage-quota.service";
 import { AlbumStorageService } from "./album-storage.service";
 
 /** Loại album — shop tự thêm / sửa / xoá; lưu ở Store.albumKinds (null = mặc định). */
@@ -122,6 +123,7 @@ export class AlbumsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly storage: AlbumStorageService,
+    private readonly quota: StorageQuotaService,
   ) {}
 
   private photo(p: StoreAlbumPhoto) {
@@ -261,12 +263,24 @@ export class AlbumsService {
     const a = await this.find(storeId, id);
     if (!files?.length) throw new BadRequestException("Chưa chọn ảnh");
     if (a.photos.length + files.length > 500) throw new BadRequestException("Mỗi album tối đa 500 ảnh xem trước");
+    // Hạn mức dung lượng theo gói: đã đầy → 413 ngay (chưa nén gì); còn chỗ → kiểm tra lại
+    // từng ảnh SAU khi nén (ảnh album bị nén nhỏ nhiều, ước theo byte đầu vào sẽ chặn oan).
+    const q = await this.quota.quotaOf(storeId);
+    let used = q.quotaBytes === null ? 0 : (await this.quota.usage(storeId, q)).usedBytes;
+    if (q.quotaBytes !== null && used >= q.quotaBytes) throw new StorageQuotaExceededException(used, q.quotaBytes);
+    let quotaHit = false;
     let order = a.photos.reduce((m, p) => Math.max(m, p.sortOrder), 0);
     const created: StoreAlbumPhoto[] = [];
     const errors: string[] = [];
     for (const f of files) {
       try {
         const saved = await this.storage.write(f.buffer);
+        if (q.quotaBytes !== null && used + saved.size > q.quotaBytes) {
+          await this.storage.unlink(saved.storageKey);
+          quotaHit = true;
+          break;
+        }
+        used += saved.size;
         created.push(
           await this.prisma.storeAlbumPhoto.create({
             data: {
@@ -286,8 +300,10 @@ export class AlbumsService {
         errors.push(`${f.originalname}: ${e instanceof Error ? e.message : "lỗi"}`);
       }
     }
+    if (quotaHit && !created.length) throw new StorageQuotaExceededException(used, q.quotaBytes!);
+    if (quotaHit) errors.push(`Đã dừng do hết dung lượng (đã dùng ${formatBytes(used)} / ${formatBytes(q.quotaBytes!)}) — các ảnh còn lại chưa được tải lên`);
     if (!a.coverPhotoId && created[0]) await this.prisma.storeAlbum.update({ where: { id }, data: { coverPhotoId: created[0].id } });
-    return { added: created.map((p) => this.photo(p)), errors };
+    return { added: created.map((p) => this.photo(p)), errors, quotaExceeded: quotaHit };
   }
 
   async removePhoto(storeId: string, id: string, photoId: string) {

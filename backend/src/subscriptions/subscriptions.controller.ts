@@ -1,6 +1,7 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UseGuards } from "@nestjs/common";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
-import { AdminOnly, AppAuthGuard } from "../common/guards/app-auth.guard";
+import { AuditService } from "../audit/audit.service";
+import { AdminOnly, AppAuthGuard, type AppRequest } from "../common/guards/app-auth.guard";
 import { CreateSubscriptionDto, UpdateSubscriptionDto, UpsertPlanDto } from "./dto/subscription.dto";
 import type { PlatformVoucherInput } from "./platform-vouchers";
 import { SubscriptionsService } from "./subscriptions.service";
@@ -8,7 +9,10 @@ import { SubscriptionsService } from "./subscriptions.service";
 @ApiTags("subscriptions")
 @Controller("subscriptions")
 export class SubscriptionsController {
-  constructor(private readonly subscriptionsService: SubscriptionsService) {}
+  constructor(
+    private readonly subscriptionsService: SubscriptionsService,
+    private readonly audit: AuditService,
+  ) {}
 
   @Get("plans")
   findPlans() {
@@ -19,24 +23,36 @@ export class SubscriptionsController {
   @UseGuards(AppAuthGuard)
   @AdminOnly()
   @ApiBearerAuth()
-  createPlan(@Body() dto: UpsertPlanDto) {
-    return this.subscriptionsService.createPlan(dto);
+  async createPlan(@Req() req: AppRequest, @Body() dto: UpsertPlanDto) {
+    const p = await this.subscriptionsService.createPlan(dto);
+    void this.audit.record(req, "plan.create", { type: "plan", id: p.id }, { code: p.code, name: p.name, priceMonthly: p.priceMonthly, priceYearly: p.priceYearly, storageQuotaMb: p.storageQuotaMb });
+    return p;
   }
 
   @Patch("plans/:id")
   @UseGuards(AppAuthGuard)
   @AdminOnly()
   @ApiBearerAuth()
-  updatePlan(@Param("id") id: string, @Body() dto: UpsertPlanDto) {
-    return this.subscriptionsService.updatePlan(id, dto);
+  async updatePlan(@Req() req: AppRequest, @Param("id") id: string, @Body() dto: UpsertPlanDto) {
+    const before = await this.subscriptionsService.findPlan(id);
+    const p = await this.subscriptionsService.updatePlan(id, dto);
+    void this.audit.record(req, "plan.update", { type: "plan", id }, { code: p.code, name: p.name, priceMonthly: p.priceMonthly, priceYearly: p.priceYearly, isActive: p.isActive });
+    // Đổi hạn mức dung lượng ảnh của gói ảnh hưởng mọi gian hàng thuộc gói → ghi riêng để dễ tra
+    if (before.storageQuotaMb !== p.storageQuotaMb) {
+      void this.audit.record(req, "plan.storage_quota", { type: "plan", id }, { name: p.name, fromMb: before.storageQuotaMb, toMb: p.storageQuotaMb });
+    }
+    return p;
   }
 
   @Delete("plans/:id")
   @UseGuards(AppAuthGuard)
   @AdminOnly()
   @ApiBearerAuth()
-  removePlan(@Param("id") id: string) {
-    return this.subscriptionsService.removePlan(id);
+  async removePlan(@Req() req: AppRequest, @Param("id") id: string) {
+    const before = await this.subscriptionsService.findPlan(id);
+    const r = await this.subscriptionsService.removePlan(id);
+    void this.audit.record(req, "plan.delete", { type: "plan", id }, { code: before.code, name: before.name });
+    return r;
   }
 
   // Voucher nền tảng (giảm giá khi khách mua / gia hạn gói)
@@ -52,8 +68,10 @@ export class SubscriptionsController {
   @UseGuards(AppAuthGuard)
   @AdminOnly()
   @ApiBearerAuth()
-  createVoucher(@Body() body: PlatformVoucherInput) {
-    return this.subscriptionsService.createVoucher(body ?? {});
+  async createVoucher(@Req() req: AppRequest, @Body() body: PlatformVoucherInput) {
+    const v = await this.subscriptionsService.createVoucher(body ?? {});
+    void this.audit.record(req, "plan_voucher.create", { type: "plan_voucher", id: v.id }, { code: v.code, discountType: v.discountType, discountValue: v.discountValue, quantity: v.quantity });
+    return v;
   }
 
   @Post("vouchers/preview")
@@ -68,16 +86,20 @@ export class SubscriptionsController {
   @UseGuards(AppAuthGuard)
   @AdminOnly()
   @ApiBearerAuth()
-  updateVoucher(@Param("id") id: string, @Body() body: PlatformVoucherInput) {
-    return this.subscriptionsService.updateVoucher(id, body ?? {});
+  async updateVoucher(@Req() req: AppRequest, @Param("id") id: string, @Body() body: PlatformVoucherInput) {
+    const v = await this.subscriptionsService.updateVoucher(id, body ?? {});
+    void this.audit.record(req, "plan_voucher.update", { type: "plan_voucher", id }, { code: v.code, fields: Object.keys(body ?? {}), active: v.active });
+    return v;
   }
 
   @Delete("vouchers/:id")
   @UseGuards(AppAuthGuard)
   @AdminOnly()
   @ApiBearerAuth()
-  removeVoucher(@Param("id") id: string) {
-    return this.subscriptionsService.removeVoucher(id);
+  async removeVoucher(@Req() req: AppRequest, @Param("id") id: string) {
+    const r = await this.subscriptionsService.removeVoucher(id);
+    void this.audit.record(req, "plan_voucher.delete", { type: "plan_voucher", id });
+    return r;
   }
 
   @Get()
@@ -92,15 +114,19 @@ export class SubscriptionsController {
   @UseGuards(AppAuthGuard)
   @AdminOnly()
   @ApiBearerAuth()
-  createSubscription(@Body() dto: CreateSubscriptionDto) {
-    return this.subscriptionsService.createSubscription(dto);
+  async createSubscription(@Req() req: AppRequest, @Body() dto: CreateSubscriptionDto) {
+    const sub = await this.subscriptionsService.createSubscription(dto);
+    void this.audit.record(req, "subscription.create", { type: "subscription", id: sub.id }, { customerId: dto.customerId, planId: dto.planId, billingCycle: sub.billingCycle, pricePaid: sub.pricePaid, voucherCode: sub.voucherCode });
+    return sub;
   }
 
   @Patch(":id")
   @UseGuards(AppAuthGuard)
   @AdminOnly()
   @ApiBearerAuth()
-  updateSubscription(@Param("id") id: string, @Body() dto: UpdateSubscriptionDto) {
-    return this.subscriptionsService.updateSubscription(id, dto);
+  async updateSubscription(@Req() req: AppRequest, @Param("id") id: string, @Body() dto: UpdateSubscriptionDto) {
+    const sub = await this.subscriptionsService.updateSubscription(id, dto);
+    void this.audit.record(req, "subscription.update", { type: "subscription", id }, { fields: Object.keys(dto), status: sub.status, planId: sub.planId });
+    return sub;
   }
 }

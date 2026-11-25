@@ -15,6 +15,12 @@ export class SubscriptionsService {
     });
   }
 
+  async findPlan(id: string) {
+    const plan = await this.prisma.subscriptionPlan.findUnique({ where: { id } });
+    if (!plan) throw new NotFoundException("Không tìm thấy gói đăng ký");
+    return plan;
+  }
+
   createPlan(dto: UpsertPlanDto) {
     return this.prisma.subscriptionPlan.create({
       data: {
@@ -26,6 +32,7 @@ export class SubscriptionsService {
         maxStores: dto.maxStores ?? 1,
         maxProducts: dto.maxProducts ?? 100,
         maxStaff: dto.maxStaff ?? 5,
+        storageQuotaMb: dto.storageQuotaMb ?? null,
         features: (dto.features ?? []) as Prisma.InputJsonValue,
         isActive: dto.isActive ?? true,
         sortOrder: dto.sortOrder ?? 0,
@@ -47,6 +54,8 @@ export class SubscriptionsService {
         maxStores: dto.maxStores ?? existing.maxStores,
         maxProducts: dto.maxProducts ?? existing.maxProducts,
         maxStaff: dto.maxStaff ?? existing.maxStaff,
+        // undefined = giữ nguyên; null = bỏ giới hạn
+        storageQuotaMb: dto.storageQuotaMb === undefined ? existing.storageQuotaMb : dto.storageQuotaMb,
         features: (dto.features ?? existing.features) as Prisma.InputJsonValue,
         isActive: dto.isActive ?? existing.isActive,
         sortOrder: dto.sortOrder ?? existing.sortOrder,

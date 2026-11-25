@@ -12,7 +12,8 @@ import {
   UseInterceptors,
 } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
-import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
+import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
+import { AuditService } from "../audit/audit.service";
 import { memoryStorage } from "multer";
 import { AppAuthGuard, RequireScopes, type AppRequest } from "../common/guards/app-auth.guard";
 import { StoresService } from "../stores/stores.service";
@@ -27,6 +28,7 @@ export class MediaController {
   constructor(
     private readonly mediaService: MediaService,
     private readonly storesService: StoresService,
+    private readonly audit: AuditService,
   ) {}
 
   @Post(":storeId/media/upload")
@@ -54,9 +56,13 @@ export class MediaController {
   }
 
   @Delete("media/:mediaId")
-  async remove(@Req() req: AppRequest, @Param("mediaId") mediaId: string) {
+  @ApiOperation({ summary: "Xoá ảnh. Ảnh đang được dùng → 409 { message, usedIn }; thêm ?force=1 để xoá bất chấp" })
+  async remove(@Req() req: AppRequest, @Param("mediaId") mediaId: string, @Query("force") force?: string) {
     const storeId = await this.mediaService.findStoreIdOfMedia(mediaId);
     await this.storesService.ensureAccess(req.auth!, storeId);
-    return this.mediaService.remove(mediaId);
+    const forced = force === "1" || force === "true";
+    const r = await this.mediaService.remove(mediaId, { force: forced });
+    void this.audit.record(req, "store.media.delete", { type: "store", id: storeId }, { mediaId, usedIn: r.usedIn, force: forced });
+    return { deleted: true };
   }
 }
