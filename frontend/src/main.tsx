@@ -20,10 +20,12 @@ createRoot(document.getElementById("root")!).render(
           token: {
             colorPrimary: "#1657f3",
             fontFamily: '"Be Vietnam Pro", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
-            fontSize: 14,
+            fontSize: 13,
             fontSizeSM: 12,
-            controlHeight: 34,
-            controlHeightSM: 28,
+            fontSizeLG: 14,
+            controlHeight: 32,
+            controlHeightSM: 26,
+            controlHeightLG: 38,
             borderRadius: 8,
             borderRadiusLG: 12,
             colorBorder: "#e2e8f0", // slate-200
@@ -32,10 +34,10 @@ createRoot(document.getElementById("root")!).render(
             colorTextSecondary: "#64748b", // slate-500
           },
           components: {
-            Table: { headerBg: "#f8fafc", headerColor: "#475569", fontSize: 13, cellPaddingBlock: 10 },
-            Card: { paddingLG: 20 },
-            Modal: { titleFontSize: 16 },
-            Drawer: { fontSizeLG: 16 },
+            Table: { headerBg: "#f8fafc", headerColor: "#475569", fontSize: 13, cellPaddingBlock: 8, cellPaddingInline: 12 },
+            Card: { paddingLG: 16 },
+            Modal: { titleFontSize: 15 },
+            Drawer: { fontSizeLG: 15 },
             Segmented: { itemSelectedBg: "#ffffff" },
             Tag: { fontSizeSM: 12 },
           },

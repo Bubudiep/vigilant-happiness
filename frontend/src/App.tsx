@@ -6,6 +6,15 @@ import { AUTH_EXPIRED_EVENT } from "./data/platform-api";
 // Trang quản trị tải riêng (chunk khác) — trang chủ không phải tải trình thiết kế, bảng biểu…
 const AccountGate = lazy(() => import("./components/AccountGate"));
 const AdminLogin = lazy(() => import("./components/AdminLogin"));
+/** Gắn class `admin-ui` vào <html> ở trang quản trị → cỡ chữ gọn hơn (src/index.css). */
+function useAdminUiClass() {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    const on = /^\/(admin|controller)(\/|$)/.test(pathname);
+    document.documentElement.classList.toggle("admin-ui", on);
+  }, [pathname]);
+}
+
 const StoreConsole = lazy(() => import("./components/StoreConsole"));
 const PlatformConsole = lazy(() => import("./components/PlatformConsole"));
 
@@ -85,6 +94,7 @@ function ProtectedRoute({
 
 export default function App() {
   const { message } = AntApp.useApp();
+  useAdminUiClass();
   const navigate = useNavigate();
   const [authUser, setAuthUser] = useState<AuthUser | null>(
     () => consumeOAuthCallbackFromUrl() ?? getStoredAuthUser(),

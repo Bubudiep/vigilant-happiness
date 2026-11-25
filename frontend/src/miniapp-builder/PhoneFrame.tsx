@@ -618,7 +618,7 @@ export function DeviceFrame({ device, children }: { device: DeviceId; children: 
   const dev = DEVICES[device];
   const bezel = device === "iphoneSE" ? 14 : 12;
   return (
-    <div className="relative" style={{ width: dev.width + bezel * 2, height: dev.height + bezel * 2 + (device === "iphoneSE" ? 120 : 0) }}>
+    <div className="phone-ui relative" style={{ width: dev.width + bezel * 2, height: dev.height + bezel * 2 + (device === "iphoneSE" ? 120 : 0) }}>
       {/* side buttons */}
       <span className="absolute -left-[3px] top-[120px] h-8 w-[3px] rounded-l bg-slate-700" />
       <span className="absolute -left-[3px] top-[170px] h-14 w-[3px] rounded-l bg-slate-700" />

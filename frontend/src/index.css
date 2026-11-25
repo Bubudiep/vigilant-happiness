@@ -2,6 +2,26 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Cỡ chữ trang quản trị (xem tailwind.config.js). App gắn class admin-ui vào <html> khi ở /admin, /controller
+   — gắn ở <html> để modal / drawer / dropdown (render ra body) cũng nhận. */
+html.admin-ui {
+  --fs-2xs: 11px; --lh-2xs: 16px;
+  --fs-xs: 12px;  --lh-xs: 17px;
+  --fs-sm: 13px;  --lh-sm: 20px;
+  --fs-base: 14px; --lh-base: 22px;
+  --fs-lg: 16px;  --lh-lg: 24px;
+  --fs-xl: 18px;  --lh-xl: 26px;
+}
+/* Khung mô phỏng điện thoại trong trình thiết kế: giữ cỡ chữ như Mini App thật */
+html.admin-ui .phone-ui {
+  --fs-2xs: 0.6875rem; --lh-2xs: 1rem;
+  --fs-xs: 0.75rem; --lh-xs: 1rem;
+  --fs-sm: 0.875rem; --lh-sm: 1.25rem;
+  --fs-base: 1rem; --lh-base: 1.5rem;
+  --fs-lg: 1.125rem; --lh-lg: 1.75rem;
+  --fs-xl: 1.25rem; --lh-xl: 1.75rem;
+}
+
 @layer base {
   html {
     font-family: "Be Vietnam Pro", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -17,7 +37,7 @@
 
 /* Form antd: nhãn 13px / 500 cho mọi form trong trang quản trị */
 .ant-form-vertical .ant-form-item-label > label {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 500;
   color: #334155;
 }
