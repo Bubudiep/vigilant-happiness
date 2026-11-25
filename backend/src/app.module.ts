@@ -3,6 +3,7 @@ import { ConfigModule } from "@nestjs/config";
 import { AlbumsModule } from "./albums/albums.module";
 import { AntiSpamModule } from "./antispam/antispam.module";
 import { AuditModule } from "./audit/audit.module";
+import { StorageStatsModule } from "./storage-stats/storage-stats.module";
 import { AuthModule } from "./auth/auth.module";
 import { CustomersModule } from "./customers/customers.module";
 import { DebtsModule } from "./debts/debts.module";
@@ -31,6 +32,7 @@ import { TemplatesModule } from "./templates/templates.module";
     AntiSpamModule,
     NotifyModule,
     AuditModule,
+    StorageStatsModule,
     JobsModule,
     HealthModule,
     LeadsModule,

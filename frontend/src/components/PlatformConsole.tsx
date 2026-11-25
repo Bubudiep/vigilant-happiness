@@ -3,8 +3,7 @@ import { lazy, Suspense, useEffect, useState } from "react";
 import {
   LuBookOpen,
   LuGauge,
-  LuHeartHandshake,
-  LuImages,
+  LuHardDrive,
   LuKanban,
   LuKeyRound,
   LuMenu,
@@ -22,7 +21,7 @@ import {
   LuTicketPercent,
   LuRocket,
 } from "react-icons/lu";
-import { Navigate, useNavigate, useParams } from "react-router-dom";
+import { Navigate, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import type { AccountInfo, AuthUser } from "../data/auth";
 import { fetchInboxSummary, InboxSummary } from "../data/inbox-api";
 import UserMenu from "./UserMenu";
@@ -34,7 +33,6 @@ const CustomersPlatformSection = lazy(() => named(import("./CustomersAuditViews"
 const AccountsSection = lazy(() => named(import("./CustomersAuditViews"), "AccountsSection"));
 const AuditSection = lazy(() => named(import("./CustomersAuditViews"), "AuditSection"));
 const InboxSection = lazy(() => named(import("./InboxViews"), "InboxSection"));
-const CustomerFilesSection = lazy(() => named(import("./InboxViews"), "CustomerFilesSection"));
 const CareSection = lazy(() => named(import("./InboxViews"), "CareSection"));
 const CallbacksSection = lazy(() => named(import("./PlatformViews"), "CallbacksSection"));
 const ApiChannelsSection = lazy(() => named(import("./PlatformViews"), "ApiChannelsSection"));
@@ -44,13 +42,12 @@ const DebtsSection = lazy(() => named(import("./DebtViews"), "DebtsSection"));
 const CustomerAppsSection = lazy(() => named(import("./CustomerAppsViews"), "CustomerAppsSection"));
 const PlansSection = lazy(() => named(import("./PlatformBillingViews"), "PlansSection"));
 const PlatformVouchersSection = lazy(() => named(import("./PlatformBillingViews"), "PlatformVouchersSection"));
+const StorageSection = lazy(() => named(import("./StorageViews"), "StorageSection"));
 const BuildRequestsSection = lazy(() => named(import("./StoreSettingsViews"), "BuildRequestsSection"));
 
 export type PlatformNavKey =
   | "customers"
   | "inbox"
-  | "files"
-  | "care"
   | "callbacks"
   | "projects"
   | "debts"
@@ -61,6 +58,7 @@ export type PlatformNavKey =
   | "antispam"
   | "accounts"
   | "audit"
+  | "storage"
   | "api";
 
 type NavItem = { key: PlatformNavKey; label: string; icon: React.ReactNode; badge?: number };
@@ -69,8 +67,8 @@ type NavItem = { key: PlatformNavKey; label: string; icon: React.ReactNode; badg
 export const LEGACY_PLATFORM_SECTIONS: Record<string, PlatformNavKey> = {
   platformCustomers: "customers",
   inbox: "inbox",
-  files: "files",
-  care: "care",
+  files: "inbox", // Album ảnh khách đã bỏ
+  care: "inbox", // Chăm sóc gộp vào Tin nhắn
   callbacks: "callbacks",
   portal: "projects",
   debts: "debts",
@@ -99,6 +97,8 @@ export default function PlatformConsole({
 }) {
   const navigate = useNavigate();
   const { section } = useParams<{ section?: string }>();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const inboxTab = searchParams.get("tab") === "care" ? "care" : "chat";
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [summary, setSummary] = useState<InboxSummary | null>(null);
@@ -119,9 +119,7 @@ export default function PlatformConsole({
       title: "Khách hàng",
       items: [
         { key: "customers", label: "Khách hàng reMini", icon: <LuUsers size={17} /> },
-        { key: "inbox", label: "Tin nhắn", icon: <LuMessagesSquare size={17} />, badge: summary?.unread || undefined },
-        { key: "files", label: "Album ảnh khách", icon: <LuImages size={17} /> },
-        { key: "care", label: "Chăm sóc", icon: <LuHeartHandshake size={17} />, badge: summary?.careDue || undefined },
+        { key: "inbox", label: "Tin nhắn", icon: <LuMessagesSquare size={17} />, badge: (summary?.unread ?? 0) + (summary?.careDue ?? 0) || undefined },
         { key: "callbacks", label: "Lịch gọi lại", icon: <LuPhoneCall size={17} /> },
       ],
     },
@@ -147,6 +145,7 @@ export default function PlatformConsole({
         { key: "accounts", label: "Tài khoản quản trị", icon: <LuShieldCheck size={17} /> },
         { key: "antispam", label: "Chống spam", icon: <LuShieldAlert size={17} /> },
         { key: "api", label: "Kết nối API", icon: <LuKeyRound size={17} /> },
+        { key: "storage", label: "Dung lượng", icon: <LuHardDrive size={17} /> },
         { key: "audit", label: "Nhật ký thao tác", icon: <LuBookOpen size={17} /> },
       ],
     },
@@ -243,9 +242,30 @@ export default function PlatformConsole({
             }
           >
             {active === "customers" && <CustomersPlatformSection />}
-            {active === "inbox" && <InboxSection onUnreadChange={refreshSummary} />}
-            {active === "files" && <CustomerFilesSection />}
-            {active === "care" && <CareSection onChanged={refreshSummary} />}
+            {active === "inbox" && (
+              <div className="space-y-3">
+                <div className="flex gap-1 rounded-xl bg-white p-1 shadow-sm ring-1 ring-slate-200 sm:w-fit">
+                  {([
+                    ["chat", "Hội thoại", summary?.unread],
+                    ["care", "Chăm sóc", summary?.careDue],
+                  ] as const).map(([k, label, n]) => (
+                    <button
+                      key={k}
+                      type="button"
+                      onClick={() => setSearchParams(k === "care" ? { tab: "care" } : {}, { replace: true })}
+                      className={`flex items-center gap-2 rounded-lg px-4 py-1.5 text-sm font-semibold transition ${
+                        inboxTab === k ? "bg-brand-600 text-white" : "text-slate-600 hover:bg-slate-100"
+                      }`}
+                    >
+                      {label}
+                      {!!n && <span className={`rounded-full px-1.5 text-[11px] ${inboxTab === k ? "bg-white/25" : "bg-rose-500 text-white"}`}>{n}</span>}
+                    </button>
+                  ))}
+                </div>
+                {inboxTab === "care" ? <CareSection onChanged={refreshSummary} /> : <InboxSection onUnreadChange={refreshSummary} />}
+              </div>
+            )}
+            {active === "storage" && <StorageSection />}
             {active === "callbacks" && <CallbacksSection />}
             {active === "projects" && <PortalSection />}
             {active === "builds" && <BuildRequestsSection />}

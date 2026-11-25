@@ -126,7 +126,8 @@ export class AlbumsService {
 
   private photo(p: StoreAlbumPhoto) {
     const { storageKey: _k, ...rest } = p;
-    return { ...rest, url: this.storage.signedUrl(p.id) };
+    const url = this.storage.signedUrl(p.id);
+    return { ...rest, url, thumbUrl: `${url}&t=1` };
   }
 
   private summary(a: StoreAlbum & { _count?: { photos: number }; photos?: StoreAlbumPhoto[]; customer?: { id: string; name: string; phone: string } }) {
@@ -142,7 +143,7 @@ export class AlbumsService {
       note: a.note,
       links: links.map((l) => ({ ...l, provider: linkProvider(l.url) })),
       coverPhotoId: a.coverPhotoId,
-      coverUrl: cover ? this.storage.signedUrl(cover.id) : null,
+      coverUrl: cover ? `${this.storage.signedUrl(cover.id)}&t=1` : null,
       photoCount: a._count?.photos ?? a.photos?.length ?? 0,
       status: a.status,
       publishedAt: a.publishedAt,
@@ -271,7 +272,7 @@ export class AlbumsService {
             data: {
               albumId: id,
               storeId,
-              filename: cleanFilename(f.originalname, "anh"),
+              filename: saved.mime === "image/webp" ? cleanFilename(f.originalname, "anh").replace(/\.[^.]+$/, "") + ".webp" : cleanFilename(f.originalname, "anh"),
               mime: saved.mime,
               size: saved.size,
               width: saved.width ?? null,
@@ -400,9 +401,11 @@ export class AlbumsService {
     return { messages, albums };
   }
 
-  async readPhoto(id: string) {
+  async readPhoto(id: string, thumbOnly = false) {
     const p = await this.prisma.storeAlbumPhoto.findUnique({ where: { id } });
     if (!p) throw new NotFoundException("Không tìm thấy ảnh");
+    const thumb = thumbOnly ? this.storage.streamThumb(p.storageKey) : null;
+    if (thumb) return { stream: thumb.stream, mime: "image/webp", size: thumb.size, filename: p.filename };
     return { stream: this.storage.stream(p.storageKey), mime: p.mime, size: p.size, filename: p.filename };
   }
 }

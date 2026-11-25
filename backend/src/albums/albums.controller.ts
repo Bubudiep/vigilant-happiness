@@ -179,9 +179,9 @@ export class AlbumPhotosController {
   ) {}
 
   @Get(":id")
-  async download(@Param("id") id: string, @Query("exp") exp: string, @Query("sig") sig: string, @Res() res: Response) {
+  async download(@Param("id") id: string, @Query("exp") exp: string, @Query("sig") sig: string, @Query("t") t: string, @Res() res: Response) {
     if (!this.storage.verify(id, exp, sig)) return res.status(403).json({ message: "Liên kết không hợp lệ hoặc đã hết hạn" });
-    const f = await this.albums.readPhoto(id);
+    const f = await this.albums.readPhoto(id, t === "1");
     res.set({
       "Content-Type": f.mime,
       "Content-Length": String(f.size),

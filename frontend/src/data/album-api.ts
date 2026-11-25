@@ -28,6 +28,8 @@ export interface AlbumPhoto {
   height?: number | null;
   size: number;
   url: string;
+  /** Ảnh thu nhỏ 400px cho lưới (ảnh cũ chưa có thì server trả ảnh gốc). */
+  thumbUrl?: string;
 }
 
 export interface AlbumSummary {

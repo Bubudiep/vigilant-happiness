@@ -434,3 +434,28 @@ export const previewPlatformVoucher = (data: { code: string; planId: string; bil
     method: "POST",
     body: JSON.stringify(data),
   });
+
+export interface StorageStoreRow {
+  storeId: string;
+  name: string;
+  slug: string;
+  customer: string | null;
+  albumBytes: number;
+  albumPhotos: number;
+  mediaBytes: number;
+  mediaFiles: number;
+  totalBytes: number;
+}
+export interface StorageOverview {
+  disk: { total: number; free: number; used: number } | null;
+  db: number | null;
+  files: {
+    stores: number;
+    inbox: { bytes: number; files: number };
+    total: number;
+    onDisk: { uploads: { bytes: number; files: number }; uploadsPrivate: { bytes: number; files: number } };
+  };
+  stores: StorageStoreRow[];
+  generatedAt: string;
+}
+export const fetchStorageOverview = () => api<StorageOverview>("/admin/storage");

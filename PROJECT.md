@@ -15,6 +15,7 @@
 ## 2. Cấu trúc thư mục (`c:\Dev\zalo-mini-app\demo\`)
 
 ```
+customer-app/           Các Zalo Mini App viết riêng cho từng khách (mỗi khách một thư mục con, xem README)
 demo-mini-app-store/   Zalo Mini App (React 18, Vite 5, zmp-ui, zmp-sdk, jotai, Tailwind)
   src/templates/<id>/  20 mẫu demo (index.ts = meta, data.ts, pages/, nav.tsx)
   src/templates/_shared/kit/  component dùng chung của mẫu (layout, product, cart, account, referral…)

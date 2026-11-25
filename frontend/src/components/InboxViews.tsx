@@ -1,26 +1,21 @@
 import { Alert, App as AntApp, Badge, Button, Checkbox, DatePicker, Empty, Image, Input, Modal, Popconfirm, Select, Table, Tag } from "antd";
 import dayjs, { type Dayjs } from "dayjs";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { LuArrowLeft, LuCheck, LuDownload, LuImagePlus, LuLink, LuPlug, LuRefreshCw, LuSend, LuTrash2, LuUpload } from "react-icons/lu";
+import { LuArrowLeft, LuCheck, LuImagePlus, LuLink, LuPlug, LuRefreshCw, LuSend, LuTrash2 } from "react-icons/lu";
 import {
   Channel,
   ConversationDetail,
   ConversationRow,
   createCare,
   deleteCare,
-  deleteImage,
   fetchCare,
-  fetchGallery,
   fetchOaStatus,
-  GalleryImage,
   InboxMessage,
   OaStatus,
   patchCare,
-  patchImage,
   platformInboxOps,
   storeInboxOps,
   saveOaCredentials,
-  uploadCustomerImage,
   CareTaskRow,
 } from "../data/inbox-api";
 import { ApiError, fetchCustomerRows, PlatformCustomerRow } from "../data/platform-api";
@@ -431,160 +426,6 @@ export function InboxSection({ onUnreadChange, storeId }: { onUnreadChange?: () 
             <Input value={care.title} maxLength={200} onChange={(e) => setCare({ ...care, title: e.target.value })} placeholder="Việc cần làm *" />
             <DatePicker className="w-full" showTime={{ format: "HH:mm" }} format="DD/MM/YYYY HH:mm" value={care.dueAt} onChange={(v) => setCare({ ...care, dueAt: v })} />
             <Input.TextArea rows={2} value={care.note} maxLength={500} onChange={(e) => setCare({ ...care, note: e.target.value })} placeholder="Ghi chú" />
-          </div>
-        )}
-      </Modal>
-    </div>
-  );
-}
-
-// ═════════════════════════════ Ảnh khách ═════════════════════════════
-
-type EditImg = { id: string; tag: string; note: string };
-
-export function CustomerFilesSection() {
-  const { message } = AntApp.useApp();
-  const customers = useCustomers();
-  const [customerId, setCustomerId] = useState<string | undefined>();
-  const [source, setSource] = useState("");
-  const [q, setQ] = useState("");
-  const [items, setItems] = useState<GalleryImage[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [edit, setEdit] = useState<EditImg | null>(null);
-  const [uploading, setUploading] = useState(false);
-  const fileRef = useRef<HTMLInputElement>(null);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      setItems(await fetchGallery({ customerId, source: source || undefined, q: q || undefined }));
-      setError(null);
-    } catch (e) {
-      setError(errMsg(e, "Không tải được ảnh"));
-    } finally {
-      setLoading(false);
-    }
-  }, [customerId, source, q]);
-  useEffect(() => {
-    load();
-  }, [load]);
-
-  const upload = async (files: FileList | null) => {
-    if (!files?.length || !customerId) return;
-    setUploading(true);
-    try {
-      for (const f of Array.from(files)) await uploadCustomerImage(customerId, f);
-      message.success("Đã tải ảnh lên");
-      load();
-    } catch (e) {
-      message.error(errMsg(e));
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h3 className="text-base font-bold text-slate-900">Ảnh khách hàng</h3>
-          <p className="text-xs text-slate-500">Ảnh khách gửi qua Mini App / Zalo OA và ảnh nhân viên lưu cho khách. Lưu riêng tư, chỉ xem được khi đăng nhập quản trị.</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Select
-            showSearch
-            allowClear
-            style={{ width: 220 }}
-            placeholder="Lọc theo khách hàng"
-            optionFilterProp="label"
-            value={customerId}
-            onChange={setCustomerId}
-            options={customerOptions(customers)}
-          />
-          <Select
-            value={source}
-            onChange={setSource}
-            style={{ width: 130 }}
-            options={[
-              { value: "", label: "Mọi nguồn" },
-              { value: "customer", label: "Khách gửi" },
-              { value: "staff", label: "Nhân viên lưu" },
-            ]}
-          />
-          <Input.Search allowClear placeholder="Tên file / thẻ / ghi chú" style={{ width: 200 }} onSearch={setQ} />
-          <Button icon={<LuRefreshCw size={14} />} onClick={load} loading={loading} />
-          <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple hidden onChange={(e) => (upload(e.target.files), (e.target.value = ""))} />
-          <Button icon={<LuUpload size={14} />} loading={uploading} disabled={!customerId} title={customerId ? "" : "Chọn khách hàng trước"} onClick={() => fileRef.current?.click()}>
-            Tải ảnh lên
-          </Button>
-        </div>
-      </div>
-
-      {error ? (
-        <Alert type="warning" showIcon title={error} action={<Button size="small" onClick={load}>Thử lại</Button>} />
-      ) : items.length === 0 ? (
-        <Empty description={loading ? "Đang tải…" : "Chưa có ảnh nào"} />
-      ) : (
-        <Image.PreviewGroup>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-            {items.map((a) => (
-              <div key={a.id} className="overflow-hidden rounded-xl border border-slate-200">
-                <Image src={a.url} alt={a.filename} width="100%" height={140} style={{ objectFit: "cover" }} />
-                <div className="space-y-1 p-2">
-                  <div className="flex flex-wrap items-center gap-1">
-                    {a.tag && <Tag color="blue">{a.tag}</Tag>}
-                    <Tag color={a.source === "customer" ? "green" : "default"}>{a.source === "customer" ? "Khách gửi" : "Nhân viên"}</Tag>
-                  </div>
-                  <div className="truncate text-xs font-semibold text-slate-800">{a.customer ? customerLabel(a.customer) : a.conversation?.displayName ?? "Chưa gắn khách"}</div>
-                  {a.note && <div className="line-clamp-2 text-[11px] text-slate-500">{a.note}</div>}
-                  <div className="text-[10px] text-slate-400">
-                    {dayjs(a.createdAt).format("HH:mm DD/MM/YYYY")} · {(a.size / 1024).toFixed(0)}KB
-                  </div>
-                  <div className="flex gap-1">
-                    <Button size="small" onClick={() => setEdit({ id: a.id, tag: a.tag ?? "", note: a.note ?? "" })}>
-                      Thẻ / ghi chú
-                    </Button>
-                    <Button size="small" icon={<LuDownload size={12} />} href={a.url} target="_blank" rel="noreferrer" />
-                    <Popconfirm
-                      title="Xoá ảnh này vĩnh viễn?"
-                      onConfirm={() =>
-                        deleteImage(a.id)
-                          .then(load)
-                          .catch((e) => message.error(errMsg(e)))
-                      }
-                    >
-                      <Button size="small" danger icon={<LuTrash2 size={12} />} />
-                    </Popconfirm>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </Image.PreviewGroup>
-      )}
-
-      <Modal
-        title="Thẻ và ghi chú"
-        open={!!edit}
-        onCancel={() => setEdit(null)}
-        okText="Lưu"
-        destroyOnHidden
-        onOk={async () => {
-          if (!edit) return;
-          try {
-            await patchImage(edit.id, { tag: edit.tag, note: edit.note });
-            setEdit(null);
-            load();
-          } catch (e) {
-            message.error(errMsg(e));
-          }
-        }}
-      >
-        {edit && (
-          <div className="space-y-3 pt-2">
-            <Input value={edit.tag} maxLength={40} placeholder="Thẻ (VD: logo, banner, sản phẩm, hợp đồng)" onChange={(e) => setEdit({ ...edit, tag: e.target.value })} />
-            <Input.TextArea rows={3} value={edit.note} maxLength={300} placeholder="Ghi chú" onChange={(e) => setEdit({ ...edit, note: e.target.value })} />
           </div>
         )}
       </Modal>

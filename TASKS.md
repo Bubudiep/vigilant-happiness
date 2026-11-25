@@ -246,3 +246,5 @@ Mỗi việc ghi rõ file liên quan và tiêu chí xong. Sau mỗi việc: type
 - `prisma generate` lỗi EPERM khi backend dev đang chạy: type vẫn được cập nhật nên `tsc` chạy được; muốn cập nhật cả engine thì dừng server (`nest start --watch`) rồi chạy lại.
 - Deploy Development in ra version dạng `zdev-xxxxxxxx` (không phải số); link xem thử dùng `env=DEVELOPMENT`.
 - `trust proxy` chỉ bật khi có `TRUST_PROXY` — không bật khi không có Nginx phía trước (client giả IP được).
+- Ảnh album được nén khi tải lên (`sharp`, `album-storage.service.ts`): ≤ 2048px, WebP q80 + thumbnail 400px ở `uploads-private/albums/thumbs/` (xem qua `?t=1`). Ảnh album cũ chưa nén/chưa có thumbnail vẫn xem bình thường. `sharp` phải ghim `0.34.x` (0.35 lệch type với `module: commonjs`). Trên AlmaLinux (glibc) `npm ci` tự tải binary dựng sẵn, không cần cài thêm gì.
+- Trang `/controller`: bỏ mục "Album ảnh khách"; "Chăm sóc" gộp vào "Tin nhắn" (tab `?tab=care`); thêm mục "Dung lượng" (`/controller/storage`, API `GET /api/admin/storage`: ổ đĩa server, DB, ảnh theo từng gian hàng + tổng). `customer-app/` chứa Mini App riêng của từng khách.

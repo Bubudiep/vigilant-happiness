@@ -883,7 +883,7 @@ export function AlbumDrawer({
               <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
                 {album.photos.map((p) => (
                   <div key={p.id} className="group relative aspect-square overflow-hidden rounded-xl bg-slate-100">
-                    <img src={p.url} alt={p.filename} loading="lazy" className="h-full w-full cursor-zoom-in object-cover" onClick={() => setPreview(p.url)} />
+                    <img src={p.thumbUrl ?? p.url} alt={p.filename} loading="lazy" className="h-full w-full cursor-zoom-in object-cover" onClick={() => setPreview(p.url)} />
                     {album.coverPhotoId === p.id && (
                       <span className="absolute left-1.5 top-1.5 rounded-full bg-amber-400 px-1.5 py-0.5 text-[10px] font-bold text-white shadow">Bìa</span>
                     )}
