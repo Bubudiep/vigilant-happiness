@@ -439,7 +439,7 @@ export function AlbumsSection({ store, initialCustomerId }: { store: StoreConfig
       <StorageBar storeId={store.id} refreshKey={storageKey} />
       <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
         <PageHeader
-        title={<><LuImages size={18} className="text-brand-600" /> Album ảnh khách</>}
+        title="Album ảnh khách"
         description={<>Tải ảnh xem trước + gắn link ảnh gốc (Google Drive…). Bấm “Gửi cho khách” để khách nhận tin và xem trong Mini App.</>}
       />
       <FilterBar

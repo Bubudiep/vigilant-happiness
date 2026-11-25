@@ -9,7 +9,6 @@ import {
   Select,
   Spin,
   Switch,
-  Tabs,
   Tooltip,
   App as AntApp,
 } from "antd";
@@ -61,6 +60,7 @@ import { fetchStoreUnread } from "../data/album-api";
 import CreateStoreWizard from "./CreateStoreWizard";
 import StoreSwitcher from "./StoreSwitcher";
 import { AdminShell, type ShellNavGroup } from "./ui/AdminShell";
+import { SectionTabs } from "./ui/SectionTabs";
 import UserMenu from "./UserMenu";
 import { LEGACY_PLATFORM_SECTIONS } from "./PlatformConsole";
 
@@ -535,7 +535,7 @@ export default function StoreConsole({
   // Nhóm menu trái (kiểu Jira): mỗi nhóm một tiêu đề nhỏ; mục gộp (NAV_TABS) lấy nhãn cha, badge của trang con đầu
   const itemOf = (k: StoreNavKey) => navItems.find((i) => i.key === k)!;
   const navOf = (...keys: StoreNavKey[]) =>
-    keys.map((k) => (NAV_TABS[k] ? { ...itemOf(k), label: NAV_TABS[k]!.label } : itemOf(k))).filter(Boolean);
+    keys.map((k) => (NAV_TABS[k] ? { ...itemOf(k), label: NAV_TABS[k]!.label, children: NAV_TABS[k]!.tabs.map(itemOf) } : itemOf(k))).filter(Boolean);
   const navGroups: ShellNavGroup<StoreNavKey>[] = [
     { title: "Vận hành", items: navOf("overview", "pos", "orders", "bookings") },
     { title: "Hàng hoá & nhân sự", items: navOf("products", "staff") },
@@ -546,11 +546,6 @@ export default function StoreConsole({
   const navParent = NAV_PARENT[activeNav] ?? activeNav;
   const navTabs = NAV_TABS[navParent];
   const activeLabel = itemOf(activeNav)?.label;
-  // Tìm nhanh (Ctrl K) vẫn thấy từng trang con
-  const paletteGroups: ShellNavGroup<StoreNavKey>[] = navGroups.map((g) => ({
-    ...g,
-    items: g.items.flatMap((i) => (NAV_TABS[i.key] ? NAV_TABS[i.key]!.tabs.map(itemOf) : [i])),
-  }));
 
   const switcher = (variant: "top" | "sidebar", mini = false) => (
     <StoreSwitcher
@@ -577,7 +572,6 @@ export default function StoreConsole({
         </>
       }
       groups={navGroups}
-      paletteGroups={paletteGroups}
       active={navParent}
       onSelect={setActiveNav}
       collapsed={sidebarCollapsed}
@@ -619,28 +613,7 @@ export default function StoreConsole({
       breadcrumb={navTabs ? [store.name, navTabs.label, activeLabel] : [store.name, activeLabel]}
     >
           {navTabs && (
-            <Tabs
-              activeKey={activeNav}
-              onChange={(k) => setActiveNav(k as StoreNavKey)}
-              className="!mb-3"
-              items={navTabs.tabs.map((k) => {
-                const it = itemOf(k);
-                return {
-                  key: k,
-                  label: (
-                    <span className="flex items-center gap-1.5 [&>svg]:h-3.5 [&>svg]:w-3.5">
-                      {it.icon}
-                      {it.label}
-                      {!!it.badge && (
-                        <span className={`rounded px-1 text-2xs font-semibold leading-[14px] tabular-nums ${it.alert ? "bg-red-600 text-white" : "bg-slate-100 text-slate-600"}`}>
-                          {it.badge}
-                        </span>
-                      )}
-                    </span>
-                  ),
-                };
-              })}
-            />
+            <SectionTabs active={activeNav} onChange={(k) => setActiveNav(k as StoreNavKey)} items={navTabs.tabs.map(itemOf)} />
           )}
 
           {!store.loaded ? (

@@ -1,7 +1,7 @@
 import { App as AntApp, Button, Drawer, Modal, Dropdown, Form, Grid, Input, Popover, QRCode, Select, Switch, Table, Tag, Tooltip } from "antd";
 import dayjs from "dayjs";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { LuEllipsis, LuExternalLink, LuLayoutTemplate, LuPencil, LuQrCode, LuRefreshCw, LuSearch, LuSmartphone, LuStore, LuTrash2 } from "react-icons/lu";
+import { LuEllipsis, LuExternalLink, LuLayoutTemplate, LuPencil, LuQrCode, LuRefreshCw, LuSearch, LuStore, LuTrash2 } from "react-icons/lu";
 import { useNavigate } from "react-router-dom";
 import { api, ApiError, fetchPlatformCustomers, fetchSubscriptions, PlatformCustomerLite, SubscriptionRow } from "../data/platform-api";
 import { demoTemplates, getZaloStoreUrl } from "../data/site";
@@ -103,7 +103,7 @@ export function CustomerAppsSection() {
     <div className="space-y-4">
       <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
         <PageHeader
-        title={<><LuSmartphone size={18} className="text-brand-600" /> Cấu hình app của khách</>}
+        title="Cấu hình app của khách"
         description={<>Sửa thông tin, Zalo App / OA, đổi chủ, gắn gói — hoặc mở thẳng trang quản trị / Miniapp Studio của khách để hỗ trợ, cập nhật hộ.</>}
       />
       <FilterBar

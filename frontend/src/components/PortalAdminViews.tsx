@@ -1,7 +1,7 @@
 import { Alert, App as AntApp, Button, Drawer, Empty, Input, InputNumber, Modal, Popconfirm, Segmented, Select, Table, Tabs, Tag, Tooltip } from "antd";
 import dayjs from "dayjs";
 import { useCallback, useEffect, useState } from "react";
-import { LuBan, LuCheck, LuPlus, LuRefreshCw, LuSend, LuShieldAlert, LuTrash2 } from "react-icons/lu";
+import { LuBan, LuCheck, LuPlus, LuRefreshCw, LuSend, LuTrash2 } from "react-icons/lu";
 import {
   addMilestone,
   addSpamBlock,
@@ -539,7 +539,7 @@ export function AntiSpamSection() {
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
       <PageHeader
-        title={<><LuShieldAlert size={18} /> Chống spam</>}
+        title="Chống spam"
         description={<>Ô bẫy · token mở form (≥ 2,5 giây) · đầu số VN · lọc link & từ khoá · tần suất theo IP/SĐT · tự chặn IP 24h khi bị chặn ≥ 5 lần/giờ.</>}
         actions={<>{stats.data && (
           <div className="flex gap-2 text-center text-xs">

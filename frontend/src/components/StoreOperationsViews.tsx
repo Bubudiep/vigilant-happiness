@@ -752,7 +752,7 @@ export function BookingsSection({
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
       <PageHeader
-        title={<><LuCalendarCheck size={18} className="text-brand-600" /> Lịch hẹn</>}
+        title="Lịch hẹn"
         description={<>{view === "calendar"
               ? `${days[0].format("DD/MM")} – ${days[CAL_DAYS - 1].format("DD/MM")} · ${inRange.length} lịch · ${todayCount} hôm nay · ${pendingCount} chờ xác nhận`
               : "Toàn bộ lịch khách đặt trên Mini App và lịch đặt tại quầy."}</>}

@@ -9,6 +9,8 @@ export interface ShellNavItem<K extends string = string> {
   badge?: number;
   /** Badge đỏ (VD tin nhắn chưa đọc) */
   alert?: boolean;
+  /** Trang con của mục gộp — Ctrl K liệt kê từng trang con (nhóm hiển thị "Nhóm › Mục cha") */
+  children?: ShellNavItem<K>[];
 }
 export interface ShellNavGroup<K extends string = string> {
   title: string;
@@ -24,7 +26,6 @@ export interface ShellNavGroup<K extends string = string> {
 export function AdminShell<K extends string>({
   logo,
   groups,
-  paletteGroups,
   active,
   onSelect,
   collapsed,
@@ -38,8 +39,6 @@ export function AdminShell<K extends string>({
 }: {
   logo: ReactNode;
   groups: ShellNavGroup<K>[];
-  /** Danh sách cho Ctrl K (mặc định = groups) — VD liệt kê cả trang con của mục gộp */
-  paletteGroups?: ShellNavGroup<K>[];
   active: K;
   onSelect: (key: K) => void;
   collapsed: boolean;
@@ -199,7 +198,7 @@ export function AdminShell<K extends string>({
         </main>
       </div>
 
-      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} groups={paletteGroups ?? groups} onSelect={onSelect} />
+      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} groups={groups} onSelect={onSelect} />
     </div>
   );
 }
@@ -222,7 +221,9 @@ function CommandPalette<K extends string>({
   const norm = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/gi, "d").toLowerCase();
   const list = useMemo(() => {
     const k = norm(q.trim());
-    return groups.flatMap((g) => g.items.map((i) => ({ ...i, group: g.title }))).filter((i) => !k || norm(`${i.label} ${i.group}`).includes(k));
+    return groups
+      .flatMap((g) => g.items.flatMap((i) => (i.children?.length ? i.children.map((c) => ({ ...c, group: `${g.title} › ${i.label}` })) : [{ ...i, group: g.title }])))
+      .filter((i) => !k || norm(`${i.label} ${i.group}`).includes(k));
   }, [q, groups]);
 
   useEffect(() => {

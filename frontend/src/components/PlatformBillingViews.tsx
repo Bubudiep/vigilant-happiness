@@ -22,7 +22,7 @@ import {
 import dayjs from "dayjs";
 import { fmtQuotaMb } from "../data/format";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { LuCheck, LuEllipsis, LuPackage, LuPencil, LuPlus, LuRefreshCw, LuSearch, LuTicketPercent, LuTrash2, LuUserPlus } from "react-icons/lu";
+import { LuCheck, LuEllipsis, LuPencil, LuPlus, LuRefreshCw, LuSearch, LuTrash2, LuUserPlus } from "react-icons/lu";
 import {
   ApiError,
   createSubscription,
@@ -71,7 +71,7 @@ export function PlansSection() {
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
       <PageHeader
-        title={<><LuPackage size={18} className="text-brand-600" /> Gói dịch vụ</>}
+        title="Gói dịch vụ"
         description="Danh mục gói reMini và gói khách đang dùng: đăng ký, gia hạn, áp voucher, đổi trạng thái."
       />
       <Tabs
@@ -715,7 +715,7 @@ export function PlatformVouchersSection() {
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
       <PageHeader
-        title={<><LuTicketPercent size={18} className="text-brand-600" /> Voucher gói reMini</>}
+        title="Voucher gói reMini"
         description={<>Mã giảm giá khi khách mua / gia hạn gói. Áp ở bước "Đăng ký gói cho khách" (mục Gói dịch vụ).</>}
         actions={<><Button icon={<LuRefreshCw size={14} />} onClick={load} loading={loading} />
           <Button type="primary" icon={<LuPlus size={14} />} onClick={() => setEditing("new")}>
