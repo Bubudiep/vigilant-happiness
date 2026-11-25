@@ -9,6 +9,7 @@ import { fetchPublicStore, PublicStore, StoreLoadError } from "./api";
 import { BlockRenderer, DocumentLike, ProductLike, RenderCtx, VoucherLike } from "./builder/blocks";
 import { Icon } from "./builder/icons";
 import { BuilderAuthConfig, BuilderPage, BuilderSchema, DEFAULT_BUILDER_AUTH } from "./builder/types";
+import { ShopAccountButton } from "./ShopAccount";
 import { setStockBase } from "./stock";
 
 /**
@@ -214,6 +215,13 @@ function StoreScreen({ store, schema }: { store: PublicStore; schema: BuilderSch
         </div>
 
         {tabs.length > 0 && <TabBar schema={schema} tabs={tabs} activeId={page.id} onNavigate={goto} />}
+
+        <ShopAccountButton
+          slug={store.slug}
+          primary={schema.theme.primary}
+          topInset={topBarH}
+          bottomOffset={tabs.length > 0 ? (schema.theme.tabbarStyle === "floating" ? 92 : 72) : 20}
+        />
 
         {toast && (
           <div className="pointer-events-none absolute left-4 right-4 z-50 flex justify-center" style={{ top: topBarH + 16 }}>
