@@ -6,7 +6,7 @@ import type { StoreWithOwner } from "../data/store-api";
 
 const StoreAvatar = ({ store, size = 32 }: { store: StoreWithOwner; size?: number }) => (
   <span
-    className="flex shrink-0 items-center justify-center rounded-lg font-black text-white"
+    className="flex shrink-0 items-center justify-center rounded-md font-bold text-white"
     style={{ background: store.theme?.primary || "#1657f3", width: size, height: size, fontSize: size * 0.42 }}
   >
     {store.name.trim().slice(0, 1).toUpperCase()}
@@ -22,7 +22,13 @@ export default function StoreSwitcher({
   showOwner,
   onSelect,
   onCreate,
+  variant = "top",
+  mini = false,
 }: {
+  /** "sidebar": nút rộng ở đầu menu trái (kiểu chọn dự án của Jira); "top": nút gọn trên thanh trên */
+  variant?: "top" | "sidebar";
+  /** Menu trái thu gọn → chỉ hiện ảnh đại diện */
+  mini?: boolean;
   stores: StoreWithOwner[];
   current: StoreWithOwner;
   /** Quản trị viên thấy store của nhiều khách → hiện tên khách sở hữu */
@@ -101,22 +107,39 @@ export default function StoreSwitcher({
     </div>
   );
 
+  const side = variant === "sidebar";
   return (
-    <Popover open={open} onOpenChange={setOpen} trigger="click" placement="bottomRight" arrow={false} content={content}>
-      <button
-        type="button"
-        className="flex max-w-[220px] items-center gap-2 rounded-xl border border-slate-200 bg-white py-1 pl-1 pr-2 text-left transition hover:border-slate-300 hover:bg-slate-50 sm:max-w-[260px]"
-      >
-        <StoreAvatar store={current} size={28} />
-        <div className="hidden min-w-0 leading-tight sm:block">
-          <div className="truncate text-xs font-bold text-slate-900">{current.name}</div>
-          <div className="flex items-center gap-1 text-xs font-semibold text-slate-500">
-            <span className={`h-1.5 w-1.5 rounded-full ${current.active ? "bg-emerald-500" : "bg-slate-300"}`} />
-            <span className="truncate">{current.active ? "Đang hoạt động" : "Tạm tắt"} · {sub(current)}</span>
-          </div>
-        </div>
-        <LuChevronsUpDown size={14} className="shrink-0 text-slate-400" />
-      </button>
+    <Popover open={open} onOpenChange={setOpen} trigger="click" placement={side ? "rightTop" : "bottomRight"} arrow={false} content={content}>
+      {side ? (
+        <button
+          type="button"
+          title={mini ? current.name : undefined}
+          className={`flex w-full items-center gap-2 rounded-md text-left transition hover:bg-slate-100 ${mini ? "justify-center p-0.5" : "p-1.5"}`}
+        >
+          <StoreAvatar store={current} size={mini ? 32 : 30} />
+          {!mini && (
+            <>
+              <div className="min-w-0 flex-1 leading-tight">
+                <div className="truncate text-sm font-semibold text-slate-900">{current.name}</div>
+                <div className="mt-0.5 flex items-center gap-1 text-2xs text-slate-500">
+                  <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${current.active ? "bg-emerald-500" : "bg-slate-300"}`} />
+                  <span className="truncate">{current.active ? "Đang hoạt động" : "Tạm tắt"} · {sub(current)}</span>
+                </div>
+              </div>
+              <LuChevronsUpDown size={14} className="shrink-0 text-slate-400" />
+            </>
+          )}
+        </button>
+      ) : (
+        <button
+          type="button"
+          className="flex max-w-[180px] items-center gap-1.5 rounded-md py-1 pl-1 pr-1.5 text-left transition hover:bg-slate-100"
+        >
+          <StoreAvatar store={current} size={24} />
+          <span className="truncate text-xs font-semibold text-slate-900">{current.name}</span>
+          <LuChevronsUpDown size={13} className="shrink-0 text-slate-400" />
+        </button>
+      )}
     </Popover>
   );
 }

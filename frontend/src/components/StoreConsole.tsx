@@ -1,6 +1,5 @@
 import {
   Button,
-  Drawer,
   Form,
   Input,
   InputNumber,
@@ -24,10 +23,7 @@ import {
   LuLifeBuoy,
   LuGauge,
   LuLogOut,
-  LuMenu,
   LuPackage,
-  LuPanelLeftClose,
-  LuPanelLeftOpen,
   LuPlus,
   LuCheck,
   LuShoppingBag,
@@ -63,6 +59,7 @@ import { autosaveDecision, configKey, syncStoreChanges } from "../data/store-syn
 import { fetchStoreUnread } from "../data/album-api";
 import CreateStoreWizard from "./CreateStoreWizard";
 import StoreSwitcher from "./StoreSwitcher";
+import { AdminShell, type ShellNavGroup } from "./ui/AdminShell";
 import UserMenu from "./UserMenu";
 import { LEGACY_PLATFORM_SECTIONS } from "./PlatformConsole";
 
@@ -169,7 +166,6 @@ export default function StoreConsole({
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [wizardOpen, setWizardOpen] = useState(false);
-  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   const setSelectedId = (id: string) => {
     setSelectedIdState(id);
@@ -521,151 +517,83 @@ export default function StoreConsole({
 
   if (!store.loaded) for (const i of navItems) i.badge = i.alert ? i.badge : undefined;
 
-  const navGroups = [{ title: "Cửa hàng", items: navItems }];
+  // Nhóm menu trái (kiểu Jira): mỗi nhóm một tiêu đề nhỏ
+  const navOf = (...keys: StoreNavKey[]) => keys.map((k) => navItems.find((i) => i.key === k)!).filter(Boolean);
+  const navGroups: ShellNavGroup<StoreNavKey>[] = [
+    { title: "Vận hành", items: navOf("overview", "pos", "orders", "bookings", "events") },
+    { title: "Hàng hoá & nhân sự", items: navOf("products", "staff") },
+    { title: "Khách hàng", items: navOf("customers", "loyalty", "oainbox") },
+    { title: "Nội dung & Mini App", items: navOf("miniapp", "albums", "media", "documents") },
+    { title: "Phân tích & hệ thống", items: navOf("reports", "settings", "support") },
+  ];
+  const activeLabel = navItems.find((i) => i.key === activeNav)?.label;
 
-  const renderSidebarMenu = (onSelect?: () => void, collapsed = false) => (
-    <div className="space-y-1">
-      {navGroups.map((group, gi) => (
-        <div key={group.title} className={gi > 0 ? "mt-3 border-t border-slate-100 pt-3" : ""}>
-          {!collapsed && (
-            <div className="px-3 pb-2 pt-1 text-2xs font-bold uppercase tracking-wider text-slate-400">
-              {group.title}
-            </div>
-          )}
-          <div className="space-y-1">
-      {group.items.map((item) => {
-        const active = activeNav === item.key;
-        const btn = (
-          <button
-            key={item.key}
-            type="button"
-            onClick={() => {
-              setActiveNav(item.key);
-              onSelect?.();
-            }}
-            className={`flex w-full items-center h-9 rounded-lg text-left text-sm font-medium transition ${
-              collapsed ? "justify-center px-0" : "justify-between px-3"
-            } ${
-              active
-                ? "bg-brand-600 text-white shadow-sm"
-                : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-            }`}
-          >
-            <span className="flex items-center gap-2.5">
-              {item.icon}
-              {!collapsed && <span className="truncate">{item.label}</span>}
-            </span>
-            {!collapsed && !!item.badge && (
-              <span
-                className={`rounded-full px-2 py-0.5 text-2xs font-bold ${
-                  active ? "bg-white/20 text-white" : item.alert ? "bg-rose-500 text-white" : "bg-slate-100 text-slate-600"
-                }`}
-              >
-                {item.badge}
-              </span>
-            )}
-          </button>
-        );
-        return collapsed ? (
-          <Tooltip key={item.key} title={item.label} placement="right">
-            {btn}
-          </Tooltip>
-        ) : (
-          btn
-        );
-      })}
-          </div>
-        </div>
-      ))}
-    </div>
+  const switcher = (variant: "top" | "sidebar", mini = false) => (
+    <StoreSwitcher
+      stores={stores}
+      current={store}
+      showOwner={isAdmin}
+      onSelect={setSelectedId}
+      onCreate={() => setWizardOpen(true)}
+      variant={variant}
+      mini={mini}
+    />
   );
 
-
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
-      {/* Top Bar */}
-      <header className="sticky top-0 z-40 border-b border-slate-200 bg-white">
-        <div className={"flex h-14 w-full items-center justify-between gap-2 px-3 sm:px-4 lg:px-6"}>
-          <div className="flex items-center gap-2">
-            <Button
-              type="text"
-              icon={<LuMenu size={18} />}
-              onClick={() => setMobileSidebarOpen(true)}
-              className="lg:hidden"
-            />
-            <Tooltip title={sidebarCollapsed ? "Mở rộng menu trái" : "Thu gọn menu trái"}>
-              <Button
-                type="text"
-                icon={sidebarCollapsed ? <LuPanelLeftOpen size={18} /> : <LuPanelLeftClose size={18} />}
-                onClick={() => setSidebarCollapsed((c) => !c)}
-                className="hidden lg:inline-flex"
-              />
-            </Tooltip>
-            <div className="flex items-center gap-2">
-              <LuStore size={18} className="text-brand-600" />
-              <span className="hidden text-sm font-extrabold text-slate-900 sm:inline sm:text-base">Quản trị Store & Mini App</span>
-
+    <>
+    <AdminShell
+      logo={
+        <>
+          <span className="flex h-7 w-7 items-center justify-center rounded-md bg-brand-600 text-white">
+            <LuStore size={15} />
+          </span>
+          <span className="hidden text-sm font-semibold text-slate-900 sm:inline">reMini</span>
+          <span className="hidden rounded bg-slate-100 px-1.5 py-0.5 text-2xs font-semibold text-slate-600 xl:inline">Quản trị cửa hàng</span>
+        </>
+      }
+      groups={navGroups}
+      active={activeNav}
+      onSelect={setActiveNav}
+      collapsed={sidebarCollapsed}
+      onToggleCollapsed={() => setSidebarCollapsed((c) => !c)}
+      sidebarHeader={(mini) => switcher("sidebar", mini)}
+      sidebarFooter={(mini) =>
+        mini ? (
+          <Tooltip title={store.active ? "Mini App đang hoạt động" : "Mini App tạm tắt"} placement="right">
+            <div className="flex justify-center py-1">
+              <span className={`h-2 w-2 rounded-full ${store.active ? "bg-emerald-500" : "bg-slate-300"}`} />
             </div>
+          </Tooltip>
+        ) : (
+          <div className="flex items-center justify-between gap-2 px-1">
+            <div className="min-w-0 leading-tight">
+              <div className="text-2xs font-semibold uppercase tracking-wider text-slate-500">Mini App</div>
+              <div className="mt-0.5 text-xs font-medium text-slate-800">{store.active ? "Đang hoạt động" : "Tạm tắt"}</div>
+            </div>
+            <Switch size="small" checked={store.active} onChange={(v) => updateCurrentStore((s) => ({ ...s, active: v }))} />
           </div>
+        )
+      }
+      mobileTop={switcher("top")}
+      topRight={
+        <>
+          {/* Trạng thái tự lưu nằm bên trái nút tài khoản */}
+          <SaveIndicator state={saveState} onRetry={() => store && void doSave(store)} />
+          <UserMenu
+            user={user}
+            onLogout={onLogout}
+            extraItems={
+              isAdmin
+                ? [{ key: "controller", icon: <LuGauge size={14} />, label: "Trang điều hành", onClick: () => navigate("/controller") }]
+                : []
+            }
+          />
+        </>
+      }
+      breadcrumb={[store.name, activeLabel]}
+    >
 
-          <div className="flex items-center gap-2">
-            {/* Trạng thái tự lưu nằm bên trái ô chọn cửa hàng */}
-            <SaveIndicator state={saveState} onRetry={() => store && void doSave(store)} />
-            <StoreSwitcher
-              stores={stores}
-              current={store}
-              showOwner={isAdmin}
-              onSelect={setSelectedId}
-              onCreate={() => setWizardOpen(true)}
-            />
-            <UserMenu
-              user={user}
-              onLogout={onLogout}
-              extraItems={
-                isAdmin
-                  ? [{ key: "controller", icon: <LuGauge size={14} />, label: "Trang điều hành", onClick: () => navigate("/controller") }]
-                  : []
-              }
-            />
-          </div>
-        </div>
-      </header>
-
-      <Drawer
-        title="Quản trị Store"
-        placement="left"
-        size={250}
-        open={mobileSidebarOpen}
-        onClose={() => setMobileSidebarOpen(false)}
-      >
-        {renderSidebarMenu(() => setMobileSidebarOpen(false))}
-      </Drawer>
-
-      <div className="flex w-full gap-5 px-3 py-4 sm:px-4 lg:px-6 lg:py-5">
-        {/* Sidebar Desktop */}
-        <aside className={`hidden shrink-0 transition-all lg:block ${sidebarCollapsed ? "w-[62px]" : "w-56"}`}>
-          <div className={`sticky top-[68px] rounded-2xl border border-slate-200/80 bg-white shadow-sm ${sidebarCollapsed ? "p-2" : "p-3"}`}>
-            {renderSidebarMenu(undefined, sidebarCollapsed)}
-            {!sidebarCollapsed && (
-              <div className="mt-4 rounded-xl border border-slate-100 bg-slate-50 p-3">
-                <div className="text-xs font-bold text-slate-500">Trạng thái Mini App</div>
-                <div className="mt-2 flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-800">
-                    {store.active ? "Đang hoạt động" : "Tạm tắt"}
-                  </span>
-                  <Switch
-                    size="small"
-                    checked={store.active}
-                    onChange={(v) => updateCurrentStore((s) => ({ ...s, active: v }))}
-                  />
-                </div>
-              </div>
-            )}
-          </div>
-        </aside>
-
-        {/* Nội dung chính theo Sidebar */}
-        <main className="min-w-0 flex-1">
           {!store.loaded ? (
             <div className="flex min-h-[50vh] items-center justify-center rounded-2xl border border-slate-200 bg-white">
               {detailError ? (
@@ -764,8 +692,7 @@ export default function StoreConsole({
           )}
           </Suspense>
           )}
-        </main>
-      </div>
+    </AdminShell>
 
       {/* Modal Xuất bản · Thông tin & Zalo ID */}
       <Modal
@@ -905,6 +832,6 @@ export default function StoreConsole({
           </Button>
         </Form>
       </Modal>
-    </div>
+    </>
   );
 }

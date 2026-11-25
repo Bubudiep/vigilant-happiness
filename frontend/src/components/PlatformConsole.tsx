@@ -1,4 +1,4 @@
-import { Badge, Button, Drawer, Spin, Tabs, Tooltip } from "antd";
+import { Badge, Button, Spin, Tabs } from "antd";
 import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import {
   LuBookOpen,
@@ -6,10 +6,7 @@ import {
   LuHardDrive,
   LuKanban,
   LuKeyRound,
-  LuMenu,
   LuMessagesSquare,
-  LuPanelLeftClose,
-  LuPanelLeftOpen,
   LuPhoneCall,
   LuShieldAlert,
   LuShieldCheck,
@@ -25,6 +22,7 @@ import { Navigate, useNavigate, useParams, useSearchParams } from "react-router-
 import type { AccountInfo, AuthUser } from "../data/auth";
 import { fetchInboxSummary, InboxSummary } from "../data/inbox-api";
 import UserMenu from "./UserMenu";
+import { AdminShell, type ShellNavItem } from "./ui/AdminShell";
 
 // Mỗi mục tải riêng khi mở tới
 const named = <K extends string, M extends Record<K, React.ComponentType<never>>>(p: Promise<M>, k: K) =>
@@ -61,7 +59,7 @@ export type PlatformNavKey =
   | "storage"
   | "api";
 
-type NavItem = { key: PlatformNavKey; label: string; icon: React.ReactNode; badge?: number };
+type NavItem = ShellNavItem<PlatformNavKey>;
 
 /** Đường dẫn cũ trong /admin/... của các mục điều hành → mục tương ứng ở /controller */
 export const LEGACY_PLATFORM_SECTIONS: Record<string, PlatformNavKey> = {
@@ -100,8 +98,7 @@ export default function PlatformConsole({
   const [searchParams, setSearchParams] = useSearchParams();
   const inboxTab = searchParams.get("tab") === "care" ? "care" : "chat";
   const [collapsed, setCollapsed] = useState(false);
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const [summary, setSummary] = useState<InboxSummary | null>(null);
+    const [summary, setSummary] = useState<InboxSummary | null>(null);
 
   const refreshSummary = useCallback(() => {
     fetchInboxSummary()
@@ -121,7 +118,7 @@ export default function PlatformConsole({
       title: "Khách hàng",
       items: [
         { key: "customers", label: "Khách hàng reMini", icon: <LuUsers size={17} /> },
-        { key: "inbox", label: "Tin nhắn", icon: <LuMessagesSquare size={17} />, badge: (summary?.unread ?? 0) + (summary?.careDue ?? 0) || undefined },
+        { key: "inbox", label: "Tin nhắn", icon: <LuMessagesSquare size={17} />, badge: (summary?.unread ?? 0) + (summary?.careDue ?? 0) || undefined, alert: true },
         { key: "callbacks", label: "Lịch gọi lại", icon: <LuPhoneCall size={17} /> },
       ],
     },
@@ -156,86 +153,34 @@ export default function PlatformConsole({
   const active: PlatformNavKey = allKeys.includes(section as PlatformNavKey) ? (section as PlatformNavKey) : "customers";
   if (section !== active) return <Navigate to={`/controller/${active}`} replace />;
 
-  const menu = (onSelect?: () => void, mini = false) => (
-    <div className="space-y-1">
-      {groups.map((g, gi) => (
-        <div key={g.title} className={gi > 0 ? "mt-3 border-t border-white/10 pt-3" : ""}>
-          {!mini && <div className="px-3 pb-2 pt-1 text-2xs font-bold uppercase tracking-wider text-slate-500">{g.title}</div>}
-          <div className="space-y-1">
-            {g.items.map((item) => {
-              const on = active === item.key;
-              const btn = (
-                <button
-                  key={item.key}
-                  type="button"
-                  onClick={() => {
-                    navigate(`/controller/${item.key}`);
-                    onSelect?.();
-                  }}
-                  className={`flex w-full items-center h-9 rounded-lg text-left text-sm font-medium transition ${
-                    mini ? "justify-center px-0" : "justify-between px-3"
-                  } ${on ? "bg-white text-slate-900 shadow-sm" : "text-slate-300 hover:bg-white/10 hover:text-white"}`}
-                >
-                  <span className="flex items-center gap-2.5">
-                    {item.icon}
-                    {!mini && <span className="truncate">{item.label}</span>}
-                  </span>
-                  {!mini && !!item.badge && (
-                    <span className="rounded-full bg-rose-500 px-2 py-0.5 text-2xs font-bold text-white">{item.badge}</span>
-                  )}
-                </button>
-              );
-              return mini ? (
-                <Tooltip key={item.key} title={item.label} placement="right">
-                  {btn}
-                </Tooltip>
-              ) : (
-                btn
-              );
-            })}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
+  const activeItem = groups.flatMap((g) => g.items.map((i) => ({ ...i, group: g.title }))).find((i) => i.key === active);
 
   return (
-    <div className="min-h-screen bg-slate-100 text-slate-900">
-      <header className="sticky top-0 z-40 border-b border-slate-800 bg-slate-900 text-white">
-        <div className="flex h-14 w-full items-center justify-between gap-2 px-3 sm:px-4 lg:px-6">
-          <div className="flex items-center gap-2">
-            <Button type="text" icon={<LuMenu size={18} className="text-white" />} onClick={() => setMobileOpen(true)} className="lg:hidden" />
-            <Button
-              type="text"
-              icon={collapsed ? <LuPanelLeftOpen size={18} className="text-white" /> : <LuPanelLeftClose size={18} className="text-white" />}
-              onClick={() => setCollapsed((c) => !c)}
-              className="hidden lg:inline-flex"
-            />
-            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-white text-slate-900">
-              <LuGauge size={17} />
-            </span>
-            <span className="text-sm font-extrabold sm:text-base">Trang điều hành</span>
-            <span className="hidden rounded-full bg-white/10 px-2 py-0.5 text-2xs font-semibold text-slate-300 md:inline">reMini</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button icon={<LuStore size={15} />} onClick={() => navigate("/admin/overview")}>
-              <span className="hidden sm:inline">Quản trị cửa hàng</span>
-            </Button>
-            <UserMenu user={user} onLogout={onLogout} />
-          </div>
-        </div>
-      </header>
-
-      <Drawer title="Trang điều hành" placement="left" size={260} open={mobileOpen} onClose={() => setMobileOpen(false)} styles={{ body: { background: "#0f172a" } }}>
-        {menu(() => setMobileOpen(false))}
-      </Drawer>
-
-      <div className="flex w-full gap-5 px-3 py-4 sm:px-4 lg:px-6 lg:py-5">
-        <aside className={`hidden shrink-0 transition-all lg:block ${collapsed ? "w-[62px]" : "w-60"}`}>
-          <div className={`sticky top-[72px] rounded-2xl bg-slate-900 shadow-sm ${collapsed ? "p-2" : "p-3"}`}>{menu(undefined, collapsed)}</div>
-        </aside>
-
-        <main className="min-w-0 flex-1">
+    <AdminShell
+      logo={
+        <>
+          <span className="flex h-7 w-7 items-center justify-center rounded-md bg-slate-900 text-white">
+            <LuGauge size={15} />
+          </span>
+          <span className="hidden text-sm font-semibold text-slate-900 sm:inline">reMini</span>
+          <span className="hidden rounded bg-amber-100 px-1.5 py-0.5 text-2xs font-semibold text-amber-800 sm:inline">Trang điều hành</span>
+        </>
+      }
+      groups={groups}
+      active={active}
+      onSelect={(k) => navigate(`/controller/${k}`)}
+      collapsed={collapsed}
+      onToggleCollapsed={() => setCollapsed((c) => !c)}
+      topRight={
+        <>
+          <Button size="small" icon={<LuStore size={14} />} onClick={() => navigate("/admin/overview")}>
+            <span className="hidden sm:inline">Quản trị cửa hàng</span>
+          </Button>
+          <UserMenu user={user} onLogout={onLogout} />
+        </>
+      }
+      breadcrumb={["Trang điều hành", activeItem?.group, activeItem?.label]}
+    >
           <Suspense
             fallback={
               <div className="flex min-h-[40vh] items-center justify-center">
@@ -280,8 +225,6 @@ export default function PlatformConsole({
             {active === "api" && <ApiChannelsSection />}
             {active === "audit" && <AuditSection />}
           </Suspense>
-        </main>
-      </div>
-    </div>
+    </AdminShell>
   );
 }

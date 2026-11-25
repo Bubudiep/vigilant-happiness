@@ -41,22 +41,19 @@ export default function UserMenu({
     >
       <button
         type="button"
-        className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-2 py-1 text-left transition hover:bg-slate-100"
+        title={user.name}
+        className="flex items-center rounded-full p-0.5 transition hover:ring-2 hover:ring-slate-200"
       >
         {user.avatarUrl ? (
-          <img src={user.avatarUrl} alt={user.name} referrerPolicy="no-referrer" className="h-7 w-7 rounded-lg object-cover" />
+          <img src={user.avatarUrl} alt={user.name} referrerPolicy="no-referrer" className="h-7 w-7 rounded-full object-cover" />
         ) : (
           <span
-            className="flex h-7 w-7 items-center justify-center rounded-lg text-xs font-black text-white"
-            style={{ background: user.provider === "zalo" ? "#0068FF" : "#1657f3" }}
+            className="flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold text-white"
+            style={{ background: user.provider === "zalo" ? "#0068FF" : "#0C66E4" }}
           >
             {user.avatarText}
           </span>
         )}
-        <div className="hidden leading-tight xl:block">
-          <div className="max-w-[110px] truncate text-xs font-bold text-slate-900">{user.name}</div>
-          <div className="text-xs font-semibold text-slate-500">{user.provider === "zalo" ? "Zalo" : "Google"}</div>
-        </div>
       </button>
     </Dropdown>
   );

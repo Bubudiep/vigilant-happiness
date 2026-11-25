@@ -4,12 +4,12 @@ import type { ReactNode } from "react";
 export function StatCard({ label, value, hint, icon, tone = "default" }: { label: ReactNode; value: ReactNode; hint?: ReactNode; icon?: ReactNode; tone?: "default" | "danger" | "success" | "warning" }) {
   const color = { default: "text-slate-900", danger: "text-red-600", success: "text-emerald-600", warning: "text-amber-600" }[tone];
   return (
-    <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-4">
+    <div className="min-w-0 rounded-lg border border-slate-200 bg-white px-3.5 py-3 transition hover:border-slate-300">
       <div className="flex items-center justify-between gap-2">
-        <div className="min-w-0 truncate text-xs font-medium text-slate-500">{label}</div>
+        <div className="min-w-0 truncate text-2xs font-semibold uppercase tracking-wider text-slate-500">{label}</div>
         {icon}
       </div>
-      <div className={`mt-1 text-xl font-bold tabular-nums ${color}`}>{value}</div>
+      <div className={`mt-1.5 text-xl font-semibold tabular-nums tracking-tight ${color}`}>{value}</div>
       {hint && <div className="mt-0.5 text-xs text-slate-500">{hint}</div>}
     </div>
   );

@@ -2,6 +2,26 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Bảng màu mặc định (trang chủ, khung điện thoại) — kênh RGB để dùng được bg-slate-200/80 */
+:root,
+html.admin-ui .phone-ui {
+  --slate-50: 248 250 252; --slate-100: 241 245 249; --slate-200: 226 232 240; --slate-300: 203 213 225;
+  --slate-400: 148 163 184; --slate-500: 100 116 139; --slate-600: 71 85 105; --slate-700: 51 65 85;
+  --slate-800: 30 41 59; --slate-900: 15 23 42; --slate-950: 2 6 23;
+  --brand-50: 238 244 255; --brand-100: 220 231 255; --brand-200: 191 219 254; --brand-300: 147 197 253;
+  --brand-400: 96 165 250; --brand-500: 37 99 235; --brand-600: 22 87 243; --brand-700: 18 66 196; --brand-800: 30 58 138;
+  --r-md: 0.375rem; --r-lg: 0.5rem; --r-xl: 0.75rem; --r-2xl: 1rem; --r-3xl: 1.5rem;
+}
+/* Trang quản trị: trung tính & xanh kiểu Atlassian (Jira), bo góc gọn kiểu Figma */
+html.admin-ui {
+  --slate-50: 247 248 249; --slate-100: 241 242 244; --slate-200: 220 223 228; --slate-300: 179 185 196;
+  --slate-400: 133 144 162; --slate-500: 98 111 134; --slate-600: 68 84 111; --slate-700: 44 62 93;
+  --slate-800: 31 49 82; --slate-900: 23 43 77; --slate-950: 9 30 66;
+  --brand-50: 233 242 255; --brand-100: 204 224 255; --brand-200: 133 184 255; --brand-300: 87 157 255;
+  --brand-400: 56 139 255; --brand-500: 29 122 252; --brand-600: 12 102 228; --brand-700: 0 85 204; --brand-800: 9 50 108;
+  --r-md: 4px; --r-lg: 6px; --r-xl: 8px; --r-2xl: 10px; --r-3xl: 12px;
+}
+
 /* Cỡ chữ trang quản trị (xem tailwind.config.js). App gắn class admin-ui vào <html> khi ở /admin, /controller
    — gắn ở <html> để modal / drawer / dropdown (render ra body) cũng nhận. */
 html.admin-ui {
@@ -41,3 +61,23 @@ html.admin-ui .phone-ui {
   font-weight: 500;
   color: #334155;
 }
+
+/* ───────────── Trang quản trị kiểu Jira / Figma ───────────── */
+html.admin-ui body {
+  color: rgb(var(--slate-900));
+  -webkit-font-smoothing: antialiased;
+}
+/* Chữ đậm vừa phải (Jira dùng 500/600, không dùng 800/900) — trừ khung điện thoại */
+html.admin-ui :is(.font-black, .font-extrabold):not(.phone-ui *) { font-weight: 700; }
+html.admin-ui .font-bold:not(.phone-ui *) { font-weight: 600; }
+/* Thanh cuộn mảnh */
+html.admin-ui * { scrollbar-width: thin; scrollbar-color: rgb(var(--slate-300)) transparent; }
+html.admin-ui ::-webkit-scrollbar { width: 8px; height: 8px; }
+html.admin-ui ::-webkit-scrollbar-thumb { background: rgb(var(--slate-300)); border-radius: 8px; border: 2px solid transparent; background-clip: padding-box; }
+/* Tag dạng "lozenge" của Jira: không viền, chữ 600 */
+html.admin-ui .ant-tag:not(.phone-ui *) { border-color: transparent; font-weight: 600; }
+/* Bảng: tiêu đề chữ nhỏ, xám, không vạch ngăn cột */
+html.admin-ui .ant-table-thead > tr > th { font-weight: 600 !important; }
+html.admin-ui .ant-table-thead > tr > th::before { display: none; }
+/* Modal / Drawer: tiêu đề có vạch ngăn như Figma */
+html.admin-ui .ant-drawer-header { padding: 12px 16px; }

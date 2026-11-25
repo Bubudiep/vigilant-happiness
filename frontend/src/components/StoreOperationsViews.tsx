@@ -482,23 +482,20 @@ export function OverviewSection({
               <div
                 key={key}
                 {...(offset >= 0 ? dnd.dropProps(key, { date: key }) : {})}
-                className={`flex min-w-0 flex-col rounded-xl border transition ${
-                  dnd.overKey === key
-                    ? "border-brand-400 bg-brand-50 ring-2 ring-brand-300"
-                    : offset === 0
-                      ? "border-brand-200 bg-brand-50/40"
-                      : "border-slate-200 bg-slate-50/70"
+                className={`flex min-w-0 flex-col rounded-lg transition ${
+                  dnd.overKey === key ? "bg-brand-50 ring-2 ring-brand-300" : "bg-slate-100"
                 }`}
               >
-                <div className="flex items-center justify-between gap-2 border-b border-slate-200/70 px-3 py-2">
+                {/* Cột board kiểu Jira: nền xám, tiêu đề chữ hoa nhỏ, thẻ trắng có bóng */}
+                <div className="flex items-center justify-between gap-2 px-3 pb-1 pt-2.5">
                   <div className="min-w-0">
-                    <span className={`text-sm font-semibold ${offset === 0 ? "text-brand-700" : "text-slate-800"}`}>{label}</span>
+                    <span className={`text-2xs font-semibold uppercase tracking-wider ${offset === 0 ? "text-brand-700" : "text-slate-600"}`}>{label}</span>
                     <span className="ml-1.5 text-xs text-slate-500">
                       {WEEKDAY[day.day()]} {day.format("DD/MM")}
                     </span>
                   </div>
                   <div className="flex shrink-0 items-center gap-1">
-                    <span className="rounded-full bg-white px-1.5 text-xs font-semibold tabular-nums text-slate-600 ring-1 ring-slate-200">{active}</span>
+                    <span className="rounded bg-slate-200 px-1.5 text-2xs font-semibold tabular-nums text-slate-700">{active}</span>
                     {offset >= 0 && (
                       <Tooltip title={`Đặt lịch ${label.toLowerCase()}`}>
                         <Button size="small" type="text" icon={<LuPlus size={14} />} onClick={() => setBookingModal({ open: true, date: key })} />
@@ -513,7 +510,7 @@ export function OverviewSection({
                       key={b.id}
                       {...dnd.dragProps(b)}
                       title="Kéo sang cột khác để đổi ngày"
-                      className={`cursor-grab rounded-lg border border-slate-200 bg-white p-2.5 active:cursor-grabbing ${b.status === "cancelled" ? "opacity-60" : ""} ${dnd.dragId === b.id ? "opacity-40" : ""}`}
+                      className={`cursor-grab rounded-md bg-white p-2.5 shadow-card transition hover:bg-slate-50 hover:shadow-card-hover active:cursor-grabbing ${b.status === "cancelled" ? "opacity-60" : ""} ${dnd.dragId === b.id ? "opacity-40" : ""}`}
                     >
                       <div className="flex items-center justify-between gap-2">
                         <span className="inline-flex items-center gap-1 text-xs font-bold tabular-nums text-brand-700">

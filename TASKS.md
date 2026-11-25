@@ -103,6 +103,7 @@ Quota Zalo: Development 11/300, Testing 19/60.
 | T64 Phân loại & bán kèm (size / topping, chọn 1 / nhiều, giá cộng thêm, nguyên liệu thêm) — web quản trị & bán tại bàn | `demo-88` | [x] Mini App chưa có màn chọn tuỳ chọn (cần làm + deploy) |
 | T65 Báo cáo: giá vốn hàng bán, lợi nhuận gộp, biên LN, lãi từng món | `demo-88` | [x] |
 | T66 Bán hàng: tạo nhanh khách mới khi gắn khách vào bàn | `demo-88` | [x] |
+| T67 Giao diện quản trị kiểu Jira / Figma: khung chung `ui/AdminShell` (thanh trên 48px, tìm nhanh Ctrl K, menu trái theo nhóm, breadcrumb), bảng màu Atlassian + bo góc gọn qua biến CSS (chỉ trong html.admin-ui), theme antd, board lịch hẹn kiểu Jira | `demo-89` | [x] |
 | T55 Thang chữ quản trị 9/10/11px (`ui/AdminTheme.tsx` + `index.css`) | `demo-88` | [x] người dùng đang thử |
 | T45 Nhãn tiếng Việt cho action audit mới | `frontend-2b` | [x] test 45/45 (`data/audit-labels.ts`) |
 | T44b Thư viện ảnh dùng cờ `inUse/usedIn` + xử lý 409 | `frontend-2b` | [x] test 53/53 |

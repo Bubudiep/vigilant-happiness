@@ -9,6 +9,7 @@
  * Không dùng cỡ tuỳ ý text-[..px] trong trang quản trị. Số tiền / số lượng: tabular-nums. Khung dùng chung: src/components/ui/.
  */
 const fs = (name, size, lh) => [`var(--fs-${name}, ${size})`, { lineHeight: `var(--lh-${name}, ${lh})` }];
+const shades = (name, steps) => Object.fromEntries(steps.map((n) => [n, `rgb(var(--${name}-${n}) / <alpha-value>)`]));
 /** @type {import('tailwindcss').Config} */
 export default {
   content: ["./index.html", "./src/**/*.{ts,tsx}"],
@@ -26,14 +27,23 @@ export default {
         lg: fs("lg", "1.125rem", "1.75rem"),
         xl: fs("xl", "1.25rem", "1.75rem"),
       },
+      // Màu & bo góc đọc từ biến CSS (src/index.css): trang chủ giữ bảng màu cũ,
+      // trang quản trị (html.admin-ui) dùng bảng trung tính / xanh kiểu Atlassian (Jira) + bo góc gọn kiểu Figma.
       colors: {
-        brand: {
-          50: "#eef4ff",
-          100: "#dce7ff",
-          500: "#2563eb",
-          600: "#1657f3",
-          700: "#1242c4",
-        },
+        slate: shades("slate", [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950]),
+        brand: shades("brand", [50, 100, 200, 300, 400, 500, 600, 700, 800]),
+      },
+      // Bóng thẻ kiểu Jira (thẻ trên board)
+      boxShadow: {
+        card: "0 1px 1px rgba(9,30,66,.25), 0 0 1px rgba(9,30,66,.31)",
+        "card-hover": "0 4px 8px -2px rgba(9,30,66,.25), 0 0 1px rgba(9,30,66,.31)",
+      },
+      borderRadius: {
+        md: "var(--r-md, 0.375rem)",
+        lg: "var(--r-lg, 0.5rem)",
+        xl: "var(--r-xl, 0.75rem)",
+        "2xl": "var(--r-2xl, 1rem)",
+        "3xl": "var(--r-3xl, 1.5rem)",
       },
     },
   },
