@@ -2,5 +2,6 @@ node_modules
 dist
 .env
 *.log
-.env.productiondist.new
+.env.production
+dist.new
 dist.old
