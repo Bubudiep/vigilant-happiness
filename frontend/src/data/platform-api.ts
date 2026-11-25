@@ -9,9 +9,28 @@ export class ApiError extends Error {
   constructor(
     message: string,
     readonly status: number,
+    /** 413 do hết hạn mức dung lượng (server trả JSON có quotaBytes), khác 413 do body quá lớn */
+    readonly quota = false,
+    /** body JSON của phản hồi lỗi (VD 409 kèm usedIn) */
+    readonly data?: unknown,
   ) {
     super(message);
   }
+}
+
+export const TOO_LARGE_MESSAGE = "Ảnh quá lớn, thử ít ảnh hơn";
+
+/**
+ * Chuyển phản hồi lỗi (đã đọc body, có thể null) thành ApiError.
+ * 413 không có `quotaBytes` (Nginx trả HTML, hoặc multer "File too large") → thông báo dễ hiểu;
+ * 413 có `quotaBytes` → hết hạn mức, giữ message của server.
+ */
+export function apiErrorFromResponse(status: number, body: any): ApiError {
+  const msg = Array.isArray(body?.message) ? body.message[0] : body?.message || body?.error_description;
+  if (status === 413) {
+    return typeof body?.quotaBytes === "number" ? new ApiError(msg || "Vượt hạn mức dung lượng", 413, true) : new ApiError(TOO_LARGE_MESSAGE, 413, false);
+  }
+  return new ApiError(msg || `Lỗi ${status}`, status, false, body ?? undefined);
 }
 
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -38,7 +57,7 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
       throw new ApiError("Phiên đăng nhập hết hạn — vui lòng đăng nhập lại bằng Google", 401);
     }
     if (res.status === 403) throw new ApiError(msg || "Tài khoản không có quyền (cần nằm trong ADMIN_EMAILS)", 403);
-    throw new ApiError(msg || `Lỗi ${res.status}`, res.status);
+    throw apiErrorFromResponse(res.status, body);
   }
   return body as T;
 }
@@ -139,6 +158,7 @@ export interface Project {
   customerId: string;
   name: string;
   templateId?: string | null;
+  storeId?: string | null;
   status: string;
   progress: number;
   startDate?: string | null;
@@ -173,9 +193,9 @@ export const createPlatformCustomer = (data: { name: string; phone: string; comp
   api<PlatformCustomerLite>("/customers", { method: "POST", body: JSON.stringify(data) });
 
 export const fetchProjects = () => api<Project[]>("/admin/projects");
-export const createProject = (data: { customerId: string; name: string; templateId?: string; status?: string; dueDate?: string; milestones?: string[] }) =>
+export const createProject = (data: { customerId: string; name: string; templateId?: string; storeId?: string; startDate?: string; status?: string; dueDate?: string; milestones?: string[] }) =>
   api<Project>("/admin/projects", { method: "POST", body: JSON.stringify(data) });
-export const updateProject = (id: string, data: Partial<Pick<Project, "name" | "status" | "progress" | "note" | "dueDate" | "startDate">>) =>
+export const updateProject = (id: string, data: Partial<Pick<Project, "name" | "status" | "progress" | "note" | "startDate" | "dueDate">> & { storeId?: string | null }) =>
   api<Project>(`/admin/projects/${id}`, { method: "PATCH", body: JSON.stringify(data) });
 export const deleteProject = (id: string) => api(`/admin/projects/${id}`, { method: "DELETE" });
 export const addMilestone = (projectId: string, title: string) =>
@@ -359,6 +379,8 @@ export interface PlanRow {
   maxStores: number;
   maxProducts: number;
   maxStaff: number;
+  /** Hạn mức dung lượng (MB); null/thiếu = không giới hạn */
+  storageQuotaMb?: number | null;
   features: string[];
   isActive: boolean;
   sortOrder: number;
@@ -445,6 +467,8 @@ export interface StorageStoreRow {
   mediaBytes: number;
   mediaFiles: number;
   totalBytes: number;
+  quotaBytes?: number | null;
+  planName?: string | null;
 }
 export interface StorageOverview {
   disk: { total: number; free: number; used: number } | null;
@@ -459,3 +483,15 @@ export interface StorageOverview {
   generatedAt: string;
 }
 export const fetchStorageOverview = () => api<StorageOverview>("/admin/storage");
+
+/** Dung lượng đã dùng / hạn mức của một gian hàng (GET /stores/:id/storage). */
+export interface StoreStorage {
+  usedBytes: number;
+  quotaBytes: number | null;
+  albumBytes: number;
+  albumPhotos: number;
+  mediaBytes: number;
+  mediaFiles: number;
+  planName: string | null;
+}
+export const fetchStoreStorage = (storeId: string) => api<StoreStorage>(`/stores/${storeId}/storage`);

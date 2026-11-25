@@ -57,10 +57,50 @@ import {
   updateAlbum,
   uploadAlbumPhotos,
 } from "../data/album-api";
-import { ApiError } from "../data/platform-api";
+import { ApiError, fetchStoreStorage, type StoreStorage } from "../data/platform-api";
+import { fmtBytes } from "../data/format";
+import { MAX_BATCH_FILES, MAX_SINGLE_BYTES, splitBatches } from "../data/upload-batch";
 import type { StoreConfig } from "../data/store-api";
 
 const errMsg = (e: unknown, fb = "Thao tác thất bại") => (e instanceof ApiError ? e.message : fb);
+
+/** Thông báo lỗi tải ảnh; 413 = vượt hạn mức dung lượng gói (kèm số đã dùng nếu server trả). */
+function uploadErrMsg(e: unknown): string {
+  if (e instanceof ApiError && e.status === 413 && e.quota) {
+    return `${e.message || "Vượt hạn mức dung lượng của gói"} — hãy xoá bớt ảnh hoặc nâng cấp gói.`;
+  }
+  return errMsg(e);
+}
+
+/** Thanh "Đã dùng X / Y" của gian hàng; `refreshKey` đổi giá trị → tải lại. API chưa có (404) thì ẩn êm. */
+export function StorageBar({ storeId, refreshKey }: { storeId: string; refreshKey?: number }) {
+  const [st, setSt] = useState<StoreStorage | null>(null);
+  useEffect(() => {
+    let alive = true;
+    fetchStoreStorage(storeId)
+      .then((d) => alive && setSt(d))
+      .catch(() => alive && setSt(null));
+    return () => {
+      alive = false;
+    };
+  }, [storeId, refreshKey]);
+  if (!st || typeof st.usedBytes !== "number") return null;
+  const pct = st.quotaBytes ? Math.min(100, Math.round((st.usedBytes / st.quotaBytes) * 100)) : 0;
+  return (
+    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+      <div className="flex flex-wrap justify-between gap-x-3 text-xs font-semibold text-slate-600">
+        <span>
+          Đã dùng {fmtBytes(st.usedBytes)} / {st.quotaBytes == null ? "không giới hạn" : fmtBytes(st.quotaBytes)}
+          {st.planName ? ` · ${st.planName}` : ""}
+        </span>
+        <span className="font-normal text-slate-400">
+          Album {fmtBytes(st.albumBytes)} ({st.albumPhotos} ảnh) · Ảnh SP/banner {fmtBytes(st.mediaBytes)}
+        </span>
+      </div>
+      {st.quotaBytes != null && <Progress percent={pct} size="small" showInfo={false} status={pct >= 90 ? "exception" : "normal"} className="!mb-0" />}
+    </div>
+  );
+}
 
 // ═══════════════════════════════ Loại album (shop tự tạo) ═══════════════════════════════
 
@@ -369,9 +409,11 @@ export function AlbumsSection({ store, initialCustomerId }: { store: StoreConfig
   const [kindsOpen, setKindsOpen] = useState(false);
   const { kinds, kindOf } = useAlbumKinds(store.id);
   const [openId, setOpenId] = useState<string | null>(null);
+  const [storageKey, setStorageKey] = useState(0);
 
   const load = useCallback(async () => {
     setLoading(true);
+    setStorageKey((n) => n + 1);
     try {
       setAlbums(await fetchAlbums(store.id, { customerId }));
     } catch (e) {
@@ -393,6 +435,7 @@ export function AlbumsSection({ store, initialCustomerId }: { store: StoreConfig
 
   return (
     <div className="space-y-4">
+      <StorageBar storeId={store.id} refreshKey={storageKey} />
       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -726,6 +769,7 @@ export function AlbumDrawer({
   const [publishOpen, setPublishOpen] = useState(false);
   const [publishMsg, setPublishMsg] = useState("");
   const [preview, setPreview] = useState<string | null>(null);
+  const [storageKey, setStorageKey] = useState(0);
   const fileInput = useRef<HTMLInputElement>(null);
 
   const apply = (a: AlbumDetail) => {
@@ -759,21 +803,48 @@ export function AlbumDrawer({
     setUpload({ done: 0, total: files.length });
     let added = 0;
     const errors: string[] = [];
-    for (let i = 0; i < files.length; i += 8) {
-      const batch = await Promise.all(files.slice(i, i + 8).map(async (f) => ({ blob: await shrinkImage(f), name: f.name })));
-      try {
-        const r = await uploadAlbumPhotos(storeId, album.id, batch);
-        added += r.added.length;
-        errors.push(...r.errors);
-      } catch (e) {
-        errors.push(errMsg(e));
+    let quotaErr: string | null = null;
+    let done = 0;
+    outer: for (let w = 0; w < files.length; w += MAX_BATCH_FILES) {
+      // Nén từng cửa sổ ≤ 30 ảnh (8 ảnh song song) rồi chia lô theo dung lượng SAU khi nén
+      const win = files.slice(w, w + MAX_BATCH_FILES);
+      const shrunk: { blob: Blob; name: string; size: number }[] = [];
+      for (let j = 0; j < win.length; j += 8) {
+        const part = await Promise.all(win.slice(j, j + 8).map(async (f) => ({ blob: await shrinkImage(f), name: f.name })));
+        for (const p of part) {
+          if (p.blob.size > MAX_SINGLE_BYTES) {
+            errors.push(`${p.name}: ảnh quá lớn (${fmtBytes(p.blob.size)} > ${fmtBytes(MAX_SINGLE_BYTES)})`);
+            done++;
+          } else shrunk.push({ ...p, size: p.blob.size });
+        }
       }
-      setUpload({ done: Math.min(files.length, i + 8), total: files.length });
+      for (const batch of splitBatches(shrunk)) {
+        try {
+          const r = await uploadAlbumPhotos(storeId, album.id, batch);
+          added += r.added.length;
+          errors.push(...r.errors);
+          if (r.quotaExceeded) {
+            // lưu được một phần nhưng đã hết dung lượng: dừng các lô sau
+            quotaErr = `Đã lưu ${added} ảnh, hết dung lượng — hãy xoá bớt ảnh hoặc nâng cấp gói.`;
+            break outer;
+          }
+        } catch (e) {
+          if (e instanceof ApiError && e.status === 413 && e.quota) {
+            quotaErr = uploadErrMsg(e);
+            break outer; // hết hạn mức: không thử các lô sau
+          }
+          errors.push(errMsg(e));
+        }
+        done += batch.length;
+        setUpload({ done: Math.min(files.length, done), total: files.length });
+      }
     }
     setUpload(null);
     apply(await fetchAlbum(storeId, album.id));
+    setStorageKey((n) => n + 1);
     onChanged();
     if (added) message.success(`Đã tải ${added} ảnh`);
+    if (quotaErr) message.error({ content: quotaErr, duration: 8 });
     if (errors.length) message.warning(`${errors.length} ảnh lỗi: ${errors.slice(0, 2).join("; ")}`);
   };
 
@@ -844,6 +915,7 @@ export function AlbumDrawer({
             }}
             className={`rounded-2xl border-2 border-dashed p-3 transition ${dragOver ? "border-brand-500 bg-brand-50" : "border-transparent"}`}
           >
+            <div className="mb-3"><StorageBar storeId={storeId} refreshKey={storageKey} /></div>
             <div className="mb-3 flex items-center justify-between">
               <div className="text-sm font-bold text-slate-900">Ảnh xem trước ({album.photos.length})</div>
               <Button icon={<LuUpload size={14} />} onClick={() => fileInput.current?.click()} disabled={!!upload}>

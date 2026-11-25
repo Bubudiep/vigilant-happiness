@@ -35,20 +35,6 @@ export interface ConversationDetail extends ConversationRow {
   messages: InboxMessage[];
 }
 
-export interface GalleryImage {
-  id: string;
-  filename: string;
-  size: number;
-  mime: string;
-  tag?: string | null;
-  note?: string | null;
-  source: "customer" | "staff";
-  url: string;
-  createdAt: string;
-  customer?: { id: string; name: string; companyName?: string | null } | null;
-  conversation?: { id: string; displayName: string; channel: Channel } | null;
-}
-
 export interface CareTaskRow {
   id: string;
   title: string;
@@ -92,18 +78,6 @@ export function sendStaffMessage(id: string, data: { body?: string; internal?: b
   if (data.internal) fd.set("internal", "true");
   if (data.file) fd.set("file", data.file);
   return api<InboxMessage>(`/inbox/conversations/${id}/messages`, { method: "POST", body: fd });
-}
-
-export const fetchGallery = (f: { customerId?: string; tag?: string; source?: string; q?: string }) => api<GalleryImage[]>(`/inbox/files${qs(f)}`);
-export const patchImage = (id: string, data: { tag?: string; note?: string; customerId?: string | null }) =>
-  api<GalleryImage>(`/inbox/files/${id}`, { method: "PATCH", body: JSON.stringify(data) });
-export const deleteImage = (id: string) => api(`/inbox/files/${id}`, { method: "DELETE" });
-export function uploadCustomerImage(customerId: string, file: File, tag?: string, note?: string) {
-  const fd = new FormData();
-  fd.set("file", file);
-  if (tag) fd.set("tag", tag);
-  if (note) fd.set("note", note);
-  return api<GalleryImage>(`/inbox/customers/${customerId}/files`, { method: "POST", body: fd });
 }
 
 export const fetchCare = (f: { status?: string; customerId?: string }) => api<CareTaskRow[]>(`/inbox/care${qs(f)}`);

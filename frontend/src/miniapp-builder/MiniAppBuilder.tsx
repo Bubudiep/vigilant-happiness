@@ -25,7 +25,9 @@ import {
 } from "react-icons/lu";
 import type { DocumentLike, ProductLike, VoucherLike } from "./blocks";
 import { Icon } from "./icons";
-import { Inspector } from "./Inspector";
+import { BuilderStoreContext, Inspector } from "./Inspector";
+import { findDataImages, replaceDataImage } from "./inline-images";
+import { dataUrlToBlob, uploadStoreMedia } from "../data/media-api";
 import { BlockAction, DeviceFrame, DeviceId, DEVICES, DND_MOVE, DND_NEW, PhoneScreen } from "./PhoneFrame";
 import { cloneBlock, createSchemaFromPreset, PRESET_CATEGORIES, PRESETS } from "./presets";
 import type { PresetCategory } from "./presets";
@@ -34,6 +36,8 @@ import { DEFAULT_BUILDER_AUTH } from "./types";
 import type { Block, BlockItem, BlockProps, BlockType, BuilderAuthConfig, BuilderPage, BuilderSchema, BuilderTheme, Selection } from "./types";
 
 export interface MiniAppBuilderProps {
+  /** Gian hàng đang thiết kế: nơi lưu ảnh tải lên */
+  storeId?: string;
   brand: string;
   initialSchema: BuilderSchema;
   products: ProductLike[];
@@ -67,7 +71,7 @@ const frameSize = (d: DeviceId) => {
 
 const newBlock = (type: BlockType): Block => ({ id: uid(type.slice(0, 3)), type, props: BLOCKS[type].defaults() });
 
-export function MiniAppBuilder({ brand, initialSchema, products, documents, vouchers, previewUrl, onPublish, onChange }: MiniAppBuilderProps) {
+export function MiniAppBuilder({ storeId, brand, initialSchema, products, documents, vouchers, previewUrl, onPublish, onChange }: MiniAppBuilderProps) {
   const { message, modal } = AntApp.useApp();
   const [hist, setHist] = useState<History>({ past: [], present: initialSchema, future: [] });
   const schema = hist.present;
@@ -120,6 +124,47 @@ export function MiniAppBuilder({ brand, initialSchema, products, documents, vouc
     onChange(schema);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [schema]);
+
+  // Thiết kế cũ còn ảnh data:image → tải lần lượt lên máy chủ rồi thay bằng URL (chạy một lần khi mở)
+  const [migrate, setMigrate] = useState<{ done: number; total: number } | null>(null);
+  const migrated = useRef(false);
+  useEffect(() => {
+    if (!storeId || migrated.current) return;
+    migrated.current = true;
+    const list = findDataImages(initialSchema);
+    if (!list.length) return;
+    let cancelled = false;
+    (async () => {
+      setMigrate({ done: 0, total: list.length });
+      let failed = 0;
+      for (let i = 0; i < list.length; i++) {
+        try {
+          const blob = await dataUrlToBlob(list[i]);
+          const url = await uploadStoreMedia(storeId, blob, `design-${Date.now()}-${i}.${blob.type === "image/png" ? "png" : "jpg"}`);
+          if (cancelled) return;
+          // thay trực tiếp trong bản hiện tại (không tạo bước hoàn tác); onChange sẽ lưu lại
+          setHist((h) => ({ ...h, present: replaceDataImage(h.present, list[i], url) }));
+        } catch (e) {
+          failed++;
+          if (e instanceof Error && "status" in e && (e as { status: number }).status === 413) {
+            message.error(`${e.message || "Vượt hạn mức dung lượng"} — dừng chuyển ảnh cũ.`);
+            break;
+          }
+        }
+        if (!cancelled) setMigrate({ done: i + 1, total: list.length });
+      }
+      if (!cancelled) {
+        setMigrate(null);
+        if (failed) message.warning(`${failed} ảnh cũ chưa chuyển được, vẫn giữ nguyên trong thiết kế`);
+        else message.success(`Đã chuyển ${list.length} ảnh cũ lên máy chủ`);
+      }
+    })();
+    return () => {
+      cancelled = true;
+      migrated.current = false; // StrictMode mount lại → chạy lại
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storeId]);
 
   // Giữ activePage hợp lệ sau undo/redo
   useEffect(() => {
@@ -726,6 +771,12 @@ export function MiniAppBuilder({ brand, initialSchema, products, documents, vouc
 
         {/* Right inspector */}
         <aside className="min-h-0 overflow-y-auto rounded-2xl border border-slate-200 bg-white px-3.5 pb-4 shadow-sm">
+          {migrate && (
+            <div className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
+              Đang chuyển ảnh cũ lên máy chủ {migrate.done}/{migrate.total}…
+            </div>
+          )}
+          <BuilderStoreContext.Provider value={storeId}>
           <Inspector
             schema={schema}
             page={page}
@@ -741,6 +792,7 @@ export function MiniAppBuilder({ brand, initialSchema, products, documents, vouc
             onPatchAuth={onPatchAuth}
             onPreviewAuthSheet={(tab) => setAuthPreviewTab(tab)}
           />
+          </BuilderStoreContext.Provider>
         </aside>
       </div>
 

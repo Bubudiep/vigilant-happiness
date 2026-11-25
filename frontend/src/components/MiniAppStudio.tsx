@@ -32,6 +32,7 @@ export default function MiniAppStudio({
 
   return (
     <MiniAppBuilder
+      storeId={store.id}
       brand={store.name}
       initialSchema={initialSchema}
       products={store.products}

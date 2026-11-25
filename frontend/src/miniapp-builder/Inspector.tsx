@@ -1,5 +1,7 @@
 import { App as AntApp, Button, Collapse, ColorPicker, ConfigProvider, Empty, Input, InputNumber, Segmented, Select, Slider, Switch, Tabs, Tooltip } from "antd";
-import { useRef, useState } from "react";
+import { createContext, useContext, useRef, useState } from "react";
+import { ApiError } from "../data/platform-api";
+import { uploadStoreMedia } from "../data/media-api";
 import { LuArrowDown, LuArrowUp, LuCopy, LuEye, LuEyeOff, LuFingerprint, LuMousePointerClick, LuPalette, LuPlus, LuSettings, LuTrash2, LuUpload } from "react-icons/lu";
 import { Icon, ICON_OPTIONS } from "./icons";
 import type { BlockAction } from "./PhoneFrame";
@@ -26,6 +28,15 @@ interface InspectorProps {
 const Label = ({ children }: { children: React.ReactNode }) => (
   <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">{children}</div>
 );
+
+/** storeId của gian hàng đang thiết kế — ảnh tải lên được lưu ở máy chủ thay vì nhúng data URL. */
+export const BuilderStoreContext = createContext<string | undefined>(undefined);
+
+/** Nén ảnh phía client (giảm byte tải lên) → Blob. */
+export async function compressImageToBlob(file: File, maxWidth = 1080): Promise<Blob> {
+  const dataUrl = await compressImageToDataUrl(file, maxWidth);
+  return (await fetch(dataUrl)).blob();
+}
 
 function compressImageToDataUrl(file: File, maxWidth = 1080): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -58,6 +69,7 @@ function ImageFieldControl({ value, onChange }: { value?: string; onChange: (v: 
   const { message } = AntApp.useApp();
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  const storeId = useContext(BuilderStoreContext);
 
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -73,11 +85,18 @@ function ImageFieldControl({ value, onChange }: { value?: string; onChange: (v: 
     }
     setUploading(true);
     try {
-      const dataUrl = await compressImageToDataUrl(file);
-      onChange(dataUrl);
+      if (!storeId) {
+        message.error("Chưa xác định gian hàng để lưu ảnh");
+        return;
+      }
+      const blob = await compressImageToBlob(file);
+      const ext = blob.type === "image/png" ? "png" : "jpg";
+      const url = await uploadStoreMedia(storeId, blob, `design-${Date.now()}.${ext}`, "general");
+      onChange(url);
       message.success("Đã tải ảnh lên!");
-    } catch {
-      message.error("Tải ảnh thất bại");
+    } catch (e) {
+      // 413: vượt hạn mức dung lượng gói — không chèn ảnh
+      message.error(e instanceof ApiError ? (e.status === 413 && e.quota ? `${e.message || "Vượt hạn mức dung lượng"} — hãy xoá bớt ảnh hoặc nâng cấp gói.` : e.message) : "Tải ảnh thất bại");
     } finally {
       setUploading(false);
     }

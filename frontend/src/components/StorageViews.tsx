@@ -1,19 +1,10 @@
 import { Alert, Button, Progress, Spin, Table } from "antd";
 import { useCallback, useEffect, useState } from "react";
 import { LuRefreshCw } from "react-icons/lu";
+import { fmtBytes } from "../data/format";
 import { ApiError, fetchStorageOverview, StorageOverview, StorageStoreRow } from "../data/platform-api";
 
-export function fmtBytes(n: number): string {
-  if (n < 1024) return `${n} B`;
-  const u = ["KB", "MB", "GB", "TB"];
-  let v = n / 1024;
-  let i = 0;
-  while (v >= 1024 && i < u.length - 1) {
-    v /= 1024;
-    i++;
-  }
-  return `${v.toFixed(v >= 100 ? 0 : 1)} ${u[i]}`;
-}
+export { fmtBytes };
 
 function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
@@ -86,7 +77,8 @@ export function StorageSection() {
         size="middle"
         pagination={{ pageSize: 20, hideOnSinglePage: true }}
         dataSource={data.stores}
-        scroll={{ x: 640 }}
+        scroll={{ x: 900 }}
+        rowClassName={(r) => (r.quotaBytes && r.totalBytes / r.quotaBytes >= 0.9 ? "bg-red-50" : "")}
         columns={[
           { title: "Gian hàng", render: (_, r) => (
               <div>
@@ -94,6 +86,25 @@ export function StorageSection() {
                 <div className="text-xs text-slate-500">{r.customer ?? "—"} · {r.slug}</div>
               </div>
             ) },
+          { title: "Gói", width: 110, render: (_, r) => r.planName ?? <span className="text-slate-400">—</span> },
+          {
+            title: "Hạn mức",
+            width: 200,
+            sorter: (a, b) => (a.quotaBytes ? a.totalBytes / a.quotaBytes : -1) - (b.quotaBytes ? b.totalBytes / b.quotaBytes : -1),
+            render: (_, r) => {
+              if (!r.quotaBytes) return <span className="text-slate-400">Không giới hạn</span>;
+              const p = Math.round((r.totalBytes / r.quotaBytes) * 100);
+              const hot = p >= 90;
+              return (
+                <div>
+                  <div className={`text-xs font-semibold ${hot ? "text-red-600" : "text-slate-600"}`}>
+                    {fmtBytes(r.totalBytes)} / {fmtBytes(r.quotaBytes)} ({p}%)
+                  </div>
+                  <Progress percent={Math.min(100, p)} size="small" showInfo={false} status={hot ? "exception" : "normal"} className="!mb-0" />
+                </div>
+              );
+            },
+          },
           { title: "Album", align: "right", render: (_, r) => `${fmtBytes(r.albumBytes)} (${r.albumPhotos} ảnh)` },
           { title: "Ảnh SP/banner", align: "right", render: (_, r) => `${fmtBytes(r.mediaBytes)} (${r.mediaFiles})` },
           {
@@ -113,9 +124,9 @@ export function StorageSection() {
         summary={() => (
           <Table.Summary.Row>
             <Table.Summary.Cell index={0}><b>Tổng</b></Table.Summary.Cell>
-            <Table.Summary.Cell index={1} colSpan={2} />
-            <Table.Summary.Cell index={3} align="right"><b>{fmtBytes(data.files.stores)}</b></Table.Summary.Cell>
-            <Table.Summary.Cell index={4} />
+            <Table.Summary.Cell index={1} colSpan={4} />
+            <Table.Summary.Cell index={5} align="right"><b>{fmtBytes(data.files.stores)}</b></Table.Summary.Cell>
+            <Table.Summary.Cell index={6} />
           </Table.Summary.Row>
         )}
       />

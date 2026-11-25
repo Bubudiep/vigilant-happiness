@@ -1,10 +1,13 @@
-import { App as AntApp, Button, Drawer, Dropdown, Form, Input, Popover, QRCode, Select, Switch, Table, Tag, Tooltip } from "antd";
+import { App as AntApp, Button, Drawer, Modal, Dropdown, Form, Input, Popover, QRCode, Select, Switch, Table, Tag, Tooltip } from "antd";
 import dayjs from "dayjs";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { LuEllipsis, LuExternalLink, LuLayoutTemplate, LuPencil, LuQrCode, LuRefreshCw, LuSearch, LuSmartphone, LuStore } from "react-icons/lu";
+import { LuEllipsis, LuExternalLink, LuLayoutTemplate, LuPencil, LuQrCode, LuRefreshCw, LuSearch, LuSmartphone, LuStore, LuTrash2 } from "react-icons/lu";
 import { useNavigate } from "react-router-dom";
 import { api, ApiError, fetchPlatformCustomers, fetchSubscriptions, PlatformCustomerLite, SubscriptionRow } from "../data/platform-api";
 import { demoTemplates, getZaloStoreUrl } from "../data/site";
+import { fmtBytes } from "../data/format";
+import { fetchStoreStorage, type StoreStorage } from "../data/platform-api";
+import { deleteStore, forgetDeletedStore, slugConfirmed } from "../data/store-delete";
 import { fetchStores, StoreWithOwner } from "../data/store-api";
 
 const errMsg = (e: unknown, fb = "Thao tác thất bại") => (e instanceof ApiError ? e.message : fb);
@@ -303,6 +306,10 @@ export function CustomerAppsSection() {
       <AppConfigDrawer
         app={editing}
         onClose={() => setEditing(null)}
+        onDeleted={(id) => {
+          setEditing(null);
+          setRows((list) => (list ?? []).filter((r) => r.id !== id));
+        }}
         onSaved={() => {
           setEditing(null);
           load();
@@ -314,7 +321,7 @@ export function CustomerAppsSection() {
 
 // ═════════════════════════════ Drawer sửa cấu hình ═════════════════════════════
 
-function AppConfigDrawer({ app, onClose, onSaved }: { app: AppRow | null; onClose: () => void; onSaved: () => void }) {
+function AppConfigDrawer({ app, onClose, onSaved, onDeleted }: { app: AppRow | null; onClose: () => void; onSaved: () => void; onDeleted: (id: string) => void }) {
   const { message } = AntApp.useApp();
   const navigate = useNavigate();
   const [form] = Form.useForm();
@@ -470,7 +477,78 @@ function AppConfigDrawer({ app, onClose, onSaved }: { app: AppRow | null; onClos
           </Section>
         </Form>
       )}
+      {app && <DangerZone app={app} onDeleted={onDeleted} />}
     </Drawer>
+  );
+}
+
+/** Vùng "Nguy hiểm": xoá HẲN gian hàng (chỉ trang điều hành của quản trị viên). */
+function DangerZone({ app, onDeleted }: { app: AppRow; onDeleted: (id: string) => void }) {
+  const { message } = AntApp.useApp();
+  const [open, setOpen] = useState(false);
+  const [typed, setTyped] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [storage, setStorage] = useState<StoreStorage | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    setTyped("");
+    setStorage(null);
+    fetchStoreStorage(app.id).then(setStorage).catch(() => setStorage(null));
+  }, [open, app.id]);
+
+  const confirm = async () => {
+    setBusy(true);
+    try {
+      const r = await deleteStore(app.id);
+      forgetDeletedStore(app.id);
+      setOpen(false);
+      message.success(`Đã xoá gian hàng ${r.name || app.name} (${r.files} file)`);
+      onDeleted(app.id);
+    } catch (e) {
+      message.error(errMsg(e, "Không xoá được gian hàng"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="mt-6 rounded-xl border border-red-200 bg-red-50/60 p-4">
+      <div className="text-xs font-bold uppercase tracking-wide text-red-600">Nguy hiểm</div>
+      <p className="mt-1 text-xs text-slate-600">Xoá hẳn gian hàng cùng toàn bộ dữ liệu và ảnh. Không thể khôi phục.</p>
+      <Button danger className="mt-2" icon={<LuTrash2 size={14} />} onClick={() => setOpen(true)}>
+        Xoá gian hàng
+      </Button>
+      <Modal
+        open={open}
+        title={<span className="text-red-600">Xoá gian hàng “{app.name}”?</span>}
+        onCancel={() => !busy && setOpen(false)}
+        okText="Xoá vĩnh viễn"
+        cancelText="Huỷ"
+        okButtonProps={{ danger: true, disabled: !slugConfirmed(typed, app.slug), loading: busy }}
+        onOk={confirm}
+        destroyOnHidden
+      >
+        <div className="space-y-3 text-sm">
+          <div className="text-slate-700">Các dữ liệu sau sẽ bị xoá hẳn và không thể khôi phục:</div>
+          <ul className="list-disc space-y-0.5 pl-5 text-slate-700">
+            <li>{app._count ? `${app._count.products} sản phẩm` : "Sản phẩm"}</li>
+            <li>{app._count ? `${app._count.customers} khách hàng` : "Khách hàng"}</li>
+            <li>Đơn hàng, lịch hẹn, album, hội thoại và cấu hình của gian hàng</li>
+            <li>
+              Ảnh &amp; file:{" "}
+              {storage
+                ? `${fmtBytes(storage.usedBytes)} (${storage.albumPhotos} ảnh album, ${storage.mediaFiles} ảnh thư viện)`
+                : "đang tính dung lượng…"}
+            </li>
+          </ul>
+          <div>
+            Gõ <b className="font-mono">{app.slug}</b> để xác nhận:
+          </div>
+          <Input value={typed} onChange={(e) => setTyped(e.target.value)} placeholder={app.slug} autoComplete="off" status={typed && !slugConfirmed(typed, app.slug) ? "error" : undefined} />
+        </div>
+      </Modal>
+    </div>
   );
 }
 

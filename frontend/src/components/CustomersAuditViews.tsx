@@ -1,3 +1,4 @@
+import { auditActionLabel } from "../data/audit-labels";
 import { Alert, App as AntApp, Button, Drawer, Empty, Input, Modal, Popconfirm, Segmented, Select, Table, Tag } from "antd";
 import dayjs from "dayjs";
 import { useCallback, useEffect, useState } from "react";
@@ -298,40 +299,13 @@ export function CustomersPlatformSection() {
 
 // ═════════════════════════════ Nhật ký thao tác ═════════════════════════════
 
-const ACTION_LABEL: Record<string, string> = {
-  "oauth.app.create": "Tạo kênh API",
-  "oauth.app.update": "Sửa kênh API",
-  "oauth.app.disable": "Tắt kênh API",
-  "oauth.app.rotate_secret": "Đổi secret kênh",
-  "oauth.app.revoke_tokens": "Thu hồi token kênh",
-  "oauth.app.delete": "Xoá kênh API",
-  "store.update": "Sửa cấu hình store",
-  "spam.block.add": "Chặn spam",
-  "spam.block.remove": "Bỏ chặn spam",
-  "project.create": "Tạo dự án",
-  "project.update": "Sửa dự án",
-  "project.delete": "Xoá dự án",
-  "ticket.update": "Sửa ticket",
-  "inbox.conversation.update": "Sửa hội thoại",
-  "inbox.file.delete": "Xoá ảnh khách",
-  "inbox.oa.credentials": "Đổi token Zalo OA",
-  "store.oa.update": "Cập nhật Zalo OA gian hàng",
-  "store.oa.disconnect": "Gỡ token OA gian hàng",
-  "build.request": "Gửi yêu cầu build Mini App",
-  "build.cancel": "Huỷ yêu cầu build",
-  "build.approve": "Duyệt yêu cầu build",
-  "build.publish": "Phát hành Mini App riêng",
-  "build.reject": "Từ chối yêu cầu build",
-  "debt.create": "Tạo khoản nợ",
-  "debt.update": "Sửa khoản nợ",
-  "debt.delete": "Xoá khoản nợ",
-  "debt.payment": "Thu tiền nợ",
-  "debt.payment_delete": "Huỷ lần thu",
-};
 const GROUPS = [
   { value: "", label: "Tất cả" },
   { value: "oauth", label: "Kênh API" },
   { value: "store", label: "Store" },
+  { value: "customer", label: "Khách hàng" },
+  { value: "plan", label: "Gói dịch vụ" },
+  { value: "subscription", label: "Đăng ký gói" },
   { value: "spam", label: "Chống spam" },
   { value: "project", label: "Dự án" },
   { value: "ticket", label: "Ticket" },
@@ -367,7 +341,7 @@ export function AuditSection() {
           columns={[
             { title: "Lúc", width: 120, render: (_, r) => <span className="text-[11px]">{dayjs(r.createdAt).format("HH:mm:ss DD/MM")}</span> },
             { title: "Người thực hiện", render: (_, r) => <span className="text-xs">{r.actorLabel}</span> },
-            { title: "Thao tác", render: (_, r) => <Tag>{ACTION_LABEL[r.action] ?? r.action}</Tag> },
+            { title: "Thao tác", render: (_, r) => <Tag>{auditActionLabel(r.action, r.meta)}</Tag> },
             { title: "Đối tượng", render: (_, r) => <span className="font-mono text-[11px] text-slate-500">{r.targetType} {r.targetId}</span> },
             { title: "Chi tiết", render: (_, r) => <span className="text-[11px] text-slate-500">{r.meta ? JSON.stringify(r.meta) : ""}</span> },
             { title: "IP", width: 120, render: (_, r) => <span className="font-mono text-[11px]">{r.ip}</span> },

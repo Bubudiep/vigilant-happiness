@@ -1,6 +1,6 @@
-import { App as AntApp, Button, Collapse, Drawer, Form, Input, Select, Steps, Tag } from "antd";
+import { Button, Collapse, Drawer, Input, Steps, Tag } from "antd";
 import dayjs from "dayjs";
-import { useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   LuArrowRight,
@@ -19,8 +19,8 @@ import {
   LuStore,
   LuZap,
 } from "react-icons/lu";
+import type { LeadPrefill } from "../components/LeadForm";
 import { templateThumbnails } from "../assets/thumbs";
-import PreviewModal from "../components/PreviewModal";
 import {
   categories,
   CategoryId,
@@ -33,24 +33,23 @@ import {
   siteConfig,
 } from "../data/site";
 
-interface LeadFormValues {
-  name: string;
-  phone: string;
-  industry?: string;
-  templateId?: string;
-  note?: string;
-}
+// Modal xem thử (kèm QR code) chỉ tải khi người dùng mở lần đầu
+// Form nhận tư vấn (antd Form/Select/Input) tách chunk riêng, tải sau khi trang đã hiển thị
+const LeadForm = lazy(() => import("../components/LeadForm"));
+const PreviewModal = lazy(() => import("../components/PreviewModal"));
 
 export default function LandingPage() {
   const navigate = useNavigate();
-  const { message } = AntApp.useApp();
-  const [form] = Form.useForm<LeadFormValues>();
 
   const [activeCat, setActiveCat] = useState<CategoryId>("all");
   const [keyword, setKeyword] = useState("");
   const [preview, setPreview] = useState<DemoTemplate | null>(null);
+  const [previewEver, setPreviewEver] = useState(false);
+  useEffect(() => {
+    if (preview) setPreviewEver(true);
+  }, [preview]);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
+  const [prefill, setPrefill] = useState<LeadPrefill | undefined>();
 
   const promoDeadline = dayjs().endOf("month").format("DD/MM/YYYY");
 
@@ -67,44 +66,15 @@ export default function LandingPage() {
 
   const handleSelectForQuote = (tpl: DemoTemplate) => {
     setPreview(null);
-    form.setFieldsValue({
-      templateId: tpl.id,
-      industry: getCategoryLabel(tpl.categories[0]),
-      note: `Tôi muốn tư vấn triển khai theo mẫu [${tpl.code}] ${tpl.name}`,
+    setPrefill({
+      seq: Date.now(),
+      values: {
+        templateId: tpl.id,
+        industry: getCategoryLabel(tpl.categories[0]),
+        note: `Tôi muốn tư vấn triển khai theo mẫu [${tpl.code}] ${tpl.name}`,
+      },
     });
     document.getElementById("contact")?.scrollIntoView({ behavior: "smooth" });
-  };
-
-  const handleSubmit = async (values: LeadFormValues) => {
-    const cleanPhone = values.phone.replace(/\s+/g, "");
-    setSubmitting(true);
-    try {
-      const res = await fetch(`${siteConfig.apiUrl}/leads`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: values.name.trim(),
-          phone: cleanPhone,
-          industry: values.industry || undefined,
-          templateId: values.templateId || undefined,
-          note: values.note?.trim() || undefined,
-        }),
-      });
-      if (!res.ok) {
-        const errBody = await res.json().catch(() => null);
-        throw new Error(errBody?.message?.[0] || errBody?.message || "Gửi yêu cầu thất bại");
-      }
-      message.success("Đã gửi yêu cầu tư vấn thành công! Đội ngũ recloud.vn sẽ liên hệ sớm nhất.");
-      form.resetFields();
-    } catch (err) {
-      message.error(
-        err instanceof Error
-          ? `${err.message}. Hotline hỗ trợ: ${siteConfig.phoneDisplay}`
-          : "Không thể kết nối máy chủ. Vui lòng gọi trực tiếp hotline.",
-      );
-    } finally {
-      setSubmitting(false);
-    }
   };
 
   const navLinks = [
@@ -519,7 +489,7 @@ export default function LandingPage() {
                   block
                   href="#contact"
                   onClick={() =>
-                    form.setFieldValue("note", `Tôi quan tâm ${p.name} (${p.price})`)
+                    setPrefill({ seq: Date.now(), values: { note: `Tôi quan tâm ${p.name} (${p.price})` } })
                   }
                   className="mt-7 font-bold"
                 >
@@ -589,75 +559,9 @@ export default function LandingPage() {
           </div>
 
           <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm md:p-8 lg:col-span-7">
-            <Form form={form} layout="vertical" onFinish={handleSubmit} size="large">
-              <div className="grid gap-x-4 sm:grid-cols-2">
-                <Form.Item
-                  label="Họ và tên"
-                  name="name"
-                  rules={[{ required: true, message: "Vui lòng nhập họ và tên" }]}
-                >
-                  <Input placeholder="Nguyễn Văn A" />
-                </Form.Item>
-
-                <Form.Item
-                  label="Số điện thoại (Zalo)"
-                  name="phone"
-                  rules={[
-                    { required: true, message: "Vui lòng nhập số điện thoại" },
-                    {
-                      pattern: /^0\d{9}$/,
-                      message: "Số điện thoại phải gồm 10 số bắt đầu bằng 0",
-                    },
-                  ]}
-                >
-                  <Input placeholder="09xx xxx xxx" inputMode="tel" />
-                </Form.Item>
-              </div>
-
-              <div className="grid gap-x-4 sm:grid-cols-2">
-                <Form.Item label="Ngành kinh doanh" name="industry">
-                  <Select
-                    allowClear
-                    placeholder="Chọn ngành nghề"
-                    options={[
-                      ...categories.slice(1).map((c) => ({ value: c.label, label: c.label })),
-                      { value: "Khác", label: "Ngành khác" },
-                    ]}
-                  />
-                </Form.Item>
-
-                <Form.Item label="Mẫu quan tâm" name="templateId">
-                  <Select
-                    allowClear
-                    showSearch
-                    optionFilterProp="label"
-                    placeholder="Chọn mẫu (nếu có)"
-                    options={demoTemplates.map((t) => ({
-                      value: t.id,
-                      label: `[${t.code}] ${t.name}`,
-                    }))}
-                  />
-                </Form.Item>
-              </div>
-
-              <Form.Item label="Nhu cầu triển khai" name="note">
-                <Input.TextArea
-                  rows={3}
-                  placeholder="Mô tả sơ qua chức năng bạn cần (bán hàng, đặt lịch, check công KCN...)"
-                />
-              </Form.Item>
-
-              <Button
-                type="primary"
-                htmlType="submit"
-                size="large"
-                block
-                loading={submitting}
-                className="h-12 font-bold"
-              >
-                Gửi yêu cầu tư vấn ngay
-              </Button>
-            </Form>
+            <Suspense fallback={<div className="h-[420px]" />}>
+              <LeadForm prefill={prefill} />
+            </Suspense>
           </div>
         </div>
       </section>
@@ -671,11 +575,11 @@ export default function LandingPage() {
         </div>
       </footer>
 
-      <PreviewModal
-        template={preview}
-        onClose={() => setPreview(null)}
-        onSelectForQuote={handleSelectForQuote}
-      />
+      {previewEver && (
+        <Suspense fallback={null}>
+          <PreviewModal template={preview} onClose={() => setPreview(null)} onSelectForQuote={handleSelectForQuote} />
+        </Suspense>
+      )}
     </div>
   );
 }

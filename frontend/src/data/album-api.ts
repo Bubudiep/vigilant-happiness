@@ -1,5 +1,5 @@
 import { getStoredAuthToken } from "./auth";
-import { api, ApiError } from "./platform-api";
+import { api, ApiError, apiErrorFromResponse } from "./platform-api";
 import { siteConfig } from "./site";
 
 /** key của loại album (shop tự tạo ở "Loại album"; mặc định today | wedding | engagement | other) */
@@ -144,6 +144,6 @@ export async function uploadAlbumPhotos(storeId: string, albumId: string, files:
     throw new ApiError("Không kết nối được máy chủ", 0);
   }
   const body = await res.json().catch(() => null);
-  if (!res.ok) throw new ApiError((Array.isArray(body?.message) ? body.message[0] : body?.message) || `Lỗi ${res.status}`, res.status);
-  return body as { added: AlbumPhoto[]; errors: string[] };
+  if (!res.ok) throw apiErrorFromResponse(res.status, body);
+  return body as { added: AlbumPhoto[]; errors: string[]; quotaExceeded?: boolean };
 }

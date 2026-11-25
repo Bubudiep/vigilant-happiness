@@ -38,6 +38,7 @@ import {
   LuStore,
   LuTrash2,
   LuUsers,
+  LuFolderOpen,
   LuImages,
   LuWarehouse,
   LuMessagesSquare,
@@ -61,7 +62,8 @@ import {
   updateStoreCustomer,
   updateStoreProduct,
 } from "../data/store-api";
-import { syncStoreChanges } from "../data/store-sync";
+import { LAST_STORE_KEY } from "../data/store-delete";
+import { autosaveDecision, configKey, syncStoreChanges } from "../data/store-sync";
 import { fetchStoreUnread } from "../data/album-api";
 import CreateStoreWizard from "./CreateStoreWizard";
 import StoreSwitcher from "./StoreSwitcher";
@@ -76,6 +78,7 @@ const InboxSection = lazy(() => named(import("./InboxViews"), "InboxSection"));
 const BuildRequestPanel = lazy(() => named(import("./StoreSettingsViews"), "BuildRequestPanel"));
 const StoreSettingsSection = lazy(() => named(import("./StoreSettingsViews"), "StoreSettingsSection"));
 const AlbumsSection = lazy(() => named(import("./AlbumViews"), "AlbumsSection"));
+const MediaLibrarySection = lazy(() => named(import("./MediaLibraryViews"), "MediaLibrarySection"));
 const CustomersSection = lazy(() => named(import("./StoreCustomerViews"), "CustomersSection"));
 const OrdersSection = lazy(() => named(import("./StoreOrderViews"), "OrdersSection"));
 
@@ -102,6 +105,7 @@ const VALID_NAV_KEYS: StoreNavKey[] = [
   "products",
   "customers",
   "albums",
+  "media",
   "loyalty",
   "orders",
   "miniapp",
@@ -112,10 +116,6 @@ const VALID_NAV_KEYS: StoreNavKey[] = [
   "settings",
 ];
 
-
-/** Các trường thông tin / thiết kế store được tự lưu (PATCH /stores/:id/config) khi thay đổi. */
-const configKey = (s: StoreConfig) =>
-  JSON.stringify([s.name, s.subtitle, s.templateId, s.zaloAppId, s.zaloOaId, s.phone, s.address, s.active, s.theme, s.sliders, s.builder ?? null]);
 
 /** Trạng thái tự lưu trên thanh trên cùng (thay cho nút "Lưu cấu hình"). */
 function SaveIndicator({ state, onRetry }: { state: "idle" | "pending" | "saving" | "saved" | "error"; onRetry: () => void }) {
@@ -135,7 +135,6 @@ function SaveIndicator({ state, onRetry }: { state: "idle" | "pending" | "saving
   );
 }
 
-const LAST_STORE_KEY = "recloud_last_store_v1";
 const errMsg = (e: unknown, fb = "Thao tác thất bại") => (e instanceof ApiError ? e.message : fb);
 
 export default function StoreConsole({
@@ -325,12 +324,10 @@ export default function StoreConsole({
 
   const currentKey = store ? configKey(store) : "";
   useEffect(() => {
-    if (!store?.loaded) return; // chưa có chi tiết thì chưa so sánh được
-    if (savedKeys.current[store.id] === undefined) {
-      savedKeys.current[store.id] = currentKey; // bản vừa tải từ máy chủ
-      return;
-    }
-    if (currentKey === savedKeys.current[store.id]) return;
+    if (!store) return;
+    const decision = autosaveDecision(store.loaded, savedKeys.current[store.id], currentKey);
+    if (decision === "baseline") savedKeys.current[store.id] = currentKey; // bản vừa tải từ máy chủ
+    if (decision !== "save") return;
     if (pendingSave.current && pendingSave.current.store.id !== store.id) flushSave();
     if (pendingSave.current) clearTimeout(pendingSave.current.timer);
     pendingSave.current = { store, timer: window.setTimeout(flushSave, 1200) };
@@ -556,6 +553,7 @@ export default function StoreConsole({
       alert: storeUnread > 0,
     },
     { key: "albums", label: "Album ảnh", icon: <LuImages size={17} /> },
+    { key: "media", label: "Thư viện ảnh", icon: <LuFolderOpen size={17} /> },
     { key: "loyalty", label: "Hạng & Voucher", icon: <LuCrown size={17} />, badge: store.vouchers?.length },
     { key: "orders", label: "Đơn hàng", icon: <LuShoppingBag size={17} /> },
     { key: "miniapp", label: "Miniapp", icon: <LuSmartphone size={17} /> },
@@ -865,6 +863,8 @@ export default function StoreConsole({
           {activeNav === "albums" && (
             <AlbumsSection key={store.id} store={store} initialCustomerId={searchParams.get("customer") ?? undefined} />
           )}
+
+          {activeNav === "media" && <MediaLibrarySection key={store.id} store={store} />}
 
           {activeNav === "miniapp" && (
             <MiniAppStudio

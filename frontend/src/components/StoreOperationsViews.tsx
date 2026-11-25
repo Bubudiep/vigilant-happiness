@@ -51,6 +51,7 @@ export type StoreNavKey =
   | "products"
   | "customers"
   | "albums"
+  | "media"
   | "loyalty"
   | "orders"
   | "miniapp"

@@ -32,6 +32,8 @@ import {
   updateProject,
   updateTicket,
 } from "../data/platform-api";
+import { storesForCustomer } from "../data/store-filter";
+import { fetchStores } from "../data/store-api";
 import { demoTemplates } from "../data/site";
 
 const errMsg = (e: unknown, fallback = "Thao tác thất bại") => (e instanceof ApiError ? e.message : fallback);
@@ -115,8 +117,12 @@ function ProjectsPanel() {
   const { message } = AntApp.useApp();
   const projects = useLoader(fetchProjects);
   const customers = useLoader(fetchPlatformCustomers);
+  const stores = useLoader(fetchStores);
+  // Chỉ gán được store của đúng khách của dự án (lệch → server trả 400)
+  const storeOptionsFor = (customerId?: string) =>
+    storesForCustomer(stores.data ?? [], customerId).map((s) => ({ value: s.id, label: `${s.name} · ${s.slug}` }));
   const [open, setOpen] = useState(false);
-  const [draft, setDraft] = useState({ customerId: "", name: "", templateId: "", dueDate: "", newCustomerName: "", newCustomerPhone: "" });
+  const [draft, setDraft] = useState({ customerId: "", name: "", templateId: "", storeId: "", startDate: "", dueDate: "", newCustomerName: "", newCustomerPhone: "" });
   const [newMs, setNewMs] = useState<Record<string, string>>({});
 
   const replace = (p: Project) => projects.setData((list) => (list ?? []).map((x) => (x.id === p.id ? { ...x, ...p } : x)));
@@ -136,12 +142,14 @@ function ProjectsPanel() {
         customerId,
         name: draft.name.trim(),
         templateId: draft.templateId || undefined,
+        storeId: draft.storeId || undefined,
+        startDate: draft.startDate || undefined,
         dueDate: draft.dueDate || undefined,
         milestones: DEFAULT_MILESTONES,
       });
       message.success("Đã tạo dự án");
       setOpen(false);
-      setDraft({ customerId: "", name: "", templateId: "", dueDate: "", newCustomerName: "", newCustomerPhone: "" });
+      setDraft({ customerId: "", name: "", templateId: "", storeId: "", startDate: "", dueDate: "", newCustomerName: "", newCustomerPhone: "" });
       projects.load();
     } catch (e) {
       message.error(errMsg(e));
@@ -206,8 +214,39 @@ function ProjectsPanel() {
                 <Tooltip title="Tự tính theo mốc công việc; sửa tay nếu dự án không có mốc">
                   <InputNumber size="small" min={0} max={100} value={p.progress} suffix="%" style={{ width: 90 }} onChange={(v) => v !== null && patch(p, { progress: Number(v) })} />
                 </Tooltip>
-                <span className="text-[11px] text-slate-500">Hạn: {p.dueDate ? dayjs(p.dueDate).format("DD/MM/YYYY") : "—"}</span>
               </div>
+              <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-500">
+                <label className="flex items-center gap-1">
+                  Bắt đầu
+                  <input
+                    type="date"
+                    className="rounded border border-slate-200 px-1 py-0.5 text-xs"
+                    value={p.startDate ? dayjs(p.startDate).format("YYYY-MM-DD") : ""}
+                    onChange={(e) => patch(p, { startDate: e.target.value || null })}
+                  />
+                </label>
+                <label className="flex items-center gap-1">
+                  Hạn
+                  <input
+                    type="date"
+                    className="rounded border border-slate-200 px-1 py-0.5 text-xs"
+                    value={p.dueDate ? dayjs(p.dueDate).format("YYYY-MM-DD") : ""}
+                    onChange={(e) => patch(p, { dueDate: e.target.value || null })}
+                  />
+                </label>
+              </div>
+              <Select
+                size="small"
+                showSearch
+                allowClear
+                optionFilterProp="label"
+                className="mt-2 w-full"
+                placeholder="Gán gian hàng (Mini App của khách)"
+                value={p.storeId || undefined}
+                loading={stores.loading}
+                onChange={(v) => patch(p, { storeId: v ?? null })}
+                options={storeOptionsFor(p.customerId)}
+              />
               <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100">
                 <div className="h-full rounded-full bg-blue-600" style={{ width: `${p.progress}%` }} />
               </div>
@@ -289,7 +328,26 @@ function ProjectsPanel() {
             onChange={(v) => setDraft({ ...draft, templateId: v ?? "" })}
             options={demoTemplates.map((t) => ({ value: t.id, label: `${t.code} · ${t.name}` }))}
           />
-          <Input type="date" value={draft.dueDate} onChange={(e) => setDraft({ ...draft, dueDate: e.target.value })} />
+          <Select
+            className="w-full"
+            allowClear
+            showSearch
+            optionFilterProp="label"
+            placeholder="Gán gian hàng (không bắt buộc)"
+            value={draft.storeId || undefined}
+            onChange={(v) => setDraft({ ...draft, storeId: v ?? "" })}
+            options={storeOptionsFor(draft.customerId && draft.customerId !== "__new" ? draft.customerId : undefined)}
+          />
+          <div className="grid grid-cols-2 gap-2">
+            <label className="text-[11px] text-slate-500">
+              Ngày bắt đầu
+              <Input type="date" value={draft.startDate} onChange={(e) => setDraft({ ...draft, startDate: e.target.value })} />
+            </label>
+            <label className="text-[11px] text-slate-500">
+              Hạn hoàn thành
+              <Input type="date" value={draft.dueDate} onChange={(e) => setDraft({ ...draft, dueDate: e.target.value })} />
+            </label>
+          </div>
           <div className="text-[11px] text-slate-500">Tự tạo {DEFAULT_MILESTONES.length} mốc mặc định: {DEFAULT_MILESTONES.join(" → ")}</div>
         </div>
       </Modal>

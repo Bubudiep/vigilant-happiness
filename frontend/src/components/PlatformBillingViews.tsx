@@ -11,6 +11,7 @@ import {
   Popconfirm,
   Progress,
   Segmented,
+  Space,
   Select,
   Switch,
   Table,
@@ -19,6 +20,7 @@ import {
   Tooltip,
 } from "antd";
 import dayjs from "dayjs";
+import { fmtQuotaMb } from "../data/format";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { LuCheck, LuEllipsis, LuPackage, LuPencil, LuPlus, LuRefreshCw, LuSearch, LuTicketPercent, LuTrash2, LuUserPlus } from "react-icons/lu";
 import {
@@ -138,6 +140,9 @@ function PlanCatalog({ plans, onChanged }: { plans: PlanRow[]; onChanged: () => 
                 <Tag className="m-0">{p.maxStores} store</Tag>
                 <Tag className="m-0">{p.maxProducts} sản phẩm</Tag>
                 <Tag className="m-0">{p.maxStaff} nhân sự</Tag>
+                <Tag className="m-0" color={p.storageQuotaMb == null ? "default" : "blue"}>
+                  {p.storageQuotaMb == null ? "Dung lượng không giới hạn" : `${fmtQuotaMb(p.storageQuotaMb)} dung lượng`}
+                </Tag>
               </div>
               {p.features?.length > 0 && (
                 <ul className="mt-2 space-y-0.5 text-xs text-slate-600">
@@ -167,22 +172,26 @@ function PlanCatalog({ plans, onChanged }: { plans: PlanRow[]; onChanged: () => 
 
 function PlanModal({ plan, onClose, onSaved }: { plan: PlanRow | "new" | null; onClose: () => void; onSaved: () => void }) {
   const { message } = AntApp.useApp();
-  const [form] = Form.useForm<PlanInput>();
+  type PlanFormValues = PlanInput & { quotaValue?: number | null; quotaUnit?: "MB" | "GB" };
+  const [form] = Form.useForm<PlanFormValues>();
   const [saving, setSaving] = useState(false);
   useEffect(() => {
     if (!plan) return;
-    form.setFieldsValue(
-      plan === "new"
-        ? { code: "", name: "", description: "", priceMonthly: 0, priceYearly: 0, maxStores: 1, maxProducts: 100, maxStaff: 5, features: [], isActive: true, sortOrder: 0 }
-        : plan,
-    );
+    if (plan === "new") {
+      form.setFieldsValue({ code: "", name: "", description: "", priceMonthly: 0, priceYearly: 0, maxStores: 1, maxProducts: 100, maxStaff: 5, features: [], isActive: true, sortOrder: 0, quotaValue: null, quotaUnit: "GB" });
+    } else {
+      const mb = plan.storageQuotaMb;
+      const useGb = mb != null && mb >= 1024 && mb % 1024 === 0;
+      form.setFieldsValue({ ...plan, quotaValue: mb == null ? null : useGb ? mb / 1024 : mb, quotaUnit: useGb ? "GB" : mb == null ? "GB" : "MB" });
+    }
   }, [plan, form]);
 
   const submit = async () => {
-    const v = await form.validateFields();
+    const { quotaValue, quotaUnit, ...rest } = await form.validateFields();
+    const storageQuotaMb = quotaValue == null ? null : Math.max(1, Math.round(quotaValue * (quotaUnit === "GB" ? 1024 : 1)));
     setSaving(true);
     try {
-      await savePlan(plan === "new" || !plan ? null : plan.id, v);
+      await savePlan(plan === "new" || !plan ? null : plan.id, { ...rest, storageQuotaMb });
       message.success("Đã lưu gói");
       onSaved();
     } catch (e) {
@@ -223,6 +232,16 @@ function PlanModal({ plan, onClose, onSaved }: { plan: PlanRow | "new" | null; o
             <InputNumber className="w-full" min={1} />
           </Form.Item>
         </div>
+        <Form.Item label="Dung lượng ảnh (để trống = không giới hạn)">
+          <Space.Compact className="w-full">
+            <Form.Item name="quotaValue" noStyle>
+              <InputNumber className="w-full" min={0.1} step={1} placeholder="Không giới hạn" />
+            </Form.Item>
+            <Form.Item name="quotaUnit" noStyle>
+              <Select className="!w-24" options={[{ value: "MB", label: "MB" }, { value: "GB", label: "GB" }]} />
+            </Form.Item>
+          </Space.Compact>
+        </Form.Item>
         <Form.Item name="features" label="Tính năng (gõ rồi Enter)">
           <Select mode="tags" tokenSeparators={[","]} placeholder="VD: Tích điểm, Đặt lịch, OA riêng" />
         </Form.Item>

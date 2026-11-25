@@ -62,3 +62,19 @@ export async function syncStoreChanges(prev: StoreConfig, next: StoreConfig, idM
   }
   return replaced;
 }
+
+/** Các trường thông tin / thiết kế store được tự lưu (PATCH /stores/:id/config) khi thay đổi. */
+export const configKey = (s: StoreConfig) =>
+  JSON.stringify([s.name, s.subtitle, s.templateId, s.zaloAppId, s.zaloOaId, s.phone, s.address, s.active, s.theme, s.sliders, s.builder ?? null]);
+
+/**
+ * Quyết định tự lưu: chỉ so sánh sau khi đã tải chi tiết store.
+ *  - "skip": chưa tải chi tiết, hoặc không có thay đổi
+ *  - "baseline": lần đầu thấy bản chi tiết → ghi nhận làm mốc, chưa lưu
+ *  - "save": khác mốc đã lưu → lên lịch lưu
+ */
+export function autosaveDecision(loaded: boolean | undefined, savedKey: string | undefined, currentKey: string): "skip" | "baseline" | "save" {
+  if (!loaded) return "skip";
+  if (savedKey === undefined) return "baseline";
+  return currentKey === savedKey ? "skip" : "save";
+}
