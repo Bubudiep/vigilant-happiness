@@ -1,5 +1,5 @@
 import { App as AntApp, Button, Collapse, Form, Input, InputNumber, Modal, Popconfirm, Radio, Segmented, Switch, Table, Tag, Tooltip } from "antd";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { LuClock, LuFlaskConical, LuHistory, LuLayers, LuPackage, LuPackagePlus, LuPlus, LuSearch, LuSparkles, LuTrash2 } from "react-icons/lu";
 import { ApiError } from "../data/platform-api";
 import {
@@ -77,6 +77,9 @@ export function ProductsSection({
   const [form] = Form.useForm<FormValues>();
   const formKind = Form.useWatch("kind", form) as ProductKind | undefined;
   const formBom = (Form.useWatch("bom", form) ?? []) as unknown[];
+  const formPrice = Form.useWatch("price", form) as number | undefined;
+  const formSale = Form.useWatch("salePrice", form) as number | null | undefined;
+  const formCost = Form.useWatch("costPrice", form) as number | undefined;
 
   const loadInv = useCallback(() => {
     fetchInventory(store.id)
@@ -90,6 +93,8 @@ export function ProductsSection({
   const costOf = (p: StoreProductItem) => invById.get(p.id)?.unitCost ?? p.costPrice ?? 0;
 
   const products = store.products;
+  // Bản mới nhất của món đang sửa (tồn kho đổi sau khi Nhập kho ngay trong form)
+  const liveItem = modal.item ? (products.find((p) => p.id === modal.item!.id) ?? modal.item) : undefined;
   const goods = products.filter((p) => kindOf(p) === "product");
   const services = products.filter(isService);
   const materials = products.filter(isMaterial);
@@ -113,22 +118,6 @@ export function ProductsSection({
     loadInv();
   };
 
-  // ── Sửa nhanh tồn kho (kiểm kê): cập nhật ngay, chờ 0,6s không gõ nữa mới lưu ──
-  const stockTimers = useRef<Record<string, number>>({});
-  const changeStock = (p: StoreProductItem, stock: number) => {
-    onLocal((s) => ({ ...s, products: s.products.map((x) => (x.id === p.id ? { ...x, stock } : x)) }));
-    window.clearTimeout(stockTimers.current[p.id]);
-    stockTimers.current[p.id] = window.setTimeout(async () => {
-      try {
-        replace(await updateStoreProduct(store.id, p.id, { stock }));
-        loadInv();
-      } catch (e) {
-        message.error(errMsg(e, "Không lưu được tồn kho"));
-        replace(p);
-      }
-    }, 600);
-  };
-
   const patch = async (p: StoreProductItem, data: Partial<FormValues>) => {
     try {
       replace(await updateStoreProduct(store.id, p.id, data));
@@ -150,7 +139,6 @@ export function ProductsSection({
             category: asKind === "material" ? "Nguyên liệu" : (categories[0] ?? "Chung"),
             price: 0,
             costPrice: 0,
-            stock: asKind === "service" ? undefined : 0,
             active: asKind !== "material",
             bom: [],
             options: [],
@@ -163,7 +151,9 @@ export function ProductsSection({
     const data: Partial<FormValues> = {
       ...values,
       // Dịch vụ không quản lý kho; hàng hoá không có thời lượng; nguyên liệu không có BOM / tuỳ chọn / giá bán riêng
-      ...(values.kind === "service" ? { stock: 0 } : { durationMin: null }),
+      // Tồn kho chỉ thay đổi qua Nhập kho / bán hàng — form không gửi tồn kho
+      ...(values.kind === "service" ? {} : { durationMin: null }),
+      stock: undefined,
       salePrice: values.salePrice ?? null,
       price: values.price ?? 0,
       costPrice: values.costPrice ?? 0,
@@ -229,7 +219,7 @@ export function ProductsSection({
       <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
         <PageHeader
           title="Sản phẩm & Dịch vụ"
-          description="Giá bán, giá vốn & lãi, tồn kho, định mức nguyên liệu (BOM), size / topping. Tồn kho tự trừ khi đơn hoàn thành; nhập kho để cộng tồn và tính lại giá vốn."
+          description="Giá bán, giá vốn, tồn kho, định mức nguyên liệu (BOM), size / topping. Tồn kho tự trừ khi đơn hoàn thành, chỉ cộng qua Nhập kho (tính lại giá vốn). Lãi xem trong Sửa."
         />
         <FilterBar
           search={<Input allowClear prefix={<LuSearch size={14} className="text-slate-400" />} placeholder="Tìm tên, SKU…" value={q} onChange={(e) => setQ(e.target.value)} />}
@@ -333,23 +323,15 @@ export function ProductsSection({
                 ),
             },
             {
-              title: "Giá vốn · Lãi",
-              width: 130,
+              title: "Giá vốn",
+              width: 110,
               align: "right",
               render: (_, p) => {
                 const cost = costOf(p);
                 if (isMaterial(p)) return <span className="tabular-nums">{money(cost)}{p.unit ? <span className="text-xs text-slate-400">/{p.unit}</span> : null}</span>;
-                const price = p.salePrice ?? p.price;
+                // Lãi chỉ xem trong form Sửa — không hiện ra danh sách
                 if (!cost) return <span className="text-xs text-slate-400">Chưa có giá vốn</span>;
-                const margin = price ? Math.round(((price - cost) / price) * 100) : 0;
-                return (
-                  <div className="tabular-nums">
-                    <div className="text-slate-700">{money(cost)}</div>
-                    <div className={`text-xs font-semibold ${margin < 0 ? "text-red-600" : margin < 20 ? "text-amber-600" : "text-emerald-600"}`}>
-                      Lãi {money(price - cost)} · {margin}%
-                    </div>
-                  </div>
-                );
+                return <span className="tabular-nums text-slate-700">{money(cost)}</span>;
               },
             },
             {
@@ -375,7 +357,7 @@ export function ProductsSection({
                 }
                 return (
                   <div className="flex items-center gap-1.5">
-                    <InputNumber size="small" precision={0} className="!w-20" value={p.stock ?? 0} onChange={(v) => changeStock(p, Number(v ?? 0))} />
+                    <b className={`tabular-nums ${st === "out" ? "text-red-600" : "text-slate-800"}`}>{p.stock ?? 0}</b>
                     {p.unit && isMaterial(p) && <span className="text-xs text-slate-400">{p.unit}</span>}
                     {st === "out" ? (
                       <Tag color="red" className="!m-0">
@@ -489,8 +471,16 @@ export function ProductsSection({
               </Form.Item>
             )}
             {formKind !== "service" && !formBom.length && (
-              <Form.Item label="Tồn kho hiện tại" name="stock" extra={modal.item ? "Sửa = kiểm kê; nên dùng Nhập kho" : undefined}>
-                <InputNumber className="!w-full" precision={0} />
+              <Form.Item label="Tồn kho hiện tại" extra={modal.item ? "Chỉ thay đổi qua Nhập kho / bán hàng" : "Lưu xong rồi Nhập kho để có tồn"}>
+                <div className="flex h-8 items-center gap-2">
+                  <b className="tabular-nums text-slate-900">{liveItem?.stock ?? 0}</b>
+                  {liveItem?.unit && <span className="text-xs text-slate-400">{liveItem.unit}</span>}
+                  {liveItem && (
+                    <Button size="small" icon={<LuPackagePlus size={13} />} onClick={() => setReceipt({ open: true, productId: liveItem.id })} className="!ml-auto">
+                      Nhập kho
+                    </Button>
+                  )}
+                </div>
               </Form.Item>
             )}
             {formKind !== "material" && (
@@ -499,6 +489,7 @@ export function ProductsSection({
               </Form.Item>
             )}
           </FormGrid>
+          {formKind !== "material" && <ProfitPreview price={formSale ?? formPrice ?? 0} cost={formBom.length && liveItem ? costOf(liveItem) : (formCost ?? 0)} />}
           {formKind !== "material" && (
             <Collapse
               size="small"
@@ -544,6 +535,27 @@ export function ProductsSection({
 
       <StockReceiptModal store={store} open={receipt.open} initialProductId={receipt.productId} onClose={() => setReceipt({ open: false })} onSaved={applyStock} />
       <StockReceiptsDrawer store={store} open={history} onClose={() => setHistory(false)} onChanged={applyStock} />
+    </div>
+  );
+}
+
+/** ProfitPreview — lãi gộp / 1 đơn vị, chỉ hiện trong form Sửa (danh sách không hiện lãi) */
+function ProfitPreview({ price, cost }: { price: number; cost: number }) {
+  if (!cost)
+    return <div data-ui="ProfitPreview" className="mb-4 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">Chưa có giá vốn — nhập kho hoặc khai định mức nguyên liệu để tính lãi.</div>;
+  const profit = price - cost;
+  const margin = price ? Math.round((profit / price) * 100) : 0;
+  return (
+    <div data-ui="ProfitPreview" className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg bg-slate-50 px-3 py-2 text-xs tabular-nums text-slate-600">
+      <span>
+        Giá bán <b className="text-slate-900">{money(price)}</b>
+      </span>
+      <span>
+        Giá vốn <b className="text-slate-900">{money(cost)}</b>
+      </span>
+      <span className={`font-semibold ${margin < 0 ? "text-red-600" : margin < 20 ? "text-amber-600" : "text-emerald-600"}`}>
+        Lãi {money(profit)} · {margin}%
+      </span>
     </div>
   );
 }

@@ -315,8 +315,10 @@ export class StoresService {
 
   /** Kiểm tra định mức BOM & tuỳ chọn; trả dữ liệu ghi vào DB */
   private async productData(storeId: string, productId: string | null, dto: UpdateProductDto) {
-    const { bom, options, combo, ...rest } = dto;
+    // Tồn kho không sửa tay: chỉ đổi qua Nhập kho (phiếu nhập) và bán hàng; món mới bắt đầu từ 0
+    const { bom, options, combo, stock: _stock, ...rest } = dto;
     const data: Record<string, unknown> = { ...rest };
+    if (!productId) data.stock = 0;
     // Combo: giá = tổng giá món − giảm (máy chủ tự tính); combo không có BOM / tuỳ chọn riêng
     if (combo !== undefined) {
       const parsed = await parseCombo(this.prisma, storeId, productId, combo);
@@ -347,10 +349,11 @@ export class StoresService {
   /** Luôn lọc theo storeId để không sửa / xoá được sản phẩm của store khác. */
   async updateProduct(auth: AuthContext, storeId: string, productId: string, dto: UpdateProductDto) {
     await this.ensureSection(auth, storeId, "products");
-    const res = await this.prisma.storeProduct.updateMany({
-      where: { id: productId, storeId },
-      data: (await this.productData(storeId, productId, dto)) as Prisma.StoreProductUpdateManyMutationInput,
-    });
+    const data = await this.productData(storeId, productId, dto);
+    // Không còn gì để ghi (VD chỉ gửi tồn kho — bị bỏ qua) → updateMany trả 0, nên kiểm tra tồn tại riêng
+    const res = Object.keys(data).length
+      ? await this.prisma.storeProduct.updateMany({ where: { id: productId, storeId }, data: data as Prisma.StoreProductUpdateManyMutationInput })
+      : { count: await this.prisma.storeProduct.count({ where: { id: productId, storeId } }) };
     if (!res.count) throw new NotFoundException("Không tìm thấy sản phẩm");
     return this.prisma.storeProduct.findUniqueOrThrow({ where: { id: productId } });
   }
