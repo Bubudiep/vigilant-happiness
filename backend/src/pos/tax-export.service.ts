@@ -142,6 +142,7 @@ export class TaxExportService {
       ["Ngày xuất", dmy(vnDay(new Date()))],
     ]) s1.addRow([k, v]);
     s1.addRow([]);
+    if (!orders.length) s1.addRow(["Không có đơn hoàn thành trong kỳ này."]).font = { bold: true, color: { argb: "FFB45309" } };
     const sumRows: [string, number | string][] = [
       ["Số đơn hoàn thành", orders.length],
       ["Doanh thu (đã trừ giảm giá, gồm phí giao hàng)", revenue],

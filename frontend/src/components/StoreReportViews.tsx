@@ -13,6 +13,8 @@ const money = (n: number) => `${n.toLocaleString("vi-VN")}đ`;
 const short = (n: number) => (n >= 1_000_000 ? `${(n / 1_000_000).toLocaleString("vi-VN", { maximumFractionDigits: 1 })}tr` : n >= 1000 ? `${Math.round(n / 1000)}k` : String(n));
 const SOURCE: Record<string, string> = { miniapp: "Mini App", admin: "Tạo tại quầy (web)", pos: "Bán hàng tại bàn" };
 const PAYMENT: Record<string, string> = { cod: "Thu khi giao (COD)", cash: "Tiền mặt", bank_transfer: "Chuyển khoản", card: "Thẻ", ewallet: "Ví điện tử" };
+/** Chiều cao vùng cột — dùng chung cho "Doanh thu theo ngày" và "Giờ cao điểm" để 2 khung bằng nhau */
+const CHART_H = 180;
 const BAR = "#1657f3"; // màu thương hiệu — 1 chuỗi số liệu, không cần chú thích
 
 const PRESETS: Record<string, () => [Dayjs, Dayjs]> = {
@@ -196,6 +198,7 @@ export function ReportsSection({ store }: { store: StoreConfig }) {
               <div className="mb-3 text-sm font-semibold text-slate-900">Doanh thu theo ngày</div>
               {s.revenue ? (
                 <Bars
+                  height={CHART_H}
                   data={days.map((d) => ({
                     key: d.date,
                     value: d.revenue,
@@ -217,7 +220,7 @@ export function ReportsSection({ store }: { store: StoreConfig }) {
               <div className="mb-3 text-sm font-semibold text-slate-900">Giờ cao điểm</div>
               {s.revenue ? (
                 <Bars
-                  height={150}
+                  height={CHART_H}
                   data={hours.map((h) => ({
                     key: String(h.hour),
                     value: h.revenue,
@@ -341,7 +344,8 @@ type TaxPeriod = "month" | "quarter" | "year" | "range";
 function TaxExportModal({ open, storeId, range, onClose }: { open: boolean; storeId: string; range: [Dayjs, Dayjs]; onClose: () => void }) {
   const { message } = AntApp.useApp();
   const [period, setPeriod] = useState<TaxPeriod>("quarter");
-  const [anchor, setAnchor] = useState<Dayjs>(dayjs().subtract(3, "month"));
+  // Mặc định: quý đang chạy (có số liệu ngay); chọn quý / tháng trước bằng ô ngày
+  const [anchor, setAnchor] = useState<Dayjs>(dayjs());
   const [custom, setCustom] = useState<[Dayjs, Dayjs]>(range);
   const [goods, setGoods] = useState<TaxGroup>("production");
   const [services, setServices] = useState<TaxGroup>("services");
@@ -370,10 +374,27 @@ function TaxExportModal({ open, storeId, range, onClose }: { open: boolean; stor
     label: `${TAX_GROUPS[k].label} — GTGT ${TAX_GROUPS[k].vat}% · TNCN ${TAX_GROUPS[k].pit}%`,
   }));
 
+  // Xem trước số đơn & doanh thu của kỳ đã chọn — báo ngay nếu kỳ trống
+  const fromStr = from.format("YYYY-MM-DD");
+  const toStr = (to.isAfter(dayjs(), "day") ? dayjs() : to).format("YYYY-MM-DD");
+  const [preview, setPreview] = useState<{ key: string; orders: number; revenue: number } | null>(null);
+  useEffect(() => {
+    if (!open) return;
+    let alive = true;
+    const key = `${fromStr}_${toStr}`;
+    fetchReport(storeId, fromStr, toStr)
+      .then((r) => alive && setPreview({ key, orders: r.summary.orders, revenue: r.summary.revenue }))
+      .catch(() => alive && setPreview(null));
+    return () => {
+      alive = false;
+    };
+  }, [open, storeId, fromStr, toStr]);
+  const pv = preview?.key === `${fromStr}_${toStr}` ? preview : null;
+
   const run = async () => {
     setBusy(true);
     try {
-      await downloadTaxExport(storeId, { from: from.format("YYYY-MM-DD"), to: to.format("YYYY-MM-DD"), goods, services });
+      await downloadTaxExport(storeId, { from: fromStr, to: toStr, goods, services });
       message.success("Đã tải file Excel");
       onClose();
     } catch (e) {
@@ -431,6 +452,18 @@ function TaxExportModal({ open, storeId, range, onClose }: { open: boolean; stor
             <div className="mt-1 text-2xs text-slate-500">
               {label && `${label}: `}
               {from.format("DD/MM/YYYY")} – {to.format("DD/MM/YYYY")}
+              {" · "}
+              {pv ? (
+                pv.orders ? (
+                  <b className="text-slate-700">
+                    {pv.orders} đơn hoàn thành · {money(pv.revenue)}
+                  </b>
+                ) : (
+                  <b className="text-amber-700">Kỳ này chưa có đơn hoàn thành — chọn kỳ khác</b>
+                )
+              ) : (
+                "đang tính…"
+              )}
             </div>
           </Form.Item>
           <Form.Item label="Nhóm ngành của hàng hoá / món bán" className="!mb-3" extra="Quán ăn, cà phê, đồ uống thường thuộc nhóm “ăn uống” (3% + 1,5%); bán lẻ hàng có sẵn thuộc nhóm phân phối (1% + 0,5%).">
