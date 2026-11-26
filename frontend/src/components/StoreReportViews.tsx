@@ -209,8 +209,8 @@ export function ReportsSection({ store }: { store: StoreConfig }) {
             </span>
           </div>
 
-          <div className="grid gap-4 lg:grid-cols-3">
-            <div className="rounded-xl border border-slate-200 bg-white p-4 lg:col-span-2">
+          <div className="grid gap-4 lg:grid-cols-2">
+            <div className="rounded-xl border border-slate-200 bg-white p-4">
               <div className="mb-3 text-sm font-semibold text-slate-900">{byMonth ? "Doanh thu theo tháng" : "Doanh thu theo ngày"}</div>
               {s.revenue ? (
                 <Bars
