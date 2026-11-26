@@ -65,3 +65,7 @@ Mỗi phần có thuộc tính `data-ui="<Tên>"`. Mở F12 → Elements rồi t
 | `text-sm` | 11px | Nội dung chính |
 | `text-base` | 12px | Tiêu đề khối |
 | `text-lg` | 14px | Tiêu đề trang |
+
+## CSS tuỳ chỉnh antd
+
+Ghi đè giao diện antd viết ở `frontend/src/styles/antd-custom.css`, ví dụ nút `size="small"` cao 28px.

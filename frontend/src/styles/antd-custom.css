@@ -1,0 +1,15 @@
+/*
+ * Tuỳ chỉnh antd cho trang quản trị — chỉnh tay ở đây (nạp sau index.css trong main.tsx).
+ * Chỉ áp dụng trong html.admin-ui, không ảnh hưởng khung xem trước Mini App (.phone-ui).
+ */
+
+/* Button size="small": cao 28px (mặc định antd theo theme là 22px) */
+html.admin-ui .ant-btn.ant-btn-sm:not(.phone-ui *) {
+  height: 28px;
+  padding-inline: 8px;
+}
+/* Nút chỉ có biểu tượng (vuông) */
+html.admin-ui .ant-btn.ant-btn-sm.ant-btn-icon-only:not(.phone-ui *) {
+  width: 28px;
+  padding-inline: 0;
+}

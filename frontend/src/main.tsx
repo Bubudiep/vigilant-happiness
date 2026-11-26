@@ -8,6 +8,7 @@ import { BrowserRouter } from "react-router-dom";
 import App from "./App";
 import "./fonts.css";
 import "./index.css";
+import "./styles/antd-custom.css";
 
 dayjs.locale("vi");
 
