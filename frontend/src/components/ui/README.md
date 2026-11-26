@@ -6,11 +6,11 @@ Mỗi phần có thuộc tính `data-ui="<Tên>"`. Mở F12 → Elements rồi t
 ## Khung trang (`AdminShell.tsx`), dùng chung cho /admin và /controller
 
 ```
-┌─ TopBar ───────────────────────────────────────────────────────────────┐
-│ TopBarLogo        QuickSearchButton (Ctrl K)            TopBarRight     │
-├─ Sidebar ─────────┬─ PageContent ──────────────────────────────────────┤
-│ SidebarHeader     │ Breadcrumbs                                         │
-│ SidebarNav        │ SectionTabs   (chỉ ở mục gộp)                       │
+┌─ TopBar ──────────┬─ TopBarCenter ─────────────────────────────────────┐
+│ TopBarBrand       │ Breadcrumbs          QuickSearchButton  TopBarRight │
+├─ Sidebar ─────────┼─ PageContent ──────────────────────────────────────┤
+│ SidebarHeader     │ SectionTabs   (chỉ ở mục gộp)                       │
+│ SidebarNav        │                                                     │
 │  SidebarGroup     │ PageHeader                                          │
 │   SidebarGroupLabel│ StatCard · StatCard · …                            │
 │   SidebarItem     │ SectionCard / FilterBar / bảng …                    │
@@ -23,6 +23,8 @@ Mỗi phần có thuộc tính `data-ui="<Tên>"`. Mở F12 → Elements rồi t
 |---|---|---|
 | `AdminShell` | Cả khung trang quản trị | `ui/AdminShell.tsx` |
 | `TopBar` | Thanh trên cùng, cao 48px | `ui/AdminShell.tsx` |
+| `TopBarBrand` | Ô trái thanh trên, rộng bằng Sidebar: logo + nút thu gọn menu | `ui/AdminShell.tsx` |
+| `TopBarCenter` | Giữa thanh trên: Breadcrumbs bên trái, QuickSearchButton bên phải | `ui/AdminShell.tsx` |
 | `TopBarLogo` | Logo và nhãn "Quản trị cửa hàng" / "Trang điều hành" | `ui/AdminShell.tsx` (nội dung ở StoreConsole / PlatformConsole) |
 | `QuickSearchButton` | Ô "Tìm mục, chuyển trang… Ctrl K" | `ui/AdminShell.tsx` |
 | `TopBarRight` | Góc phải: trạng thái lưu, tài khoản | `ui/AdminShell.tsx` |
@@ -38,7 +40,7 @@ Mỗi phần có thuộc tính `data-ui="<Tên>"`. Mở F12 → Elements rồi t
 | `SidebarBadge` | Số đếm bên phải mục menu | `ui/AdminShell.tsx` |
 | `SidebarFooter` | Cuối menu trái, chỗ bật/tắt Mini App | `ui/AdminShell.tsx` (nội dung ở StoreConsole) |
 | `PageContent` | Vùng nội dung bên phải | `ui/AdminShell.tsx` |
-| `Breadcrumbs` | Đường dẫn vị trí, ví dụ "Cửa hàng › Thư viện › Tài liệu" | `ui/AdminShell.tsx` |
+| `Breadcrumbs` | Đường dẫn vị trí trên TopBar (điện thoại: đầu nội dung), ví dụ "Cửa hàng › Thư viện › Tài liệu" | `ui/AdminShell.tsx` |
 
 ## Thành phần dùng trong trang (`components/ui/`)
 

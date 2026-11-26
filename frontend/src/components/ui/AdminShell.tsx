@@ -73,6 +73,7 @@ export function AdminShell<K extends string>({
         logo={logo}
         mobileTop={mobileTop}
         topRight={topRight}
+        breadcrumb={breadcrumb}
         collapsed={collapsed}
         onToggleCollapsed={onToggleCollapsed}
         onOpenMenu={() => setMobileOpen(true)}
@@ -102,7 +103,12 @@ export function AdminShell<K extends string>({
         </Sidebar>
 
         <main data-ui="PageContent" className="min-h-[calc(100vh-48px)] min-w-0 flex-1 bg-slate-50 px-3 py-4 sm:px-5 lg:px-8 lg:py-5">
-          {!!breadcrumb?.length && <Breadcrumbs items={breadcrumb} />}
+          {/* Màn hình nhỏ: đường dẫn ở đầu nội dung; từ md trở lên nằm trên TopBar */}
+          {!!breadcrumb?.length && (
+            <div className="mb-1.5 md:hidden">
+              <Breadcrumbs items={breadcrumb} />
+            </div>
+          )}
           {children}
         </main>
       </div>
@@ -114,11 +120,15 @@ export function AdminShell<K extends string>({
 
 /* ═══════ Các phần của khung — tên component trùng thuộc tính data-ui (F12 → Elements tìm data-ui="…") ═══════ */
 
-/** TopBar — thanh trên 48px: nút menu · logo · ô tìm nhanh · phần phải (trạng thái lưu, tài khoản) */
+/**
+ * TopBar — thanh trên 48px, chia 3 phần:
+ *  TopBarBrand (máy tính: rộng bằng Sidebar — logo + nút thu gọn) · giữa: Breadcrumbs bên trái ⟷ QuickSearchButton bên phải · TopBarRight
+ */
 function TopBar({
   logo,
   mobileTop,
   topRight,
+  breadcrumb,
   collapsed,
   onToggleCollapsed,
   onOpenMenu,
@@ -127,30 +137,45 @@ function TopBar({
   logo: ReactNode;
   mobileTop?: ReactNode;
   topRight?: ReactNode;
+  breadcrumb?: ReactNode[];
   collapsed: boolean;
   onToggleCollapsed: () => void;
   onOpenMenu: () => void;
   onOpenSearch: () => void;
 }) {
   return (
-    <header data-ui="TopBar" className="sticky top-0 z-40 flex h-12 items-center gap-2 border-b border-slate-200 bg-white px-2 sm:px-3">
-      <Button type="text" size="small" icon={<LuMenu size={16} />} onClick={onOpenMenu} className="lg:!hidden" aria-label="Mở menu" />
-      <Tooltip title={collapsed ? "Mở rộng menu" : "Thu gọn menu"}>
-        <Button
-          type="text"
-          size="small"
-          icon={collapsed ? <LuPanelLeftOpen size={16} /> : <LuPanelLeftClose size={16} />}
-          onClick={onToggleCollapsed}
-          className="!hidden lg:!inline-flex"
-          aria-label="Thu gọn menu"
-        />
-      </Tooltip>
-      <div data-ui="TopBarLogo" className="flex min-w-0 items-center gap-2">
-        {logo}
+    <header data-ui="TopBar" className="sticky top-0 z-40 flex h-12 items-center border-b border-slate-200 bg-white">
+      {/* TopBarBrand — máy tính: cùng bề rộng & viền phải với Sidebar; điện thoại: nút menu + logo */}
+      <div
+        data-ui="TopBarBrand"
+        className={`flex h-full shrink-0 items-center gap-2 px-2 sm:px-3 lg:border-r lg:border-slate-200 lg:transition-[width] lg:duration-150 ${
+          collapsed ? "lg:w-14 lg:justify-center lg:px-0" : "lg:w-60"
+        }`}
+      >
+        <Button type="text" size="small" icon={<LuMenu size={16} />} onClick={onOpenMenu} className="lg:!hidden" aria-label="Mở menu" />
+        <div data-ui="TopBarLogo" className={`flex min-w-0 flex-1 items-center gap-2 overflow-hidden whitespace-nowrap ${collapsed ? "lg:hidden" : ""}`}>
+          {logo}
+        </div>
+        <Tooltip title={collapsed ? "Mở rộng menu" : "Thu gọn menu"} placement="right">
+          <Button
+            type="text"
+            size="small"
+            icon={collapsed ? <LuPanelLeftOpen size={16} /> : <LuPanelLeftClose size={16} />}
+            onClick={onToggleCollapsed}
+            className="!hidden shrink-0 lg:!inline-flex"
+            aria-label="Thu gọn menu"
+          />
+        </Tooltip>
       </div>
       <div className="lg:hidden">{mobileTop}</div>
-      <QuickSearchButton onClick={onOpenSearch} />
-      <div data-ui="TopBarRight" className="ml-auto flex items-center gap-1.5 md:ml-0">
+
+      {/* Giữa: Breadcrumbs trái ⟷ QuickSearchButton phải (lề trùng lề nội dung) */}
+      <div data-ui="TopBarCenter" className="flex min-w-0 flex-1 items-center gap-4 px-2 sm:px-5 lg:px-8">
+        <div className="hidden min-w-0 flex-1 md:block">{!!breadcrumb?.length && <Breadcrumbs items={breadcrumb} />}</div>
+        <QuickSearchButton onClick={onOpenSearch} />
+      </div>
+
+      <div data-ui="TopBarRight" className="ml-auto flex shrink-0 items-center gap-1.5 pr-2 sm:pr-3">
         <Button type="text" size="small" icon={<LuSearch size={16} />} onClick={onOpenSearch} className="md:!hidden" aria-label="Tìm nhanh" />
         {topRight}
       </div>
@@ -158,17 +183,17 @@ function TopBar({
   );
 }
 
-/** QuickSearchButton — ô "Tìm mục, chuyển trang… Ctrl K" giữa thanh trên */
+/** QuickSearchButton — ô "Tìm mục, chuyển trang… Ctrl K" bên phải thanh trên (đối xứng với Breadcrumbs) */
 function QuickSearchButton({ onClick }: { onClick: () => void }) {
   return (
-    <div data-ui="QuickSearchButton" className="mx-auto hidden w-full max-w-md px-4 md:block">
+    <div data-ui="QuickSearchButton" className="hidden w-64 shrink-0 md:block xl:w-80">
       <button
         type="button"
         onClick={onClick}
         className="flex h-7 w-full items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-2.5 text-left text-xs text-slate-400 transition hover:border-slate-300 hover:bg-white"
       >
         <LuSearch size={14} />
-        <span className="flex-1">Tìm mục, chuyển trang…</span>
+        <span className="flex-1 truncate">Tìm mục, chuyển trang…</span>
         <kbd className="rounded border border-slate-200 bg-white px-1.5 font-sans text-2xs font-semibold text-slate-500">Ctrl K</kbd>
       </button>
     </div>
@@ -318,10 +343,10 @@ function SidebarItem<K extends string>({ item, active, mini, onClick }: { item: 
   );
 }
 
-/** Breadcrumbs — đường dẫn vị trí đầu nội dung: "Cửa hàng › Thư viện › Tài liệu" */
+/** Breadcrumbs — đường dẫn vị trí (trên TopBar, bên trái): "Cửa hàng › Thư viện › Tài liệu" */
 function Breadcrumbs({ items }: { items: ReactNode[] }) {
   return (
-    <div data-ui="Breadcrumbs" className="mb-1.5 flex min-w-0 items-center gap-1 text-2xs text-slate-400">
+    <div data-ui="Breadcrumbs" className="flex min-w-0 items-center gap-1 text-xs text-slate-400">
       {items.map((b, i) => (
         <Fragment key={i}>
           {i > 0 && <LuChevronRight size={10} className="shrink-0 text-slate-300" />}
