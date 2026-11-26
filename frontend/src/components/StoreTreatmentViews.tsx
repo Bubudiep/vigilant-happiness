@@ -1,12 +1,15 @@
 import {
+  App as AntApp,
   AutoComplete,
   Button,
   DatePicker,
+  Empty,
   Form,
   Input,
   InputNumber,
   Modal,
   Popconfirm,
+  Progress,
   Segmented,
   Select,
   Tag,
@@ -14,13 +17,13 @@ import {
 } from "antd";
 import dayjs, { type Dayjs } from "dayjs";
 import { useEffect, useMemo, useState } from "react";
-import { LuCircleAlert, LuRepeat } from "react-icons/lu";
+import { LuCircleAlert, LuPhone, LuRepeat, LuSearch } from "react-icons/lu";
 import {
   isService,
   type StoreBookingItem,
   type StoreConfig,
 } from "../data/store-api";
-import { FormGrid } from "./ui";
+import { FormGrid, PageHeader } from "./ui";
 
 /**
  * Liệu trình — 1 dịch vụ làm nhiều buổi (VD triệt lông 6 buổi, mỗi buổi cách 4 tuần).
@@ -506,5 +509,412 @@ export function TreatmentModal({
         </div>
       </Form>
     </Modal>
+  );
+}
+
+/** So SĐT theo 9 số cuối (0912… / +84912… / 84912… là cùng 1 khách) */
+const phoneKey = (p?: string | null) => (p ?? "").replace(/\D/g, "").slice(-9);
+
+const BOOKING_STATUS = [
+  { value: "pending", label: "Chờ xác nhận" },
+  { value: "confirmed", label: "Đã hẹn" },
+  { value: "completed", label: "Hoàn thành" },
+  { value: "cancelled", label: "Đã huỷ" },
+];
+
+type Patient = {
+  key: string;
+  name: string;
+  phone: string;
+  customerId?: string;
+  tier?: string;
+};
+type Plan = { id: string; name: string; sessions: StoreBookingItem[] };
+
+/** Gom lịch hẹn liệu trình theo treatmentId (buổi xếp theo thứ tự) */
+const plansOf = (bookings: StoreBookingItem[]): Plan[] => {
+  const m = new Map<string, Plan>();
+  for (const b of bookings) {
+    if (!b.treatmentId) continue;
+    const g = m.get(b.treatmentId) ?? {
+      id: b.treatmentId,
+      name: b.treatmentName ?? b.serviceName,
+      sessions: [],
+    };
+    g.sessions.push(b);
+    m.set(b.treatmentId, g);
+  }
+  return [...m.values()].map((g) => ({
+    ...g,
+    sessions: g.sessions.sort(
+      (x, y) => (x.treatmentSeq ?? 0) - (y.treatmentSeq ?? 0),
+    ),
+  }));
+};
+const isOpen = (b: StoreBookingItem) =>
+  b.status === "pending" || b.status === "confirmed";
+
+/**
+ * TreatmentsSection — tab "Liệu trình" của Khách hàng:
+ * trái = danh sách khách (TreatmentCustomerList), phải = liệu trình của khách đang chọn (TreatmentCard) + nút Tạo liệu trình.
+ */
+export function TreatmentsSection({
+  store,
+  updateCurrentStore,
+}: {
+  store: StoreConfig;
+  updateCurrentStore: (updater: (s: StoreConfig) => StoreConfig) => void;
+}) {
+  const { message } = AntApp.useApp();
+  const [q, setQ] = useState("");
+  const [only, setOnly] = useState<"all" | "active">("all");
+  const [selected, setSelected] = useState<string | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
+  const bookings = store.bookings;
+  const plans = useMemo(() => plansOf(bookings ?? []), [bookings]);
+
+  // Khách = tệp khách hàng + người có liệu trình nhưng chưa có trong tệp (đặt bằng SĐT)
+  const patients = useMemo(() => {
+    const m = new Map<string, Patient>();
+    for (const c of store.customers) {
+      const k = phoneKey(c.phone) || c.id;
+      m.set(k, {
+        key: k,
+        name: c.name,
+        phone: c.phone,
+        customerId: c.id,
+        tier: c.tier,
+      });
+    }
+    for (const p of plans) {
+      const b = p.sessions[0];
+      const k = phoneKey(b.phone);
+      if (k && !m.has(k))
+        m.set(k, { key: k, name: b.customerName, phone: b.phone });
+    }
+    return [...m.values()];
+  }, [store.customers, plans]);
+  const plansByPatient = useMemo(() => {
+    const m = new Map<string, Plan[]>();
+    for (const p of plans) {
+      const k = phoneKey(p.sessions[0].phone);
+      m.set(k, [...(m.get(k) ?? []), p]);
+    }
+    return m;
+  }, [plans]);
+  const activeCount = (k: string) =>
+    (plansByPatient.get(k) ?? []).filter((p) => p.sessions.some(isOpen)).length;
+
+  const kw = q.trim().toLowerCase();
+  const list = patients
+    .filter(
+      (p) =>
+        (!kw || p.name.toLowerCase().includes(kw) || p.phone.includes(kw)) &&
+        (only === "all" || activeCount(p.key) > 0),
+    )
+    .sort(
+      (a, b) =>
+        activeCount(b.key) - activeCount(a.key) ||
+        a.name.localeCompare(b.name, "vi"),
+    );
+  const cur = patients.find((p) => p.key === selected) ?? null;
+  const curPlans = cur
+    ? [...(plansByPatient.get(cur.key) ?? [])].sort(
+        (a, b) =>
+          Number(b.sessions.some(isOpen)) - Number(a.sessions.some(isOpen)) ||
+          b.sessions[0].date.localeCompare(a.sessions[0].date),
+      )
+    : [];
+
+  const setStatus = (
+    ids: string[],
+    status: StoreBookingItem["status"],
+    msg: string,
+  ) => {
+    const set = new Set(ids);
+    updateCurrentStore((s) => ({
+      ...s,
+      bookings: (s.bookings ?? []).map((b) =>
+        set.has(b.id) ? { ...b, status } : b,
+      ),
+    }));
+    message.success(msg);
+  };
+
+  return (
+    <div
+      data-ui="TreatmentsSection"
+      className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5"
+    >
+      <PageHeader
+        title="Liệu trình"
+        description={`Chọn khách bên trái để xem / tạo liệu trình · ${plans.filter((p) => p.sessions.some(isOpen)).length} liệu trình đang chạy`}
+      />
+      <div className="grid gap-4 md:grid-cols-[280px_minmax(0,1fr)]">
+        {/* TreatmentCustomerList — danh sách khách bên trái */}
+        <div
+          data-ui="TreatmentCustomerList"
+          className="flex min-h-0 flex-col rounded-lg border border-slate-200"
+        >
+          <div className="space-y-2 border-b border-slate-200 p-2">
+            <Input
+              size="small"
+              allowClear
+              prefix={<LuSearch size={13} className="text-slate-400" />}
+              placeholder="Tìm tên / SĐT"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+            />
+            <Segmented
+              size="small"
+              block
+              value={only}
+              onChange={(v) => setOnly(v as "all" | "active")}
+              options={[
+                { value: "all", label: `Tất cả (${patients.length})` },
+                { value: "active", label: "Đang có liệu trình" },
+              ]}
+            />
+          </div>
+          <div className="max-h-[560px] flex-1 space-y-px overflow-y-auto p-1">
+            {list.map((p) => {
+              const n = activeCount(p.key);
+              return (
+                <button
+                  key={p.key}
+                  type="button"
+                  onClick={() => setSelected(p.key)}
+                  className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition ${p.key === selected ? "bg-brand-50 text-brand-700" : "hover:bg-slate-50"}`}
+                >
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-semibold text-slate-600">
+                    {p.name.slice(0, 1).toUpperCase()}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-xs font-semibold">
+                      {p.name}
+                    </span>
+                    <span className="block truncate text-2xs text-slate-500">
+                      {p.phone}
+                    </span>
+                  </span>
+                  {n > 0 && (
+                    <Tooltip title={`${n} liệu trình đang chạy`}>
+                      <span className="inline-flex items-center gap-0.5 rounded bg-violet-100 px-1 text-2xs font-semibold text-violet-700">
+                        <LuRepeat size={10} /> {n}
+                      </span>
+                    </Tooltip>
+                  )}
+                </button>
+              );
+            })}
+            {!list.length && (
+              <div className="py-6 text-center text-xs text-slate-400">
+                Không có khách phù hợp
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Liệu trình của khách đang chọn */}
+        <div className="min-w-0">
+          {!cur ? (
+            <div className="flex h-full min-h-[240px] items-center justify-center rounded-lg border border-dashed border-slate-200">
+              <Empty
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+                description="Chọn một khách bên trái để xem & tạo liệu trình"
+              />
+            </div>
+          ) : (
+            <>
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <div className="text-base font-semibold text-slate-900">
+                    {cur.name}
+                  </div>
+                  <div className="flex items-center gap-1 text-xs text-slate-500">
+                    <LuPhone size={11} /> {cur.phone}
+                    {cur.tier && <Tag className="!ml-1">{cur.tier}</Tag>}
+                  </div>
+                </div>
+                <Button
+                  type="primary"
+                  icon={<LuRepeat size={14} />}
+                  onClick={() => setModalOpen(true)}
+                >
+                  Tạo liệu trình
+                </Button>
+              </div>
+              {!curPlans.length && (
+                <div className="rounded-lg border border-dashed border-slate-200 py-8">
+                  <Empty
+                    image={Empty.PRESENTED_IMAGE_SIMPLE}
+                    description="Khách chưa có liệu trình"
+                  >
+                    <Button
+                      icon={<LuRepeat size={14} />}
+                      onClick={() => setModalOpen(true)}
+                    >
+                      Tạo liệu trình đầu tiên
+                    </Button>
+                  </Empty>
+                </div>
+              )}
+              <div className="space-y-3">
+                {curPlans.map((p) => (
+                  <TreatmentCard key={p.id} plan={p} onStatus={setStatus} />
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
+      <TreatmentModal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        store={store}
+        defaults={
+          cur ? { customerName: cur.name, phone: cur.phone } : undefined
+        }
+        onCreate={(items) => {
+          updateCurrentStore((s) => ({
+            ...s,
+            bookings: [...items, ...(s.bookings ?? [])],
+          }));
+          message.success(
+            `Đã tạo liệu trình ${items.length} buổi cho ${items[0]?.customerName}`,
+          );
+        }}
+      />
+    </div>
+  );
+}
+
+/** TreatmentCard — 1 liệu trình: tiến độ, buổi tiếp theo, từng buổi (đổi trạng thái), dừng liệu trình */
+function TreatmentCard({
+  plan,
+  onStatus,
+}: {
+  plan: Plan;
+  onStatus: (
+    ids: string[],
+    status: StoreBookingItem["status"],
+    msg: string,
+  ) => void;
+}) {
+  const total = plan.sessions.length;
+  const done = plan.sessions.filter((b) => b.status === "completed").length;
+  const open = plan.sessions.filter(isOpen);
+  const next = open[0];
+  const stopped = !open.length && done < total;
+  const today = dayjs().format("YYYY-MM-DD");
+  return (
+    <div
+      data-ui="TreatmentCard"
+      className="rounded-lg border border-slate-200 p-3"
+    >
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="flex items-center gap-1.5 text-sm font-semibold text-slate-900">
+            <LuRepeat size={14} className="text-violet-600" /> {plan.name}
+            {!open.length && (
+              <Tag className="!m-0" color={stopped ? "default" : "green"}>
+                {stopped ? "Đã dừng" : "Hoàn tất"}
+              </Tag>
+            )}
+          </div>
+          <div className="text-xs text-slate-500">
+            {dayjs(plan.sessions[0].date).format("DD/MM/YYYY")} →{" "}
+            {dayjs(plan.sessions[total - 1].date).format("DD/MM/YYYY")}
+            {plan.sessions[0].staffName && ` · ${plan.sessions[0].staffName}`}
+            {next && (
+              <span
+                className={
+                  next.date < today ? "text-red-600" : "text-violet-700"
+                }
+              >
+                {" "}
+                · Buổi tiếp: {next.treatmentSeq} —{" "}
+                {WEEKDAY[dayjs(next.date).day()]}{" "}
+                {dayjs(next.date).format("DD/MM")} {next.timeSlot}
+                {next.date < today && " (quá hẹn)"}
+              </span>
+            )}
+          </div>
+        </div>
+        <div className="w-40 shrink-0">
+          <div className="text-right text-2xs font-semibold tabular-nums text-slate-600">
+            Xong {done}/{total}
+          </div>
+          <Progress
+            percent={Math.round((done / total) * 100)}
+            showInfo={false}
+            size="small"
+            strokeColor="#7c3aed"
+          />
+        </div>
+      </div>
+      <div className="mt-2 grid gap-x-4 sm:grid-cols-2">
+        {plan.sessions.map((b) => (
+          <div
+            key={b.id}
+            className="flex items-center gap-2 border-t border-slate-100 py-0.5 text-xs"
+          >
+            <span className="w-12 shrink-0 font-semibold text-violet-700">
+              Buổi {b.treatmentSeq}
+            </span>
+            <span
+              className={`flex-1 tabular-nums ${b.status === "cancelled" ? "text-slate-400 line-through" : "text-slate-700"}`}
+            >
+              {WEEKDAY[dayjs(b.date).day()]} {dayjs(b.date).format("DD/MM/YY")}{" "}
+              · {b.timeSlot}
+            </span>
+            <Select
+              size="small"
+              variant="borderless"
+              value={b.status}
+              popupMatchSelectWidth={false}
+              onChange={(v) =>
+                onStatus([b.id], v, `Buổi ${b.treatmentSeq}: đã cập nhật`)
+              }
+              options={BOOKING_STATUS.map((o) => ({
+                value: o.value,
+                label: (
+                  <Tag
+                    className="!m-0"
+                    color={
+                      STATUS_TAG[o.value as StoreBookingItem["status"]].color
+                    }
+                  >
+                    {o.label}
+                  </Tag>
+                ),
+              }))}
+            />
+          </div>
+        ))}
+      </div>
+      {open.length > 0 && (
+        <div className="mt-1 flex justify-end">
+          <Popconfirm
+            title={`Huỷ ${open.length} buổi chưa làm?`}
+            okText="Dừng liệu trình"
+            okButtonProps={{ danger: true }}
+            cancelText="Không"
+            onConfirm={() =>
+              onStatus(
+                open.map((b) => b.id),
+                "cancelled",
+                `Đã dừng liệu trình (huỷ ${open.length} buổi)`,
+              )
+            }
+          >
+            <Button size="small" type="text" danger>
+              Dừng liệu trình
+            </Button>
+          </Popconfirm>
+        </div>
+      )}
+    </div>
   );
 }

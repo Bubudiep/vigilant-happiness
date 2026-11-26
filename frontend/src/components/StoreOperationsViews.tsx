@@ -29,6 +29,7 @@ import {
   LuHeadphones,
   LuPackage,
   LuPlus,
+  LuRepeat,
   LuSave,
   LuShoppingBag,
   LuTrash2,
@@ -46,6 +47,7 @@ import {
   StoreSupportTicket,
 } from "../data/store-api";
 import { FilterBar, FilterSelect, PageHeader, StatCard, StatGrid } from "./ui";
+import { TIME_SLOTS, TreatmentBadge, TreatmentModal, TreatmentProgress } from "./StoreTreatmentViews";
 
 export type StoreNavKey =
   | "overview"
@@ -75,9 +77,9 @@ export type StoreNavKey =
   | "audit"
   | "antispam"
   | "accounts"
-  | "api";
+  | "api"
+  | "treatments";
 
-const TIME_SLOTS = ["08:30", "09:00", "10:00", "10:30", "11:00", "13:30", "14:00", "15:00", "16:30", "18:00", "19:30"];
 
 const BOOKING_STATUS_OPTIONS = [
   { value: "pending", label: "Chờ xác nhận" },
@@ -390,6 +392,7 @@ export function OverviewSection({
   const { message } = AntApp.useApp();
   // Mở form đặt lịch; date = ngày điền sẵn (bấm "+" ở cột Hôm nay / Ngày mai)
   const [bookingModal, setBookingModal] = useState<{ open: boolean; date?: string }>({ open: false });
+  const [treatmentOpen, setTreatmentOpen] = useState(false);
 
   const orders = store.orders ?? [];
   const bookings = store.bookings ?? [];
@@ -402,6 +405,11 @@ export function OverviewSection({
   const handleCreateBooking = (item: StoreBookingItem) => {
     updateCurrentStore((s) => ({ ...s, bookings: [item, ...(s.bookings ?? [])] }));
     message.success(`Đã tạo lịch hẹn ${item.code} cho ${item.customerName}!`);
+  };
+
+  const handleCreateTreatment = (items: StoreBookingItem[]) => {
+    updateCurrentStore((s) => ({ ...s, bookings: [...items, ...(s.bookings ?? [])] }));
+    message.success(`Đã tạo liệu trình ${items.length} buổi cho ${items[0]?.customerName}`);
   };
 
   const dnd = useBookingMove(store, updateCurrentStore);
@@ -463,6 +471,9 @@ export function OverviewSection({
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <Button size="small" icon={<LuRepeat size={14} />} onClick={() => setTreatmentOpen(true)}>
+              Tạo liệu trình
+            </Button>
             <Button type="primary" size="small" icon={<LuPlus size={14} />} onClick={() => setBookingModal({ open: true })}>
               Đặt lịch cho khách
             </Button>
@@ -536,7 +547,10 @@ export function OverviewSection({
                       <div className={`mt-1 truncate text-xs font-semibold text-slate-900 ${b.status === "cancelled" ? "line-through" : ""}`}>
                         {b.customerName} <span className="font-normal text-slate-500">· {b.phone}</span>
                       </div>
-                      <div className="truncate text-xs text-slate-600">{b.serviceName}</div>
+                      <div className="flex min-w-0 items-center gap-1.5">
+                        <span className="truncate text-xs text-slate-600">{b.serviceName}</span>
+                        <TreatmentBadge b={b} />
+                      </div>
                       <div className="truncate text-xs text-slate-400">{b.staffName ? `Phụ trách: ${b.staffName}` : "Chưa phân công"}</div>
                     </div>
                   ))}
@@ -619,6 +633,7 @@ export function OverviewSection({
         store={store}
         onCreate={handleCreateBooking}
       />
+      <TreatmentModal open={treatmentOpen} onClose={() => setTreatmentOpen(false)} store={store} onCreate={handleCreateTreatment} />
     </div>
   );
 }
@@ -644,6 +659,7 @@ export function BookingsSection({
   const { message } = AntApp.useApp();
   const [view, setView] = useState<"calendar" | "list">("calendar");
   const [modal, setModal] = useState<{ open: boolean; date?: string; staffName?: string }>({ open: false });
+  const [treatmentOpen, setTreatmentOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [dateFilter, setDateFilter] = useState<string>("");
   const [hideCancelled, setHideCancelled] = useState(true);
@@ -682,6 +698,18 @@ export function BookingsSection({
     message.success(`Đã tạo lịch hẹn cho ${item.customerName}`);
   };
 
+  const handleCreateTreatment = (items: StoreBookingItem[]) => {
+    updateCurrentStore((s) => ({ ...s, bookings: [...items, ...(s.bookings ?? [])] }));
+    message.success(`Đã tạo liệu trình ${items.length} buổi cho ${items[0]?.customerName}`);
+  };
+
+  const cancelTreatmentRest = (ids: string[]) => {
+    const set = new Set(ids);
+    updateCurrentStore((s) => ({ ...s, bookings: (s.bookings ?? []).map((b) => (set.has(b.id) ? { ...b, status: "cancelled" as const } : b)) }));
+    setOpenChip(null);
+    message.success(`Đã huỷ ${ids.length} buổi còn lại của liệu trình`);
+  };
+
   const patchBooking = (id: string, patch: Partial<StoreBookingItem>, msg = "Đã cập nhật lịch hẹn") => {
     updateCurrentStore((s) => ({
       ...s,
@@ -700,7 +728,7 @@ export function BookingsSection({
   const todayCount = inRange.filter((b) => b.date === todayStr).length;
 
   const chipDetail = (b: StoreBookingItem) => (
-    <div className="w-[260px] space-y-2 text-xs">
+    <div className="w-[280px] space-y-2 text-xs">
       <div>
         <div className="text-sm font-bold text-slate-900">{b.customerName}</div>
         <a href={`tel:${b.phone}`} className="tabular-nums text-brand-600">
@@ -715,6 +743,7 @@ export function BookingsSection({
         {b.note && <div className="mt-1 text-slate-500">“{b.note}”</div>}
         <div className="mt-1 font-mono text-xs text-slate-400">{b.code}</div>
       </div>
+      <TreatmentProgress b={b} bookings={bookings} onCancelRest={cancelTreatmentRest} />
       <div className="flex flex-wrap gap-1">
         {BOOKING_STATUS_OPTIONS.map((o) => (
           <button
@@ -773,7 +802,10 @@ export function BookingsSection({
             onChange={setStatusFilter}
             options={[{ value: "all", label: "Tất cả trạng thái" }, ...BOOKING_STATUS_OPTIONS]}
           /></>}
-        actions={<><Button type="primary" icon={<LuPlus size={15} />} onClick={() => setModal({ open: true })}>
+        actions={<><Button icon={<LuRepeat size={15} />} onClick={() => setTreatmentOpen(true)}>
+            Tạo liệu trình
+          </Button>
+          <Button type="primary" icon={<LuPlus size={15} />} onClick={() => setModal({ open: true })}>
             Đặt lịch
           </Button></>}
       />
@@ -885,7 +917,10 @@ export function BookingsSection({
                                 {b.timeSlot}
                                 <span className="truncate font-semibold">{b.customerName}</span>
                               </div>
-                              <div className="truncate text-xs opacity-75">{b.serviceName}</div>
+                              <div className="flex min-w-0 items-center gap-1">
+                                <span className="truncate text-xs opacity-75">{b.serviceName}</span>
+                                <TreatmentBadge b={b} />
+                              </div>
                             </button>
                           </Popover>
                         ))}
@@ -945,7 +980,9 @@ export function BookingsSection({
                 title: "Dịch vụ / Ghi chú",
                 render: (_, r) => (
                   <div>
-                    <div className="font-medium text-slate-800">{r.serviceName}</div>
+                    <div className="flex items-center gap-1.5 font-medium text-slate-800">
+                      {r.serviceName} <TreatmentBadge b={r} />
+                    </div>
                     {r.note && <div className="text-xs text-slate-400">{r.note}</div>}
                   </div>
                 ),
@@ -986,6 +1023,7 @@ export function BookingsSection({
         store={store}
         onCreate={handleCreate}
       />
+      <TreatmentModal open={treatmentOpen} onClose={() => setTreatmentOpen(false)} store={store} staffOptions={staffNames} onCreate={handleCreateTreatment} />
     </div>
   );
 }

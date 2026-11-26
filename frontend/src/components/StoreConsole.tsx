@@ -37,6 +37,7 @@ import {
   LuLayoutGrid,
   LuChartColumn,
   LuMessagesSquare,
+  LuRepeat,
   LuSettings,
 } from "react-icons/lu";
 import type { AccountInfo, AuthUser } from "../data/auth";
@@ -94,6 +95,7 @@ import {
   StoreNavKey,
   SupportSection,
 } from "./StoreOperationsViews";
+import { TreatmentsSection } from "./StoreTreatmentViews";
 
 const VALID_NAV_KEYS: StoreNavKey[] = [
   "overview",
@@ -112,6 +114,7 @@ const VALID_NAV_KEYS: StoreNavKey[] = [
   "documents",
   "support",
   "oainbox",
+  "treatments",
   "settings",
 ];
 
@@ -121,7 +124,7 @@ const VALID_NAV_KEYS: StoreNavKey[] = [
  */
 const NAV_TABS: Partial<Record<StoreNavKey, { label: string; tabs: StoreNavKey[] }>> = {
   bookings: { label: "Lịch hẹn & Sự kiện", tabs: ["bookings", "events"] },
-  customers: { label: "Khách hàng", tabs: ["customers", "oainbox"] },
+  customers: { label: "Khách hàng", tabs: ["customers", "treatments", "oainbox"] },
   albums: { label: "Thư viện", tabs: ["albums", "media", "documents"] },
   settings: { label: "Thiết lập & Hỗ trợ", tabs: ["settings", "support"] },
 };
@@ -226,7 +229,8 @@ export default function StoreConsole({
   const store = stores.find((s) => s.id === selectedId) ?? stores[0];
   // Tài khoản nhân viên: chỉ các mục chủ shop cấp (null = toàn quyền)
   const access = store?.access?.length ? store.access : null;
-  const allowed = (k: StoreNavKey) => !access || access.includes(k);
+  // Liệu trình = lịch hẹn → ai có quyền Lịch hẹn thì xem được
+  const allowed = (k: StoreNavKey) => !access || access.includes(k) || (k === "treatments" && access.includes("bookings"));
   /** Mở mục; mục gộp mà trang đầu không được cấp → mở trang con đầu tiên được cấp */
   const openNav = (key: StoreNavKey) => {
     const to = allowed(key) ? key : NAV_TABS[key]?.tabs.find(allowed);
@@ -537,6 +541,7 @@ export default function StoreConsole({
     { key: "reports", label: "Báo cáo", icon: <LuChartColumn size={17} /> },
     { key: "miniapp", label: "Miniapp", icon: <LuSmartphone size={17} /> },
     { key: "documents", label: "Tài liệu", icon: <LuBookOpen size={17} />, badge: store.documents?.length },
+    { key: "treatments", label: "Liệu trình", icon: <LuRepeat size={17} /> },
     { key: "oainbox", label: "Tin nhắn OA", icon: <LuMessagesSquare size={17} /> },
     { key: "settings", label: "Thiết lập", icon: <LuSettings size={17} /> },
     { key: "support", label: "Hỗ trợ", icon: <LuLifeBuoy size={17} /> },
@@ -700,6 +705,7 @@ export default function StoreConsole({
           )}
 
 
+          {activeNav === "treatments" && <TreatmentsSection store={store} updateCurrentStore={updateCurrentStore} />}
           {activeNav === "oainbox" && <InboxSection key={store.id} storeId={store.id} />}
 
           {activeNav === "settings" && (
