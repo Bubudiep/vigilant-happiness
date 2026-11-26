@@ -1,6 +1,7 @@
 import { parseCombo } from "./combo";
 import { parseBom } from "./inventory";
 import { parseOptions } from "./options";
+import { readBankAccount } from "./bank-account";
 import { ConflictException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import type { AuthContext } from "../common/guards/app-auth.guard";
@@ -53,9 +54,9 @@ export class StoresService {
   ) {}
 
   /** Không bao giờ trả App Secret (dù đã mã hoá) ra ngoài — chỉ báo đã cấu hình hay chưa. */
-  private redact<T extends { zaloAppSecretEnc?: string | null; oaSecretEnc?: string | null }>(store: T) {
-    const { zaloAppSecretEnc, oaSecretEnc, ...rest } = store;
-    return { ...rest, hasZaloAppSecret: !!zaloAppSecretEnc, hasOaSecret: !!oaSecretEnc };
+  private redact<T extends { zaloAppSecretEnc?: string | null; oaSecretEnc?: string | null; tingeeSecretEnc?: string | null }>(store: T) {
+    const { zaloAppSecretEnc, oaSecretEnc, tingeeSecretEnc, ...rest } = store;
+    return { ...rest, hasZaloAppSecret: !!zaloAppSecretEnc, hasOaSecret: !!oaSecretEnc, hasTingee: !!tingeeSecretEnc };
   }
 
   /** App Secret Mini App riêng của store (giải mã), dùng khi khách đăng nhập Zalo để lấy SĐT. */
@@ -303,6 +304,7 @@ export class StoresService {
         ...(dto.theme !== undefined ? { theme: dto.theme as Prisma.InputJsonValue } : {}),
         ...(dto.sliders !== undefined ? { sliders: dto.sliders as Prisma.InputJsonValue } : {}),
         ...(dto.builderSchema !== undefined ? { builderSchema: dto.builderSchema as Prisma.InputJsonValue } : {}),
+        ...(dto.bankAccount !== undefined ? { bankAccount: (readBankAccount(dto.bankAccount) as unknown as Prisma.InputJsonValue) ?? Prisma.DbNull } : {}),
       },
     });
     return this.redact(updated);

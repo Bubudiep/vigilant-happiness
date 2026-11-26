@@ -1,4 +1,5 @@
 import type { BuilderSchema } from "../miniapp-builder";
+import type { StoreBankAccount } from "./vietqr";
 import { api } from "./platform-api";
 
 export interface StoreThemeConfig {
@@ -286,6 +287,10 @@ export interface StoreConfig {
   vouchers?: StoreVoucherItem[];
   staff?: StoreStaffItem[];
   stampProgram?: StampProgram | null;
+  /** Tài khoản nhận chuyển khoản (mã VietQR khi thu tiền) */
+  bankAccount?: StoreBankAccount | null;
+  /** Đã lưu Secret Token Tingee → tự xác nhận tiền chuyển khoản về */
+  hasTingee?: boolean;
   tickets?: StoreSupportTicket[];
   builder?: BuilderSchema;
   /** Đã lưu App Secret Mini App riêng của store (không đọc lại được) */
@@ -361,6 +366,7 @@ export async function saveStoreConfig(store: StoreConfig): Promise<void> {
       theme: store.theme,
       sliders: store.sliders,
       ...(store.builder ? { builderSchema: store.builder } : {}),
+      ...(store.bankAccount !== undefined ? { bankAccount: store.bankAccount } : {}),
       ...(store.zaloAppSecret?.trim() ? { zaloAppSecret: store.zaloAppSecret.trim() } : {}),
     }),
   });

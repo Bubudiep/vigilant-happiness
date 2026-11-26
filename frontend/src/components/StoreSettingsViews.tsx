@@ -18,6 +18,9 @@ import {
 import { ApiError } from "../data/platform-api";
 import { siteConfig } from "../data/site";
 import type { StoreConfig } from "../data/store-api";
+import { fetchTingee, saveTingee, type TingeeConfig } from "../data/tingee-api";
+import { BANKS, bankByBin, hasBank, toAscii, type StoreBankAccount } from "../data/vietqr";
+import { BankQrPanel } from "./BankQr";
 
 const errMsg = (e: unknown, fb = "Thao tác thất bại") => (e instanceof ApiError ? e.message : fb);
 const fmt = (iso?: string | null) => (iso ? dayjs(iso).format("HH:mm DD/MM/YYYY") : "—");
@@ -37,6 +40,218 @@ interface SettingsProps {
   onPatch: (patch: Partial<StoreConfig>) => void;
   onSecretInput: (v: string) => void;
   onSecretSave: () => void;
+}
+
+/** Tài khoản nhận chuyển khoản — tạo mã VietQR khi thu tiền bằng Chuyển khoản (POS, bill lịch hẹn, thu nợ…) */
+function BankCard({ store, onPatch }: SettingsProps) {
+  const acc = store.bankAccount ?? { bin: "", bankName: "", accountNo: "", accountName: "" };
+  const set = (patch: Partial<StoreBankAccount>) => onPatch({ bankAccount: { ...acc, ...patch } });
+  return (
+    <Card
+      size="small"
+      title="Tài khoản nhận chuyển khoản"
+      extra={
+        hasBank(store.bankAccount) && (
+          <Popconfirm title="Gỡ tài khoản ngân hàng?" okText="Gỡ" cancelText="Không" onConfirm={() => onPatch({ bankAccount: null })}>
+            <Button size="small" type="text" danger>
+              Gỡ
+            </Button>
+          </Popconfirm>
+        )
+      }
+    >
+      <div className="grid gap-4 md:grid-cols-[1fr_auto]">
+        <div className="grid content-start gap-3 sm:grid-cols-2">
+          <div className="sm:col-span-2">
+            <div className="mb-1 text-xs font-semibold text-slate-600">Ngân hàng</div>
+            <Select
+              showSearch
+              className="w-full"
+              placeholder="Chọn ngân hàng"
+              value={acc.bin || undefined}
+              optionFilterProp="search"
+              options={BANKS.map((b) => ({
+                value: b.bin,
+                search: `${b.short} ${b.name} ${toAscii(b.name)}`,
+                label: (
+                  <span>
+                    <b>{b.short}</b> <span className="text-xs text-slate-400">· {b.name}</span>
+                  </span>
+                ),
+              }))}
+              onChange={(bin: string) => set({ bin, bankName: bankByBin(bin)?.short ?? "" })}
+            />
+          </div>
+          <div>
+            <div className="mb-1 text-xs font-semibold text-slate-600">Số tài khoản</div>
+            <Input
+              value={acc.accountNo}
+              placeholder="VD: 0123456789"
+              inputMode="numeric"
+              maxLength={19}
+              onChange={(e) => set({ accountNo: e.target.value.replace(/[^0-9A-Za-z]/g, "") })}
+            />
+          </div>
+          <div>
+            <div className="mb-1 text-xs font-semibold text-slate-600">Tên chủ tài khoản</div>
+            <Input
+              value={acc.accountName}
+              placeholder="VD: NGUYEN VAN A"
+              maxLength={50}
+              onChange={(e) => set({ accountName: toAscii(e.target.value).toUpperCase() + (/\s$/.test(e.target.value) ? " " : "") })}
+            />
+          </div>
+          <p className="text-xs text-slate-500 sm:col-span-2">
+            Khi chọn hình thức <b>Chuyển khoản</b> lúc thu tiền (bán tại quầy, thu tiền lịch hẹn, liệu trình, thu nợ, tạo đơn), màn hình hiện mã VietQR có sẵn số tiền và nội dung — khách quét bằng app ngân hàng bất kỳ. Kiểm tra tiền đã về trước khi xác nhận.
+          </p>
+        </div>
+        <div className="md:w-72">
+          <div className="mb-1 text-xs font-semibold text-slate-600">Xem trước (100.000đ)</div>
+          <BankQrPanel store={store} preview amount={100000} info="TT DH0001" />
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+/** Tingee — báo tiền về tài khoản ngân hàng → màn hình thu tiền tự hiện "Đã nhận tiền" */
+function TingeeCard({ store, onPatch }: SettingsProps) {
+  const { message } = AntApp.useApp();
+  const [cfg, setCfg] = useState<TingeeConfig | null>(null);
+  const [clientId, setClientId] = useState("");
+  const [secret, setSecret] = useState("");
+  const [busy, setBusy] = useState(false);
+  const load = useCallback(() => {
+    fetchTingee(store.id)
+      .then((c) => {
+        setCfg(c);
+        setClientId(c.clientId);
+      })
+      .catch(() => setCfg(null));
+  }, [store.id]);
+  useEffect(load, [load]);
+  const save = async (data: { clientId?: string; secretToken?: string }, ok: string) => {
+    setBusy(true);
+    try {
+      const c = await saveTingee(store.id, data);
+      setCfg(c);
+      setSecret("");
+      onPatch({ hasTingee: c.hasSecret });
+      message.success(ok);
+    } catch (e) {
+      message.error(errMsg(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const webhookUrl = `${siteConfig.apiUrl}${(cfg?.webhookPath ?? `/api/tingee/webhook/${store.slug}`).replace(/^\/api/, "")}`;
+  return (
+    <Card
+      size="small"
+      title={
+        <span className="flex items-center gap-2">
+          Xác nhận chuyển khoản tự động (Tingee)
+          {cfg?.hasSecret ? <Tag color="green">Đang bật</Tag> : <Tag>Chưa kết nối</Tag>}
+        </span>
+      }
+      extra={
+        cfg?.hasSecret && (
+          <Popconfirm title="Ngắt kết nối Tingee?" description="Mã QR vẫn dùng được, nhưng phải tự kiểm tra tiền về." okText="Ngắt" cancelText="Không" onConfirm={() => save({ secretToken: "" }, "Đã ngắt Tingee")}>
+            <Button size="small" type="text" danger icon={<LuUnplug size={14} />}>
+              Ngắt
+            </Button>
+          </Popconfirm>
+        )
+      }
+    >
+      <ol className="mb-3 list-decimal space-y-0.5 pl-4 text-xs text-slate-600">
+        <li>
+          Liên kết tài khoản ngân hàng ở trên với Tingee tại{" "}
+          <a href="https://baas.tingee.vn" target="_blank" rel="noreferrer" className="font-semibold">
+            baas.tingee.vn
+          </a>
+          .
+        </li>
+        <li>
+          Vào <b>API Credentials → Tạo mới</b>, chọn quyền <b>Xác thực webhook</b>, sao chép <b>Client ID</b> và <b>Secret Token</b> dán vào dưới đây rồi Lưu.
+        </li>
+        <li>
+          Vào <b>Webhook</b>, thêm đường dẫn bên dưới, kiểu chứng thực <b>API Credentials</b> — Tingee sẽ gửi yêu cầu xác thực URL, hệ thống tự trả lời.
+        </li>
+      </ol>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div>
+          <div className="mb-1 text-xs font-semibold text-slate-600">Client ID</div>
+          <Input value={clientId} placeholder="Client ID trong API Credentials" onChange={(e) => setClientId(e.target.value)} />
+        </div>
+        <div>
+          <div className="mb-1 text-xs font-semibold text-slate-600">Secret Token</div>
+          <Input.Password
+            autoComplete="new-password"
+            value={secret}
+            placeholder={cfg?.hasSecret ? "•••••••• (đã lưu — nhập để thay)" : "Secret Token"}
+            onChange={(e) => setSecret(e.target.value)}
+          />
+        </div>
+        <div className="sm:col-span-2">
+          <div className="mb-1 text-xs font-semibold text-slate-600">Đường dẫn webhook</div>
+          <Input
+            readOnly
+            value={webhookUrl}
+            className="font-mono"
+            suffix={
+              <Button
+                size="small"
+                type="text"
+                icon={<LuCopy size={14} />}
+                onClick={() => navigator.clipboard.writeText(webhookUrl).then(() => message.success("Đã sao chép"))}
+              />
+            }
+          />
+        </div>
+      </div>
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs text-slate-500">
+          Khi bật, mã QR có thêm mã đối soát (VD <span className="font-mono">RM7K2QX9</span>) trong nội dung chuyển khoản; tiền về là màn hình thu tiền báo <b className="text-emerald-700">Đã nhận</b>. VietinBank không gửi nội dung CK nên không tự khớp được.
+        </p>
+        <Button
+          type="primary"
+          loading={busy}
+          icon={<LuPlug size={14} />}
+          disabled={!clientId.trim() || (!secret.trim() && !cfg?.hasSecret)}
+          onClick={() => save({ clientId: clientId.trim(), ...(secret.trim() ? { secretToken: secret.trim() } : {}) }, "Đã lưu cấu hình Tingee")}
+        >
+          Lưu
+        </Button>
+      </div>
+      {cfg?.hasSecret && (
+        <div className="mt-3">
+          <div className="mb-1 flex items-center justify-between text-xs font-semibold text-slate-600">
+            <span>Giao dịch tiền về gần đây</span>
+            <Button size="small" type="text" icon={<LuRefreshCw size={13} />} onClick={load} />
+          </div>
+          <Table
+            size="small"
+            rowKey="id"
+            pagination={false}
+            dataSource={cfg.transactions}
+            locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có giao dịch — Tingee gửi về khi có tiền vào tài khoản" /> }}
+            columns={[
+              { title: "Thời gian", dataIndex: "createdAt", width: 130, render: (v: string, r) => <span className="text-xs">{fmt(r.transactionDate ?? v)}</span> },
+              { title: "Số tiền", dataIndex: "amount", align: "right", width: 110, render: (v: number) => <b className="tabular-nums text-emerald-700">+{v.toLocaleString("vi-VN")}đ</b> },
+              { title: "Nội dung", dataIndex: "content", render: (v: string | null) => <span className="text-xs text-slate-600">{v || "—"}</span> },
+              {
+                title: "Khớp",
+                dataIndex: "matchedRef",
+                width: 110,
+                render: (v: string | null) => (v ? <Tag color="green" className="font-mono">{v}</Tag> : <Tag>Không khớp</Tag>),
+              },
+            ]}
+          />
+        </div>
+      )}
+    </Card>
+  );
 }
 
 function MiniAppCard({ store, onPatch, onSecretInput, onSecretSave }: SettingsProps) {
@@ -329,8 +544,10 @@ export function StoreSettingsSection(props: SettingsProps) {
     <div className="space-y-4">
       <div>
         <h2 className="text-lg font-bold text-slate-900">Thiết lập gian hàng</h2>
-        <p className="text-xs text-slate-500">Mini App và Zalo OA riêng của {props.store.name}. Yêu cầu build app mới gửi ở nút “Xuất bản” trong mục Miniapp.</p>
+        <p className="text-xs text-slate-500">Tài khoản ngân hàng, Mini App và Zalo OA riêng của {props.store.name}. Yêu cầu build app mới gửi ở nút “Xuất bản” trong mục Miniapp.</p>
       </div>
+      <BankCard {...props} />
+      <TingeeCard {...props} />
       <MiniAppCard {...props} />
       <OaCard {...props} />
     </div>

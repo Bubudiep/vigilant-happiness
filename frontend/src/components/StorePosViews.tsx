@@ -61,6 +61,7 @@ import {
   updateTable,
 } from "../data/pos-api";
 import { addStoreCustomer, type PaymentMethod, type StoreConfig, type StoreCustomerItem, type StoreProductItem } from "../data/store-api";
+import { BankQrPanel } from "./BankQr";
 import { OptionPickerModal } from "./StoreInventoryViews";
 import { FilterBar, FORM_PROPS, FormFooter, FormGrid, PageHeader } from "./ui";
 
@@ -882,6 +883,11 @@ function SessionDrawer({
             <div>
               <div className="mb-1 font-medium text-slate-700">Hình thức</div>
               <Segmented block value={pay.method} onChange={(v) => setPay((p) => ({ ...p, method: v as PaymentMethod }))} options={PAYMENTS} />
+              {pay.method === "bank_transfer" && t.total > 0 && (
+                <div className="mt-2">
+                  <BankQrPanel store={store} amount={t.total} info={`TT ${table?.name ?? "ban"}`} />
+                </div>
+              )}
             </div>
           </div>
         )}

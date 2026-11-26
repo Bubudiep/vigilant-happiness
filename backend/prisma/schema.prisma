@@ -255,6 +255,11 @@ model Store {
   albumKinds       Json?
   /// Thẻ tích tem: { enabled, required, productIds[], countBy: item|order, reward, icon } — null = chưa bật
   stampProgram     Json?
+  /// Tài khoản nhận chuyển khoản (VietQR): { bin, bankName, accountNo, accountName } — null = chưa thiết lập
+  bankAccount      Json?
+  /// Tingee (báo tiền về tài khoản): Client ID + Secret Token (mã hoá AES-GCM) — xác nhận chuyển khoản tự động
+  tingeeClientId   String?
+  tingeeSecretEnc  String?
   active           Boolean             @default(true)
   createdAt        DateTime            @default(now())
   updatedAt        DateTime            @updatedAt
@@ -283,6 +288,8 @@ model Store {
   messages         StoreMessage[]
   conversations    Conversation[]
   buildRequests    StoreBuildRequest[]
+  paymentRequests  StorePaymentRequest[]
+  bankTransactions StoreBankTransaction[]
 
   @@index([templateId])
   @@index([customerId])
@@ -1223,4 +1230,43 @@ model StoreStockReceipt {
   createdAt   DateTime  @default(now())
 
   @@index([storeId, receivedAt])
+}
+
+/// Yêu cầu thanh toán chuyển khoản: mã tham chiếu `ref` nằm trong nội dung CK của mã QR — Tingee báo tiền về thì đánh dấu đã nhận
+model StorePaymentRequest {
+  id              String    @id @default(cuid())
+  storeId         String
+  store           Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  ref             String
+  amount          Int
+  note            String?
+  /// pending | partial (về chưa đủ) | paid
+  status          String    @default("pending")
+  paidAmount      Int       @default(0)
+  paidAt          DateTime?
+  transactionCode String?
+  createdAt       DateTime  @default(now())
+
+  @@unique([storeId, ref])
+  @@index([storeId, status, createdAt])
+}
+
+/// Giao dịch tiền về do Tingee gửi (webhook) — transactionCode chống ghi trùng khi Tingee gửi lại
+model StoreBankTransaction {
+  id              String    @id @default(cuid())
+  storeId         String
+  store           Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  transactionCode String
+  amount          Int
+  content         String?
+  bank            String?
+  accountNumber   String?
+  transactionDate DateTime?
+  /// Mã tham chiếu khớp được (StorePaymentRequest.ref) — null = chưa khớp đơn nào
+  matchedRef      String?
+  raw             Json
+  createdAt       DateTime  @default(now())
+
+  @@unique([storeId, transactionCode])
+  @@index([storeId, createdAt])
 }

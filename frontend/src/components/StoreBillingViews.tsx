@@ -41,6 +41,7 @@ import {
   type StoreConfig,
   type StoreOrderItem,
 } from "../data/store-api";
+import { BankQrPanel, type QrStore } from "./BankQr";
 import { PageHeader, StatCard, StatGrid } from "./ui";
 
 /**
@@ -526,6 +527,14 @@ export function BookingCheckoutModal({
               onChange={(v) => setMethod(v as PaymentMethod)}
               options={PAY}
             />
+            {method === "bank_transfer" && pay + planPaid > 0 && (
+              <BankQrPanel
+                store={store}
+                amount={pay + planPaid}
+                info={`TT ${booking.code}`}
+                size={108}
+              />
+            )}
             {booking.treatmentId && (
               <>
                 <div className="pt-1 text-slate-500">
@@ -659,6 +668,7 @@ export function DebtCollectModal({
   title,
   max,
   target,
+  qrStore,
   onClose,
   onDone,
 }: {
@@ -667,6 +677,8 @@ export function DebtCollectModal({
   title: string;
   max: number;
   target: { orderId?: string; customerId?: string | null; phone?: string };
+  /** Gian hàng (tài khoản ngân hàng, Tingee) → mã VietQR khi thu bằng chuyển khoản */
+  qrStore?: QrStore;
   onClose: () => void;
   onDone: () => void;
 }) {
@@ -738,6 +750,13 @@ export function DebtCollectModal({
             options={PAY}
           />
         </div>
+        {method === "bank_transfer" && amount > 0 && qrStore && (
+          <BankQrPanel
+            store={qrStore}
+            amount={amount}
+            info={`TT no ${title.replace(/^Thu (nợ|tiền) /, "")}`}
+          />
+        )}
         <Input
           value={note}
           onChange={(e) => setNote(e.target.value)}
@@ -926,6 +945,7 @@ export function DebtsSection({ store }: { store: StoreConfig }) {
         title={collect?.title ?? ""}
         max={collect?.max ?? 0}
         target={collect?.target ?? {}}
+        qrStore={store}
         onClose={() => setCollect(null)}
         onDone={() => {
           setCollect(null);

@@ -16,6 +16,7 @@ import {
   Tooltip,
 } from "antd";
 import dayjs, { type Dayjs } from "dayjs";
+import { BankQrPanel } from "./BankQr";
 import { useEffect, useMemo, useState } from "react";
 import {
   LuCheck,
@@ -234,7 +235,9 @@ export function TreatmentModal({
   const svc = services.find((p) => p.name === serviceName.trim());
   const unitPrice = svc ? (svc.salePrice ?? svc.price) : 0;
   // Dịch vụ đã là gói (tên có "buổi", VD "Trị mụn 10 buổi") → giá gói = giá dịch vụ; không thì giá lẻ × số buổi
-  const pkgPrice = price ?? (/buổi/i.test(serviceName) ? unitPrice : unitPrice * (sessions || 0));
+  const pkgPrice =
+    price ??
+    (/buổi/i.test(serviceName) ? unitPrice : unitPrice * (sessions || 0));
   const pkgPaid = prepaid ?? (billing === "package" ? pkgPrice : 0);
 
   // Lịch tự xếp; sửa tay từng buổi lưu ở overrides (xếp lại khi đổi số buổi / khoảng cách / ngày đầu)
@@ -562,6 +565,16 @@ export function TreatmentModal({
                   ]}
                 />
               </label>
+              {payMethod === "bank_transfer" && pkgPaid > 0 && (
+                <div className="sm:col-span-3">
+                  <BankQrPanel
+                    store={store}
+                    amount={pkgPaid}
+                    info="TT goi lieu trinh"
+                    size={108}
+                  />
+                </div>
+              )}
               <div className="text-slate-500 sm:col-span-3">
                 {unitPrice > 0 &&
                   sessions > 0 &&
@@ -987,6 +1000,7 @@ export function TreatmentsSection({
         title={collect ? `Thu tiền ${collect.name}` : ""}
         max={collect?.debt ?? 0}
         target={{ orderId: collect?.orderId ?? undefined }}
+        qrStore={store}
         onClose={() => setCollect(null)}
         onDone={() => {
           setCollect(null);

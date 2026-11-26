@@ -135,6 +135,11 @@ export class UpdateStoreConfigDto {
   @IsOptional()
   @IsObject()
   builderSchema?: Record<string, unknown>;
+
+  /** Tài khoản nhận chuyển khoản (VietQR) — null = gỡ */
+  @IsOptional()
+  @IsObject()
+  bankAccount?: Record<string, unknown> | null;
 }
 
 export class UpsertProductDto {

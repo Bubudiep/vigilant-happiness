@@ -27,6 +27,7 @@ import {
   StoreOrderItem,
   StoreProductItem,
 } from "../data/store-api";
+import { BankQrPanel } from "./BankQr";
 import { OptionPickerModal } from "./StoreInventoryViews";
 import { FilterBar, FilterSelect, PageHeader } from "./ui";
 
@@ -699,6 +700,11 @@ function OrderCreateDrawer({
             <div>
               <div className="mb-1.5 text-xs font-semibold text-slate-600">Phương thức</div>
               <Select className="w-full" value={payment} onChange={setPayment} options={PAYMENT_METHODS} />
+              {payment === "bank_transfer" && total > 0 && (
+                <div className="mt-2">
+                  <BankQrPanel store={store} amount={total} info={`TT ${customer?.name || name || "don hang"}`} />
+                </div>
+              )}
             </div>
             <div>
               <div className="mb-1.5 text-xs font-semibold text-slate-600">Trạng thái đơn</div>

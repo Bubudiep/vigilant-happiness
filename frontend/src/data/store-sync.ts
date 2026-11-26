@@ -66,7 +66,7 @@ export async function syncStoreChanges(prev: StoreConfig, next: StoreConfig, idM
 
 /** Các trường thông tin / thiết kế store được tự lưu (PATCH /stores/:id/config) khi thay đổi. */
 export const configKey = (s: StoreConfig) =>
-  JSON.stringify([s.name, s.subtitle, s.templateId, s.zaloAppId, s.zaloOaId, s.phone, s.address, s.active, s.theme, s.sliders, s.builder ?? null]);
+  JSON.stringify([s.name, s.subtitle, s.templateId, s.zaloAppId, s.zaloOaId, s.phone, s.address, s.active, s.theme, s.sliders, s.builder ?? null, s.bankAccount ?? null]);
 
 /**
  * Quyết định tự lưu: chỉ so sánh sau khi đã tải chi tiết store.
