@@ -29,11 +29,25 @@ import {
 } from "react-icons/lu";
 import {
   isService,
+  type PaymentMethod,
   type StoreBookingItem,
   type StoreConfig,
 } from "../data/store-api";
 import { FormGrid, PageHeader } from "./ui";
 import { sendTreatmentResult } from "../data/album-api";
+import {
+  fetchTreatmentBilling,
+  saveTreatmentBilling,
+  type TreatmentBilling,
+  type TreatmentBillingMode,
+} from "../data/billing-api";
+import {
+  BILLING_LABEL,
+  BookingCheckoutModal,
+  DebtCollectModal,
+  money as fmtMoney,
+  paidOrderOf,
+} from "./StoreBillingViews";
 import { ApiError } from "../data/platform-api";
 
 /**
@@ -182,11 +196,14 @@ export function TreatmentModal({
   onCreate,
   defaults,
   staffOptions = [],
+  onBillingSaved,
 }: {
   open: boolean;
   onClose: () => void;
   store: StoreConfig;
   onCreate: (items: StoreBookingItem[]) => void;
+  /** Đã lưu cách thu tiền (để tải lại công nợ liệu trình) */
+  onBillingSaved?: () => void;
   defaults?: {
     date?: string;
     staffName?: string;
@@ -196,6 +213,7 @@ export function TreatmentModal({
   staffOptions?: string[];
 }) {
   const [form] = Form.useForm();
+  const { message } = AntApp.useApp();
   const services = store.products.filter(isService);
   const sessions = (Form.useWatch("sessions", form) as number | undefined) ?? 0;
   const interval = (Form.useWatch("interval", form) as number | undefined) ?? 7;
@@ -205,6 +223,19 @@ export function TreatmentModal({
   const staffName = (
     (Form.useWatch("staffName", form) as string | undefined) ?? ""
   ).trim();
+  const serviceName =
+    (Form.useWatch("serviceName", form) as string | undefined) ?? "";
+
+  // TreatmentBilling — thu theo buổi / trọn gói / linh hoạt (ghi nợ)
+  const [billing, setBilling] = useState<TreatmentBillingMode>("session");
+  const [price, setPrice] = useState<number | null>(null);
+  const [prepaid, setPrepaid] = useState<number | null>(null);
+  const [payMethod, setPayMethod] = useState<PaymentMethod>("cash");
+  const svc = services.find((p) => p.name === serviceName.trim());
+  const unitPrice = svc ? (svc.salePrice ?? svc.price) : 0;
+  // Dịch vụ đã là gói (tên có "buổi", VD "Trị mụn 10 buổi") → giá gói = giá dịch vụ; không thì giá lẻ × số buổi
+  const pkgPrice = price ?? (/buổi/i.test(serviceName) ? unitPrice : unitPrice * (sessions || 0));
+  const pkgPaid = prepaid ?? (billing === "package" ? pkgPrice : 0);
 
   // Lịch tự xếp; sửa tay từng buổi lưu ở overrides (xếp lại khi đổi số buổi / khoảng cách / ngày đầu)
   const [overrides, setOverrides] = useState<Record<number, Partial<Row>>>({});
@@ -245,6 +276,10 @@ export function TreatmentModal({
       timeSlot: "10:00",
       staffName: defaults?.staffName,
     });
+    setBilling("session");
+    setPrice(null);
+    setPrepaid(null);
+    setPayMethod("cash");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
@@ -273,7 +308,9 @@ export function TreatmentModal({
     note?: string;
   }) => {
     const id = `LT${dayjs().format("YYMMDD")}${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
-    const name = /buổi/i.test(v.serviceName) ? v.serviceName.trim() : `${v.serviceName.trim()} · ${rows.length} buổi`;
+    const name = /buổi/i.test(v.serviceName)
+      ? v.serviceName.trim()
+      : `${v.serviceName.trim()} · ${rows.length} buổi`;
     const now = Date.now();
     onCreate(
       rows.map((r, i) => ({
@@ -294,6 +331,25 @@ export function TreatmentModal({
         createdAt: dayjs().toISOString(),
       })),
     );
+    // Lưu cách thu tiền (trọn gói / linh hoạt → tạo đơn gói, phần chưa trả là công nợ)
+    saveTreatmentBilling(store.id, {
+      treatmentId: id,
+      customerName: v.customerName.trim(),
+      phone: v.phone.trim(),
+      name,
+      billing,
+      price: billing === "session" ? 0 : pkgPrice,
+      paid: billing === "session" ? undefined : pkgPaid,
+      paymentMethod: payMethod,
+    })
+      .then(() => onBillingSaved?.())
+      .catch((e) =>
+        message.error(
+          e instanceof ApiError
+            ? e.message
+            : "Chưa lưu được cách thu tiền liệu trình",
+        ),
+      );
     onClose();
   };
 
@@ -435,6 +491,93 @@ export function TreatmentModal({
             <Input placeholder="VD: Da nhạy cảm, dùng gel làm mát" />
           </Form.Item>
         </FormGrid>
+
+        {/* TreatmentBilling — cách thu tiền liệu trình */}
+        <div
+          data-ui="TreatmentBilling"
+          className="mb-3 rounded-lg border border-slate-200 p-3 text-xs"
+        >
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            <span className="font-semibold text-slate-700">Thu tiền</span>
+            <Segmented
+              size="small"
+              value={billing}
+              onChange={(v) => {
+                setBilling(v as TreatmentBillingMode);
+                setPrepaid(null);
+              }}
+              options={[
+                { value: "session", label: "Theo từng buổi" },
+                { value: "package", label: "Trọn gói" },
+                { value: "flexible", label: "Linh hoạt / ghi nợ" },
+              ]}
+            />
+          </div>
+          {billing === "session" ? (
+            <div className="text-slate-500">
+              Mỗi buổi thu tiền khi hoàn thành (bill dịch vụ
+              {unitPrice ? ` ${unitPrice.toLocaleString("vi-VN")}đ` : ""} + bán
+              thêm, phụ thu).
+            </div>
+          ) : (
+            <div className="grid gap-2 sm:grid-cols-3">
+              <label className="space-y-0.5">
+                <span className="text-slate-500">Giá cả liệu trình</span>
+                <InputNumber
+                  className="!w-full"
+                  min={0}
+                  step={100000}
+                  value={pkgPrice}
+                  onChange={(v) => setPrice(v === null ? null : Number(v))}
+                  suffix="đ"
+                />
+              </label>
+              <label className="space-y-0.5">
+                <span className="text-slate-500">
+                  {billing === "package"
+                    ? "Khách trả ngay"
+                    : "Trả trước (tuỳ chọn)"}
+                </span>
+                <InputNumber
+                  className="!w-full"
+                  min={0}
+                  max={pkgPrice}
+                  step={100000}
+                  value={pkgPaid}
+                  onChange={(v) => setPrepaid(v === null ? null : Number(v))}
+                  suffix="đ"
+                />
+              </label>
+              <label className="space-y-0.5">
+                <span className="text-slate-500">Hình thức</span>
+                <Select
+                  className="!w-full"
+                  value={payMethod}
+                  onChange={setPayMethod}
+                  options={[
+                    { value: "cash", label: "Tiền mặt" },
+                    { value: "bank_transfer", label: "Chuyển khoản" },
+                    { value: "card", label: "Thẻ" },
+                    { value: "ewallet", label: "Ví điện tử" },
+                  ]}
+                />
+              </label>
+              <div className="text-slate-500 sm:col-span-3">
+                {unitPrice > 0 &&
+                  sessions > 0 &&
+                  `Giá lẻ ${sessions} buổi: ${(unitPrice * sessions).toLocaleString("vi-VN")}đ. `}
+                Các buổi không tính tiền dịch vụ nữa (chỉ bán thêm / phụ thu).
+                {pkgPrice - pkgPaid > 0 && (
+                  <b className="text-red-600">
+                    {" "}
+                    Ghi nợ {(pkgPrice - pkgPaid).toLocaleString("vi-VN")}đ — thu
+                    dần khi khách đến.
+                  </b>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* TreatmentSchedule — lịch các buổi, sửa được từng buổi */}
         <div
@@ -652,6 +795,21 @@ export function TreatmentsSection({
     message.success(msg);
   };
 
+  // Cách thu tiền & công nợ của từng liệu trình
+  const [billingMap, setBillingMap] = useState<Map<string, TreatmentBilling>>(
+    new Map(),
+  );
+  const loadBilling = () =>
+    fetchTreatmentBilling(store.id)
+      .then((l) => setBillingMap(new Map(l.map((x) => [x.id, x]))))
+      .catch(() => undefined);
+  useEffect(() => {
+    loadBilling();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [store.id]);
+  const [checkout, setCheckout] = useState<StoreBookingItem | null>(null);
+  const [collect, setCollect] = useState<TreatmentBilling | null>(null);
+
   return (
     <div
       data-ui="TreatmentsSection"
@@ -774,9 +932,12 @@ export function TreatmentsSection({
                 {curPlans.map((p) => (
                   <TreatmentCard
                     key={p.id}
-                    storeId={store.id}
+                    store={store}
                     plan={p}
+                    billing={billingMap.get(p.id)}
                     onPatch={patchSessions}
+                    onCheckout={setCheckout}
+                    onCollect={setCollect}
                   />
                 ))}
               </div>
@@ -801,6 +962,36 @@ export function TreatmentsSection({
             `Đã tạo liệu trình ${items.length} buổi cho ${items[0]?.customerName}`,
           );
         }}
+        onBillingSaved={loadBilling}
+      />
+      <BookingCheckoutModal
+        open={!!checkout}
+        store={store}
+        booking={checkout}
+        onClose={() => setCheckout(null)}
+        onDone={(b, order) => {
+          updateCurrentStore((s) => ({
+            ...s,
+            bookings: (s.bookings ?? []).map((x) =>
+              x.id === b.id ? { ...x, status: b.status, result: b.result } : x,
+            ),
+            orders: order ? [order, ...(s.orders ?? [])] : s.orders,
+          }));
+          setCheckout(null);
+          loadBilling();
+        }}
+      />
+      <DebtCollectModal
+        open={!!collect}
+        storeId={store.id}
+        title={collect ? `Thu tiền ${collect.name}` : ""}
+        max={collect?.debt ?? 0}
+        target={{ orderId: collect?.orderId ?? undefined }}
+        onClose={() => setCollect(null)}
+        onDone={() => {
+          setCollect(null);
+          loadBilling();
+        }}
       />
     </div>
   );
@@ -808,12 +999,18 @@ export function TreatmentsSection({
 
 /** TreatmentCard — 1 liệu trình: tiến độ, buổi tiếp theo, dòng thời gian các buổi (đổi trạng thái, kết quả buổi), dừng liệu trình */
 function TreatmentCard({
-  storeId,
+  store,
   plan,
+  billing,
   onPatch,
+  onCheckout,
+  onCollect,
 }: {
-  storeId: string;
+  store: StoreConfig;
   plan: Plan;
+  billing?: TreatmentBilling;
+  onCheckout: (b: StoreBookingItem) => void;
+  onCollect: (t: TreatmentBilling) => void;
   onPatch: (
     ids: string[],
     patch: Partial<StoreBookingItem>,
@@ -821,6 +1018,8 @@ function TreatmentCard({
   ) => void;
 }) {
   const { message } = AntApp.useApp();
+  const storeId = store.id;
+  const perSession = !billing || billing.billing === "session";
   // SessionResultModal — nhập kết quả / ghi chú khi đánh dấu Hoàn thành (hoặc sửa lại sau)
   const [resultFor, setResultFor] = useState<StoreBookingItem | null>(null);
   const [resultText, setResultText] = useState("");
@@ -899,6 +1098,38 @@ function TreatmentCard({
                 {dayjs(next.date).format("DD/MM")} {next.timeSlot}
                 {next.date < today && " (quá hẹn)"}
               </span>
+            )}
+          </div>
+          {/* TreatmentBillingSummary — cách thu tiền & công nợ */}
+          <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs">
+            <Tag className="!m-0" color={perSession ? "default" : "purple"}>
+              {BILLING_LABEL[billing?.billing ?? "session"]}
+            </Tag>
+            {!perSession && billing && (
+              <>
+                <span className="tabular-nums text-slate-600">
+                  Đã thu {fmtMoney(billing.paid)} / {fmtMoney(billing.price)}
+                </span>
+                {billing.debt > 0 ? (
+                  <>
+                    <b className="tabular-nums text-red-600">
+                      nợ {fmtMoney(billing.debt)}
+                    </b>
+                    <Button
+                      size="small"
+                      type="link"
+                      className="!h-auto !px-1"
+                      onClick={() => onCollect(billing)}
+                    >
+                      Thu tiền
+                    </Button>
+                  </>
+                ) : (
+                  <span className="font-semibold text-emerald-600">
+                    Đã thu đủ
+                  </span>
+                )}
+              </>
             )}
           </div>
         </div>
@@ -982,6 +1213,23 @@ function TreatmentCard({
                     </span>
                   )}
                 </span>
+                {perSession &&
+                  b.status !== "cancelled" &&
+                  (paidOrderOf(store, b.id) ? (
+                    <Tag className="!m-0" color="green">
+                      Đã thu
+                    </Tag>
+                  ) : b.status === "completed" ? (
+                    <Button
+                      size="small"
+                      type="link"
+                      danger
+                      className="!px-1"
+                      onClick={() => onCheckout(b)}
+                    >
+                      Chưa thu tiền
+                    </Button>
+                  ) : null)}
                 {b.status === "completed" && (
                   <Tooltip
                     title={b.result ? "Sửa kết quả buổi" : "Thêm kết quả buổi"}
@@ -1001,7 +1249,7 @@ function TreatmentCard({
                   popupMatchSelectWidth={false}
                   onChange={(v) =>
                     v === "completed"
-                      ? openResult(b)
+                      ? onCheckout(b)
                       : onPatch(
                           [b.id],
                           { status: v },

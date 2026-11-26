@@ -151,8 +151,13 @@ export interface StoreOrderItem {
   discountAmount?: number;
   voucherCode?: string;
   /** miniapp = khách đặt trong Mini App, admin = tạo tại quầy */
-  source?: "miniapp" | "admin";
+  source?: "miniapp" | "admin" | "pos" | "booking" | "treatment";
   paymentMethod?: PaymentMethod;
+  /** Đã thu — nhỏ hơn total (đơn hoàn thành) = khách còn nợ */
+  paid?: number;
+  /** Đơn thu tiền của lịch hẹn / đơn gói liệu trình */
+  bookingId?: string;
+  treatmentId?: string;
 }
 
 export type PaymentMethod = "cod" | "cash" | "bank_transfer" | "card" | "ewallet";

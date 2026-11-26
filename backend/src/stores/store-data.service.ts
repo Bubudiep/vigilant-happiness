@@ -362,7 +362,21 @@ export class StoreDataService {
     return this.createOrder(storeId, { ...body, status: "completed" }, "pos");
   }
 
-  private async createOrder(storeId: string, body: AdminOrderInput, source: "admin" | "pos" = "admin") {
+  private createOrder(storeId: string, body: AdminOrderInput, source: "admin" | "pos" = "admin") {
+    return this.prisma.$transaction((tx) => this.createOrderTx(tx, storeId, body, source));
+  }
+
+  /**
+   * Tạo đơn trong 1 transaction có sẵn (dùng chung cho tạo đơn, bán tại quầy, thu tiền lịch hẹn, gói liệu trình).
+   * extra.paid = số tiền khách trả (thiếu = trả đủ; ít hơn tổng → phần còn lại là công nợ).
+   */
+  async createOrderTx(
+    tx: Prisma.TransactionClient,
+    storeId: string,
+    body: AdminOrderInput,
+    source: string,
+    extra: { paid?: number; bookingId?: string; treatmentId?: string } = {},
+  ) {
     if (!body || typeof body !== "object") throw new BadRequestException("Dữ liệu không hợp lệ");
     const head = pickFields(body, { ...SPECS.orders, customerName: "string", phone: "string" }, ["customerName"]);
     const rawItems = Array.isArray(body.items) ? body.items : [];
@@ -403,7 +417,7 @@ export class StoreDataService {
     const extraDiscount = Math.max(0, Math.round(Number(body.extraDiscount) || 0));
 
     const phone = head.phone ? (normalizeVnPhone(String(head.phone)) ?? String(head.phone)) : "";
-    return this.prisma.$transaction(async (tx) => {
+    {
       let customer = body.customerId
         ? await tx.storeCustomer.findFirst({ where: { id: String(body.customerId), storeId } })
         : phone
@@ -423,6 +437,8 @@ export class StoreDataService {
         : null;
       const discountAmount = Math.min(subtotal + shippingFee, (quote?.discount ?? 0) + extraDiscount);
       const status = (head.status as string) ?? "confirmed";
+      const totalAmount = subtotal + shippingFee - discountAmount;
+      const paidAmount = extra.paid === undefined ? totalAmount : Math.min(totalAmount, Math.max(0, Math.round(Number(extra.paid) || 0)));
 
       const order = await tx.storeOrder.create({
         data: {
@@ -436,7 +452,10 @@ export class StoreDataService {
           shippingFee,
           discountAmount,
           voucherCode: quote?.code ?? null,
-          totalAmount: subtotal + shippingFee - discountAmount,
+          totalAmount,
+          paidAmount,
+          bookingId: extra.bookingId ?? null,
+          treatmentId: extra.treatmentId ?? null,
           source,
           status: "pending",
           paymentMethod: (head.paymentMethod as string) ?? "cash",
@@ -449,7 +468,7 @@ export class StoreDataService {
       const final = status === "pending" ? order : await this.applyStatus(tx, storeId, order, status);
       const savedCustomer = customer ? await tx.storeCustomer.findUnique({ where: { id: customer.id } }) : null;
       return { ...serializeOrder(final), customer: savedCustomer, customerCreated };
-    });
+    }
   }
 
   /** Xem trước mã voucher cho màn hình tạo đơn (không ghi gì). */

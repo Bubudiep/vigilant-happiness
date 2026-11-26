@@ -197,6 +197,8 @@ export class ShopService {
           discountAmount,
           voucherCode: quote?.code ?? null,
           totalAmount: subtotal - discountAmount,
+          // Mini App: thu khi giao / chuyển khoản → coi như thu đủ (không tính công nợ)
+          paidAmount: subtotal - discountAmount,
           paymentMethod: dto.paymentMethod === "bank_transfer" ? "bank_transfer" : "cod",
           note: dto.note?.trim().slice(0, 500) || null,
           items: { create: lines.map((l) => ({ ...l, lineTotal: l.unitPrice * l.quantity })) },

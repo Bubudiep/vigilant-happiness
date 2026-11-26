@@ -8,7 +8,6 @@ import {
   Popover,
   Segmented,
   Select,
- 
   Switch,
   Empty,
   Table,
@@ -29,6 +28,7 @@ import {
   LuHeadphones,
   LuPackage,
   LuPlus,
+  LuReceipt,
   LuRepeat,
   LuSave,
   LuShoppingBag,
@@ -47,7 +47,13 @@ import {
   StoreSupportTicket,
 } from "../data/store-api";
 import { FilterBar, FilterSelect, PageHeader, StatCard, StatGrid } from "./ui";
-import { TIME_SLOTS, TreatmentBadge, TreatmentModal, TreatmentProgress } from "./StoreTreatmentViews";
+import { BookingCheckoutModal, paidOrderOf } from "./StoreBillingViews";
+import {
+  TIME_SLOTS,
+  TreatmentBadge,
+  TreatmentModal,
+  TreatmentProgress,
+} from "./StoreTreatmentViews";
 
 export type StoreNavKey =
   | "overview"
@@ -78,8 +84,8 @@ export type StoreNavKey =
   | "antispam"
   | "accounts"
   | "api"
-  | "treatments";
-
+  | "treatments"
+  | "receivables";
 
 const BOOKING_STATUS_OPTIONS = [
   { value: "pending", label: "Chờ xác nhận" },
@@ -110,24 +116,37 @@ export function BookingCreateModal({
   store: StoreConfig;
   onCreate: (item: StoreBookingItem) => void;
   /** Điền sẵn khi bấm vào ô trống trên lịch nhóm */
-  defaults?: { date?: string; staffName?: string; customerName?: string; phone?: string };
+  defaults?: {
+    date?: string;
+    staffName?: string;
+    customerName?: string;
+    phone?: string;
+  };
   staffOptions?: string[];
 }) {
   const [form] = Form.useForm();
   const serviceName = Form.useWatch("serviceName", form) as string | undefined;
   // Gợi ý dịch vụ: ưu tiên mặt hàng loại Dịch vụ
   const services = store.products.filter(isService);
-  const quickServices = (services.length ? services : store.products).slice(0, 4);
+  const quickServices = (services.length ? services : store.products).slice(
+    0,
+    4,
+  );
   // Gợi ý người phụ trách: nhân viên đang làm (ai làm được dịch vụ đang chọn lên đầu) + tên từng nhận lịch
   const staffChoices = (() => {
     const active = (store.staff ?? []).filter((m) => m.status === "active");
-    const can = (n: string) => !!serviceName && !!active.find((m) => m.name === n)?.services.includes(serviceName);
+    const can = (n: string) =>
+      !!serviceName &&
+      !!active.find((m) => m.name === n)?.services.includes(serviceName);
     const names = [...new Set([...active.map((m) => m.name), ...staffOptions])];
     return names
       .sort((a, b) => Number(can(b)) - Number(can(a)))
       .map((n) => {
         const m = active.find((x) => x.name === n);
-        return { value: n, label: m?.position ? `${n} · ${m.position}${can(n) ? " ✓" : ""}` : n };
+        return {
+          value: n,
+          label: m?.position ? `${n} · ${m.position}${can(n) ? " ✓" : ""}` : n,
+        };
       });
   })();
 
@@ -136,7 +155,9 @@ export function BookingCreateModal({
     form.setFieldsValue({
       date: defaults?.date ?? dayjs().format("YYYY-MM-DD"),
       ...(defaults?.staffName ? { staffName: defaults.staffName } : {}),
-      ...(defaults?.customerName ? { customerName: defaults.customerName, phone: defaults.phone ?? "" } : {}),
+      ...(defaults?.customerName
+        ? { customerName: defaults.customerName, phone: defaults.phone ?? "" }
+        : {}),
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -177,7 +198,13 @@ export function BookingCreateModal({
   };
 
   return (
-    <Modal title="Đặt lịch hẹn cho khách" open={open} onCancel={onClose} footer={null} destroyOnHidden>
+    <Modal
+      title="Đặt lịch hẹn cho khách"
+      open={open}
+      onCancel={onClose}
+      footer={null}
+      destroyOnHidden
+    >
       <Form
         form={form}
         layout="vertical"
@@ -205,15 +232,27 @@ export function BookingCreateModal({
           </Form.Item>
         )}
         <div className="grid gap-x-4 sm:grid-cols-2">
-          <Form.Item name="customerName" label="Tên khách hàng" rules={[{ required: true, message: "Nhập tên khách" }]}>
+          <Form.Item
+            name="customerName"
+            label="Tên khách hàng"
+            rules={[{ required: true, message: "Nhập tên khách" }]}
+          >
             <Input placeholder="VD: Nguyễn Minh Anh" />
           </Form.Item>
-          <Form.Item name="phone" label="Số điện thoại" rules={[{ required: true, message: "Nhập SĐT" }]}>
+          <Form.Item
+            name="phone"
+            label="Số điện thoại"
+            rules={[{ required: true, message: "Nhập SĐT" }]}
+          >
             <Input placeholder="09xx xxx xxx" />
           </Form.Item>
         </div>
 
-        <Form.Item name="serviceName" label="Dịch vụ / Nội dung hẹn" rules={[{ required: true, message: "Nhập dịch vụ" }]}>
+        <Form.Item
+          name="serviceName"
+          label="Dịch vụ / Nội dung hẹn"
+          rules={[{ required: true, message: "Nhập dịch vụ" }]}
+        >
           <Input placeholder="VD: Chăm sóc da chuyên sâu, Tư vấn sản phẩm..." />
         </Form.Item>
 
@@ -233,10 +272,18 @@ export function BookingCreateModal({
         )}
 
         <div className="grid gap-x-4 sm:grid-cols-2">
-          <Form.Item name="date" label="Ngày hẹn" rules={[{ required: true, message: "Chọn ngày" }]}>
+          <Form.Item
+            name="date"
+            label="Ngày hẹn"
+            rules={[{ required: true, message: "Chọn ngày" }]}
+          >
             <Input type="date" />
           </Form.Item>
-          <Form.Item name="timeSlot" label="Khung giờ" rules={[{ required: true, message: "Chọn giờ" }]}>
+          <Form.Item
+            name="timeSlot"
+            label="Khung giờ"
+            rules={[{ required: true, message: "Chọn giờ" }]}
+          >
             <Select options={TIME_SLOTS.map((t) => ({ value: t, label: t }))} />
           </Form.Item>
         </div>
@@ -246,7 +293,11 @@ export function BookingCreateModal({
             <AutoComplete
               placeholder="VD: Lan Anh"
               options={staffChoices}
-              filterOption={(input, opt) => String(opt?.value ?? "").toLowerCase().includes(input.toLowerCase())}
+              filterOption={(input, opt) =>
+                String(opt?.value ?? "")
+                  .toLowerCase()
+                  .includes(input.toLowerCase())
+              }
             />
           </Form.Item>
           <Form.Item name="status" label="Trạng thái">
@@ -255,7 +306,10 @@ export function BookingCreateModal({
         </div>
 
         <Form.Item name="note" label="Ghi chú">
-          <Input.TextArea rows={2} placeholder="Yêu cầu đặc biệt của khách..." />
+          <Input.TextArea
+            rows={2}
+            placeholder="Yêu cầu đặc biệt của khách..."
+          />
         </Form.Item>
         <Button type="primary" htmlType="submit" block className="font-bold">
           Xác nhận đặt lịch
@@ -284,18 +338,33 @@ const BOOKING_STATUS_COLOR: Record<StoreBookingItem["status"], string> = {
  * - Trùng giờ với lịch khác của cùng người, hoặc người đó không có ca / đang nghỉ phép → hỏi lại.
  * - Thông báo có nút "Hoàn tác".
  */
-function useBookingMove(store: StoreConfig, updateCurrentStore: (updater: (s: StoreConfig) => StoreConfig) => void) {
+function useBookingMove(
+  store: StoreConfig,
+  updateCurrentStore: (updater: (s: StoreConfig) => StoreConfig) => void,
+) {
   const { message, modal } = AntApp.useApp();
   const [dragId, setDragId] = useState<string | null>(null);
   const [overKey, setOverKey] = useState<string | null>(null);
 
-  const apply = (id: string, patch: Pick<StoreBookingItem, "date" | "staffName">) =>
-    updateCurrentStore((s) => ({ ...s, bookings: (s.bookings ?? []).map((x) => (x.id === id ? { ...x, ...patch } : x)) }));
+  const apply = (
+    id: string,
+    patch: Pick<StoreBookingItem, "date" | "staffName">,
+  ) =>
+    updateCurrentStore((s) => ({
+      ...s,
+      bookings: (s.bookings ?? []).map((x) =>
+        x.id === id ? { ...x, ...patch } : x,
+      ),
+    }));
 
-  const move = (id: string, to: { date: string; staffName?: string | null }) => {
+  const move = (
+    id: string,
+    to: { date: string; staffName?: string | null },
+  ) => {
     const b = (store.bookings ?? []).find((x) => x.id === id);
     if (!b) return;
-    const staffName = to.staffName === undefined ? (b.staffName ?? "") : (to.staffName ?? "");
+    const staffName =
+      to.staffName === undefined ? (b.staffName ?? "") : (to.staffName ?? "");
     if (b.date === to.date && (b.staffName ?? "") === staffName) return;
     const today = dayjs().format("YYYY-MM-DD");
     if (to.date < today && to.date !== b.date) {
@@ -307,12 +376,21 @@ function useBookingMove(store: StoreConfig, updateCurrentStore: (updater: (s: St
     const warns: string[] = [];
     if (staffName) {
       const clash = (store.bookings ?? []).find(
-        (x) => x.id !== b.id && x.status !== "cancelled" && x.date === to.date && x.timeSlot === b.timeSlot && (x.staffName ?? "") === staffName,
+        (x) =>
+          x.id !== b.id &&
+          x.status !== "cancelled" &&
+          x.date === to.date &&
+          x.timeSlot === b.timeSlot &&
+          (x.staffName ?? "") === staffName,
       );
-      if (clash) warns.push(`${staffName} đã có lịch ${clash.timeSlot} với ${clash.customerName}.`);
+      if (clash)
+        warns.push(
+          `${staffName} đã có lịch ${clash.timeSlot} với ${clash.customerName}.`,
+        );
       const m = (store.staff ?? []).find((x) => x.name === staffName);
       if (m?.status === "leave") warns.push(`${staffName} đang nghỉ phép.`);
-      else if (m && m.workDays.length && !m.workDays.includes(d.day())) warns.push(`${staffName} không có ca ngày ${WEEKDAY[d.day()]}.`);
+      else if (m && m.workDays.length && !m.workDays.includes(d.day()))
+        warns.push(`${staffName} không có ca ngày ${WEEKDAY[d.day()]}.`);
     }
     const prev = { date: b.date, staffName: b.staffName ?? "" };
     const run = () => {
@@ -339,7 +417,13 @@ function useBookingMove(store: StoreConfig, updateCurrentStore: (updater: (s: St
       });
     };
     if (warns.length) {
-      modal.confirm({ title: "Vẫn chuyển lịch hẹn?", content: warns.join(" "), okText: "Vẫn chuyển", cancelText: "Thôi", onOk: run });
+      modal.confirm({
+        title: "Vẫn chuyển lịch hẹn?",
+        content: warns.join(" "),
+        okText: "Vẫn chuyển",
+        cancelText: "Thôi",
+        onOk: run,
+      });
     } else run();
   };
 
@@ -358,7 +442,10 @@ function useBookingMove(store: StoreConfig, updateCurrentStore: (updater: (s: St
   });
 
   /** Props cho ô nhận thả; `key` để tô sáng ô đang rê tới */
-  const dropProps = (key: string, to: { date: string; staffName?: string | null }) => ({
+  const dropProps = (
+    key: string,
+    to: { date: string; staffName?: string | null },
+  ) => ({
     onDragOver: (e: React.DragEvent) => {
       if (!e.dataTransfer.types.includes("text/booking-id")) return;
       e.preventDefault();
@@ -366,7 +453,8 @@ function useBookingMove(store: StoreConfig, updateCurrentStore: (updater: (s: St
       if (overKey !== key) setOverKey(key);
     },
     onDragLeave: (e: React.DragEvent) => {
-      if (!(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node)) setOverKey((k) => (k === key ? null : k));
+      if (!(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node))
+        setOverKey((k) => (k === key ? null : k));
     },
     onDrop: (e: React.DragEvent) => {
       e.preventDefault();
@@ -391,7 +479,10 @@ export function OverviewSection({
 }) {
   const { message } = AntApp.useApp();
   // Mở form đặt lịch; date = ngày điền sẵn (bấm "+" ở cột Hôm nay / Ngày mai)
-  const [bookingModal, setBookingModal] = useState<{ open: boolean; date?: string }>({ open: false });
+  const [bookingModal, setBookingModal] = useState<{
+    open: boolean;
+    date?: string;
+  }>({ open: false });
   const [treatmentOpen, setTreatmentOpen] = useState(false);
 
   const orders = store.orders ?? [];
@@ -399,25 +490,49 @@ export function OverviewSection({
   const todayStr = dayjs().format("YYYY-MM-DD");
   const todayBookings = bookings.filter((b) => b.date === todayStr);
   const pendingBookings = bookings.filter((b) => b.status === "pending").length;
-  const lowStockCount = store.products.filter((p) => p.kind !== "service" && p.kind !== "material" && !p.bom?.length && (p.stock ?? 0) <= LOW_STOCK).length;
+  const lowStockCount = store.products.filter(
+    (p) =>
+      p.kind !== "service" &&
+      p.kind !== "material" &&
+      !p.bom?.length &&
+      (p.stock ?? 0) <= LOW_STOCK,
+  ).length;
   const serviceCount = store.products.filter(isService).length;
 
   const handleCreateBooking = (item: StoreBookingItem) => {
-    updateCurrentStore((s) => ({ ...s, bookings: [item, ...(s.bookings ?? [])] }));
+    updateCurrentStore((s) => ({
+      ...s,
+      bookings: [item, ...(s.bookings ?? [])],
+    }));
     message.success(`Đã tạo lịch hẹn ${item.code} cho ${item.customerName}!`);
   };
 
   const handleCreateTreatment = (items: StoreBookingItem[]) => {
-    updateCurrentStore((s) => ({ ...s, bookings: [...items, ...(s.bookings ?? [])] }));
-    message.success(`Đã tạo liệu trình ${items.length} buổi cho ${items[0]?.customerName}`);
+    updateCurrentStore((s) => ({
+      ...s,
+      bookings: [...items, ...(s.bookings ?? [])],
+    }));
+    message.success(
+      `Đã tạo liệu trình ${items.length} buổi cho ${items[0]?.customerName}`,
+    );
   };
 
   const dnd = useBookingMove(store, updateCurrentStore);
+  // Thu tiền lịch hẹn (bill) — mở khi bấm "Thu tiền" hoặc chuyển sang Hoàn thành
+  const [checkout, setCheckout] = useState<StoreBookingItem | null>(null);
 
-  const handleQuickStatus = (id: string, status: StoreBookingItem["status"]) => {
+  const handleQuickStatus = (
+    id: string,
+    status: StoreBookingItem["status"],
+  ) => {
+    const bk = bookings.find((x) => x.id === id);
+    if (status === "completed" && bk && !paidOrderOf(store, id))
+      return setCheckout(bk);
     updateCurrentStore((s) => ({
       ...s,
-      bookings: (s.bookings ?? []).map((b) => (b.id === id ? { ...b, status } : b)),
+      bookings: (s.bookings ?? []).map((b) =>
+        b.id === id ? { ...b, status } : b,
+      ),
     }));
     message.success("Đã cập nhật trạng thái lịch hẹn");
   };
@@ -457,27 +572,46 @@ export function OverviewSection({
         />
       </StatGrid>
 
-      <StorePlanCard storeId={store.id} refreshKey={`${store.products.length}-${store.staff?.length ?? 0}`} onSupport={() => onNavigate("support")} />
+      <StorePlanCard
+        storeId={store.id}
+        refreshKey={`${store.products.length}-${store.staff?.length ?? 0}`}
+        onSupport={() => onNavigate("support")}
+      />
 
       {/* Widget Lịch hẹn & Đặt lịch cho khách ngay trên trang Tổng quan */}
       <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <h3 className="flex items-center gap-2 text-base font-semibold text-slate-900">
-              <LuCalendarCheck size={17} className="text-brand-600" /> Lịch hẹn sắp tới & Đặt lịch cho khách
+              <LuCalendarCheck size={17} className="text-brand-600" /> Lịch hẹn
+              sắp tới & Đặt lịch cho khách
             </h3>
             <p className="text-xs text-slate-500">
-              Theo dõi lịch hẹn khách đặt qua Mini App hoặc tạo tại quầy. Kéo thẻ sang cột khác để đổi ngày.
+              Theo dõi lịch hẹn khách đặt qua Mini App hoặc tạo tại quầy. Kéo
+              thẻ sang cột khác để đổi ngày.
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <Button size="small" icon={<LuRepeat size={14} />} onClick={() => setTreatmentOpen(true)}>
+            <Button
+              size="small"
+              icon={<LuRepeat size={14} />}
+              onClick={() => setTreatmentOpen(true)}
+            >
               Tạo liệu trình
             </Button>
-            <Button type="primary" size="small" icon={<LuPlus size={14} />} onClick={() => setBookingModal({ open: true })}>
+            <Button
+              type="primary"
+              size="small"
+              icon={<LuPlus size={14} />}
+              onClick={() => setBookingModal({ open: true })}
+            >
               Đặt lịch cho khách
             </Button>
-            <Button type="link" size="small" onClick={() => onNavigate("bookings")}>
+            <Button
+              type="link"
+              size="small"
+              onClick={() => onNavigate("bookings")}
+            >
               Quản lý lịch hẹn
             </Button>
           </div>
@@ -487,35 +621,56 @@ export function OverviewSection({
           {BOARD_DAYS.map(({ offset, label }) => {
             const day = dayjs().add(offset, "day");
             const key = day.format("YYYY-MM-DD");
-            const list = bookings.filter((b) => b.date === key).sort((x, y) => x.timeSlot.localeCompare(y.timeSlot));
+            const list = bookings
+              .filter((b) => b.date === key)
+              .sort((x, y) => x.timeSlot.localeCompare(y.timeSlot));
             const active = list.filter((b) => b.status !== "cancelled").length;
             return (
               <div
                 key={key}
                 {...(offset >= 0 ? dnd.dropProps(key, { date: key }) : {})}
                 className={`flex min-w-0 flex-col rounded-lg transition ${
-                  dnd.overKey === key ? "bg-brand-50 ring-2 ring-brand-300" : "bg-slate-100"
+                  dnd.overKey === key
+                    ? "bg-brand-50 ring-2 ring-brand-300"
+                    : "bg-slate-100"
                 }`}
               >
                 {/* Cột board kiểu Jira: nền xám, tiêu đề chữ hoa nhỏ, thẻ trắng có bóng */}
                 <div className="flex items-center justify-between gap-2 px-3 pb-1 pt-2.5">
                   <div className="min-w-0">
-                    <span className={`text-2xs font-semibold uppercase tracking-wider ${offset === 0 ? "text-brand-700" : "text-slate-600"}`}>{label}</span>
+                    <span
+                      className={`text-2xs font-semibold uppercase tracking-wider ${offset === 0 ? "text-brand-700" : "text-slate-600"}`}
+                    >
+                      {label}
+                    </span>
                     <span className="ml-1.5 text-xs text-slate-500">
                       {WEEKDAY[day.day()]} {day.format("DD/MM")}
                     </span>
                   </div>
                   <div className="flex shrink-0 items-center gap-1">
-                    <span className="rounded bg-slate-200 px-1.5 text-2xs font-semibold tabular-nums text-slate-700">{active}</span>
+                    <span className="rounded bg-slate-200 px-1.5 text-2xs font-semibold tabular-nums text-slate-700">
+                      {active}
+                    </span>
                     {offset >= 0 && (
                       <Tooltip title={`Đặt lịch ${label.toLowerCase()}`}>
-                        <Button size="small" type="text" icon={<LuPlus size={14} />} onClick={() => setBookingModal({ open: true, date: key })} />
+                        <Button
+                          size="small"
+                          type="text"
+                          icon={<LuPlus size={14} />}
+                          onClick={() =>
+                            setBookingModal({ open: true, date: key })
+                          }
+                        />
                       </Tooltip>
                     )}
                   </div>
                 </div>
                 <div className="flex max-h-[420px] flex-col gap-2 overflow-y-auto p-2">
-                  {list.length === 0 && <div className="py-6 text-center text-xs text-slate-400">Không có lịch hẹn</div>}
+                  {list.length === 0 && (
+                    <div className="py-6 text-center text-xs text-slate-400">
+                      Không có lịch hẹn
+                    </div>
+                  )}
                   {list.map((b) => (
                     <div
                       key={b.id}
@@ -537,21 +692,60 @@ export function OverviewSection({
                           options={BOOKING_STATUS_OPTIONS.map((o) => ({
                             value: o.value,
                             label: (
-                              <Tag className="!m-0" color={BOOKING_STATUS_COLOR[o.value as StoreBookingItem["status"]]}>
+                              <Tag
+                                className="!m-0"
+                                color={
+                                  BOOKING_STATUS_COLOR[
+                                    o.value as StoreBookingItem["status"]
+                                  ]
+                                }
+                              >
                                 {o.label}
                               </Tag>
                             ),
                           }))}
                         />
                       </div>
-                      <div className={`mt-1 truncate text-xs font-semibold text-slate-900 ${b.status === "cancelled" ? "line-through" : ""}`}>
-                        {b.customerName} <span className="font-normal text-slate-500">· {b.phone}</span>
+                      <div
+                        className={`mt-1 truncate text-xs font-semibold text-slate-900 ${b.status === "cancelled" ? "line-through" : ""}`}
+                      >
+                        {b.customerName}{" "}
+                        <span className="font-normal text-slate-500">
+                          · {b.phone}
+                        </span>
                       </div>
                       <div className="flex min-w-0 items-center gap-1.5">
-                        <span className="truncate text-xs text-slate-600">{b.serviceName}</span>
+                        <span className="truncate text-xs text-slate-600">
+                          {b.serviceName}
+                        </span>
                         <TreatmentBadge b={b} />
                       </div>
-                      <div className="truncate text-xs text-slate-400">{b.staffName ? `Phụ trách: ${b.staffName}` : "Chưa phân công"}</div>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="truncate text-xs text-slate-400">
+                          {b.staffName
+                            ? `Phụ trách: ${b.staffName}`
+                            : "Chưa phân công"}
+                        </span>
+                        {b.status !== "cancelled" &&
+                          (paidOrderOf(store, b.id) ? (
+                            <Tag color="green" className="!m-0 shrink-0">
+                              Đã thu
+                            </Tag>
+                          ) : (
+                            <Button
+                              size="small"
+                              type={
+                                b.status === "completed" ? "primary" : "default"
+                              }
+                              danger={b.status === "completed"}
+                              icon={<LuReceipt size={12} />}
+                              onMouseDown={(e) => e.stopPropagation()}
+                              onClick={() => setCheckout(b)}
+                            >
+                              Thu tiền
+                            </Button>
+                          ))}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -564,21 +758,38 @@ export function OverviewSection({
       <div className="grid gap-5 lg:grid-cols-2">
         <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
           <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-base font-semibold text-slate-900">Đơn hàng gần đây</h3>
-            <Button type="link" size="small" onClick={() => onNavigate("orders")}>
+            <h3 className="text-base font-semibold text-slate-900">
+              Đơn hàng gần đây
+            </h3>
+            <Button
+              type="link"
+              size="small"
+              onClick={() => onNavigate("orders")}
+            >
               Xem tất cả
             </Button>
           </div>
           {orders.length === 0 && (
-            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có đơn hàng" className="!my-4">
-              <Button size="small" icon={<LuPlus size={14} />} onClick={() => onNavigate("orders")}>
+            <Empty
+              image={Empty.PRESENTED_IMAGE_SIMPLE}
+              description="Chưa có đơn hàng"
+              className="!my-4"
+            >
+              <Button
+                size="small"
+                icon={<LuPlus size={14} />}
+                onClick={() => onNavigate("orders")}
+              >
                 Tạo đơn
               </Button>
             </Empty>
           )}
           <div className="space-y-2.5">
             {orders.slice(0, 4).map((o) => (
-              <div key={o.id} className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5">
+              <div
+                key={o.id}
+                className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5"
+              >
                 <div>
                   <div className="text-xs font-bold text-slate-900">
                     {o.code} · {o.customerName}
@@ -586,8 +797,13 @@ export function OverviewSection({
                   <div className="text-xs text-slate-500">{o.itemsSummary}</div>
                 </div>
                 <div className="text-right">
-                  <div className="text-xs font-bold text-brand-600">{o.total.toLocaleString("vi-VN")}đ</div>
-                  <Tag className="!m-0 mt-0.5 text-xs" color={ORDER_STATUS_TAG[o.status]?.color ?? "default"}>
+                  <div className="text-xs font-bold text-brand-600">
+                    {o.total.toLocaleString("vi-VN")}đ
+                  </div>
+                  <Tag
+                    className="!m-0 mt-0.5 text-xs"
+                    color={ORDER_STATUS_TAG[o.status]?.color ?? "default"}
+                  >
                     {ORDER_STATUS_TAG[o.status]?.label ?? o.status}
                   </Tag>
                 </div>
@@ -598,8 +814,14 @@ export function OverviewSection({
 
         <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
           <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-base font-semibold text-slate-900">Trạng thái Store & Mini App</h3>
-            <Button type="link" size="small" onClick={() => onNavigate("miniapp")}>
+            <h3 className="text-base font-semibold text-slate-900">
+              Trạng thái Store & Mini App
+            </h3>
+            <Button
+              type="link"
+              size="small"
+              onClick={() => onNavigate("miniapp")}
+            >
               Cấu hình Miniapp
             </Button>
           </div>
@@ -610,11 +832,15 @@ export function OverviewSection({
             </div>
             <div className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2.5">
               <span className="text-slate-600">Slug công khai</span>
-              <code className="rounded bg-white px-2 py-0.5 font-mono text-xs text-brand-700">{store.slug}</code>
+              <code className="rounded bg-white px-2 py-0.5 font-mono text-xs text-brand-700">
+                {store.slug}
+              </code>
             </div>
             <div className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2.5">
               <span className="text-slate-600">Zalo Mini App ID</span>
-              <span className="font-semibold text-slate-800">{store.zaloAppId || "Chưa gắn"}</span>
+              <span className="font-semibold text-slate-800">
+                {store.zaloAppId || "Chưa gắn"}
+              </span>
             </div>
             <div className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2.5">
               <span className="text-slate-600">Khách hàng CRM</span>
@@ -633,16 +859,56 @@ export function OverviewSection({
         store={store}
         onCreate={handleCreateBooking}
       />
-      <TreatmentModal open={treatmentOpen} onClose={() => setTreatmentOpen(false)} store={store} onCreate={handleCreateTreatment} />
+      <TreatmentModal
+        open={treatmentOpen}
+        onClose={() => setTreatmentOpen(false)}
+        store={store}
+        onCreate={handleCreateTreatment}
+      />
+      <BookingCheckoutModal
+        open={!!checkout}
+        store={store}
+        booking={checkout}
+        onClose={() => setCheckout(null)}
+        onDone={(b, order) => {
+          updateCurrentStore((s) => ({
+            ...s,
+            bookings: (s.bookings ?? []).map((x) =>
+              x.id === b.id ? { ...x, status: b.status, result: b.result } : x,
+            ),
+            orders: order ? [order, ...(s.orders ?? [])] : s.orders,
+          }));
+          setCheckout(null);
+        }}
+      />
     </div>
   );
 }
 
-const STATUS_STYLE: Record<StoreBookingItem["status"], { chip: string; dot: string; label: string }> = {
-  pending: { chip: "border-amber-200 bg-amber-50 text-amber-900", dot: "bg-amber-500", label: "Chờ xác nhận" },
-  confirmed: { chip: "border-sky-200 bg-sky-50 text-sky-900", dot: "bg-sky-500", label: "Đã xác nhận" },
-  completed: { chip: "border-emerald-200 bg-emerald-50 text-emerald-900", dot: "bg-emerald-500", label: "Hoàn thành" },
-  cancelled: { chip: "border-slate-200 bg-slate-50 text-slate-400 line-through", dot: "bg-slate-300", label: "Đã hủy" },
+const STATUS_STYLE: Record<
+  StoreBookingItem["status"],
+  { chip: string; dot: string; label: string }
+> = {
+  pending: {
+    chip: "border-amber-200 bg-amber-50 text-amber-900",
+    dot: "bg-amber-500",
+    label: "Chờ xác nhận",
+  },
+  confirmed: {
+    chip: "border-sky-200 bg-sky-50 text-sky-900",
+    dot: "bg-sky-500",
+    label: "Đã xác nhận",
+  },
+  completed: {
+    chip: "border-emerald-200 bg-emerald-50 text-emerald-900",
+    dot: "bg-emerald-500",
+    label: "Hoàn thành",
+  },
+  cancelled: {
+    chip: "border-slate-200 bg-slate-50 text-slate-400 line-through",
+    dot: "bg-slate-300",
+    label: "Đã hủy",
+  },
 };
 const WEEKDAY = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
 const UNASSIGNED = "__none__";
@@ -658,14 +924,21 @@ export function BookingsSection({
 }) {
   const { message } = AntApp.useApp();
   const [view, setView] = useState<"calendar" | "list">("calendar");
-  const [modal, setModal] = useState<{ open: boolean; date?: string; staffName?: string }>({ open: false });
+  const [modal, setModal] = useState<{
+    open: boolean;
+    date?: string;
+    staffName?: string;
+  }>({ open: false });
   const [treatmentOpen, setTreatmentOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [dateFilter, setDateFilter] = useState<string>("");
   const [hideCancelled, setHideCancelled] = useState(true);
-  const [start, setStart] = useState(() => dayjs().subtract(1, "day").startOf("day"));
+  const [start, setStart] = useState(() =>
+    dayjs().subtract(1, "day").startOf("day"),
+  );
   const [openChip, setOpenChip] = useState<string | null>(null);
   const dnd = useBookingMove(store, updateCurrentStore);
+  const [checkout, setCheckout] = useState<StoreBookingItem | null>(null);
 
   const bookings = store.bookings ?? [];
   const todayStr = dayjs().format("YYYY-MM-DD");
@@ -673,12 +946,19 @@ export function BookingsSection({
   const dayKeys = days.map((d) => d.format("YYYY-MM-DD"));
 
   const inRange = bookings.filter(
-    (b) => dayKeys.includes(b.date) && (statusFilter === "all" || b.status === statusFilter) && !(hideCancelled && b.status === "cancelled"),
+    (b) =>
+      dayKeys.includes(b.date) &&
+      (statusFilter === "all" || b.status === statusFilter) &&
+      !(hideCancelled && b.status === "cancelled"),
   );
   const staffNames = Array.from(
     new Set([
-      ...(store.staff ?? []).filter((m) => m.status === "active").map((m) => m.name),
-      ...bookings.map((b) => b.staffName?.trim()).filter((n): n is string => !!n),
+      ...(store.staff ?? [])
+        .filter((m) => m.status === "active")
+        .map((m) => m.name),
+      ...bookings
+        .map((b) => b.staffName?.trim())
+        .filter((n): n is string => !!n),
     ]),
   ).sort((x, y) => x.localeCompare(y, "vi"));
   // Mỗi hàng = 1 nhân viên đang làm (trang Nhân sự) hoặc đã từng nhận lịch (để đặt lịch mới vào ô trống) + hàng "Chưa phân công"
@@ -686,40 +966,76 @@ export function BookingsSection({
 
   const cell = (staff: string, date: string) =>
     inRange
-      .filter((b) => b.date === date && (staff === UNASSIGNED ? !b.staffName?.trim() : b.staffName?.trim() === staff))
+      .filter(
+        (b) =>
+          b.date === date &&
+          (staff === UNASSIGNED
+            ? !b.staffName?.trim()
+            : b.staffName?.trim() === staff),
+      )
       .sort((x, y) => x.timeSlot.localeCompare(y.timeSlot));
 
   const filteredList = bookings.filter(
-    (b) => (statusFilter === "all" || b.status === statusFilter) && (!dateFilter || b.date === dateFilter),
+    (b) =>
+      (statusFilter === "all" || b.status === statusFilter) &&
+      (!dateFilter || b.date === dateFilter),
   );
 
   const handleCreate = (item: StoreBookingItem) => {
-    updateCurrentStore((s) => ({ ...s, bookings: [item, ...(s.bookings ?? [])] }));
+    updateCurrentStore((s) => ({
+      ...s,
+      bookings: [item, ...(s.bookings ?? [])],
+    }));
     message.success(`Đã tạo lịch hẹn cho ${item.customerName}`);
   };
 
   const handleCreateTreatment = (items: StoreBookingItem[]) => {
-    updateCurrentStore((s) => ({ ...s, bookings: [...items, ...(s.bookings ?? [])] }));
-    message.success(`Đã tạo liệu trình ${items.length} buổi cho ${items[0]?.customerName}`);
+    updateCurrentStore((s) => ({
+      ...s,
+      bookings: [...items, ...(s.bookings ?? [])],
+    }));
+    message.success(
+      `Đã tạo liệu trình ${items.length} buổi cho ${items[0]?.customerName}`,
+    );
   };
 
   const cancelTreatmentRest = (ids: string[]) => {
     const set = new Set(ids);
-    updateCurrentStore((s) => ({ ...s, bookings: (s.bookings ?? []).map((b) => (set.has(b.id) ? { ...b, status: "cancelled" as const } : b)) }));
+    updateCurrentStore((s) => ({
+      ...s,
+      bookings: (s.bookings ?? []).map((b) =>
+        set.has(b.id) ? { ...b, status: "cancelled" as const } : b,
+      ),
+    }));
     setOpenChip(null);
     message.success(`Đã huỷ ${ids.length} buổi còn lại của liệu trình`);
   };
 
-  const patchBooking = (id: string, patch: Partial<StoreBookingItem>, msg = "Đã cập nhật lịch hẹn") => {
+  const patchBooking = (
+    id: string,
+    patch: Partial<StoreBookingItem>,
+    msg = "Đã cập nhật lịch hẹn",
+  ) => {
+    // Hoàn thành mà chưa thu tiền → mở bill để xác nhận thanh toán
+    const bk = bookings.find((x) => x.id === id);
+    if (patch.status === "completed" && bk && !paidOrderOf(store, id)) {
+      setOpenChip(null);
+      return setCheckout(bk);
+    }
     updateCurrentStore((s) => ({
       ...s,
-      bookings: (s.bookings ?? []).map((b) => (b.id === id ? { ...b, ...patch } : b)),
+      bookings: (s.bookings ?? []).map((b) =>
+        b.id === id ? { ...b, ...patch } : b,
+      ),
     }));
     message.success(msg);
   };
 
   const removeBooking = (id: string) => {
-    updateCurrentStore((s) => ({ ...s, bookings: (s.bookings ?? []).filter((b) => b.id !== id) }));
+    updateCurrentStore((s) => ({
+      ...s,
+      bookings: (s.bookings ?? []).filter((b) => b.id !== id),
+    }));
     setOpenChip(null);
     message.success("Đã xoá lịch hẹn");
   };
@@ -738,20 +1054,60 @@ export function BookingsSection({
       <div className="rounded-lg bg-slate-50 p-2 text-slate-600">
         <div className="font-semibold text-slate-800">{b.serviceName}</div>
         <div>
-          {b.timeSlot} · {WEEKDAY[dayjs(b.date).day()]} {dayjs(b.date).format("DD/MM")} · {b.staffName || "Chưa phân công"}
+          {b.timeSlot} · {WEEKDAY[dayjs(b.date).day()]}{" "}
+          {dayjs(b.date).format("DD/MM")} · {b.staffName || "Chưa phân công"}
         </div>
         {b.note && <div className="mt-1 text-slate-500">“{b.note}”</div>}
         <div className="mt-1 font-mono text-xs text-slate-400">{b.code}</div>
       </div>
-      <TreatmentProgress b={b} bookings={bookings} onCancelRest={cancelTreatmentRest} />
+      <TreatmentProgress
+        b={b}
+        bookings={bookings}
+        onCancelRest={cancelTreatmentRest}
+      />
+      {b.status !== "cancelled" &&
+        (() => {
+          const paidOrder = paidOrderOf(store, b.id);
+          return paidOrder ? (
+            <div className="flex items-center justify-between rounded-lg bg-emerald-50 px-2 py-1.5 text-emerald-700">
+              <span>
+                Đã thu tiền ·{" "}
+                <span className="font-mono">{paidOrder.code}</span>
+              </span>
+              <b className="tabular-nums">
+                {paidOrder.total.toLocaleString("vi-VN")}đ
+              </b>
+            </div>
+          ) : (
+            <Button
+              block
+              type="primary"
+              icon={<LuReceipt size={14} />}
+              onClick={() => {
+                setOpenChip(null);
+                setCheckout(b);
+              }}
+            >
+              Thu tiền · hiện bill
+            </Button>
+          );
+        })()}
       <div className="flex flex-wrap gap-1">
         {BOOKING_STATUS_OPTIONS.map((o) => (
           <button
             key={o.value}
             type="button"
-            onClick={() => patchBooking(b.id, { status: o.value as StoreBookingItem["status"] }, `Đã chuyển sang "${o.label}"`)}
+            onClick={() =>
+              patchBooking(
+                b.id,
+                { status: o.value as StoreBookingItem["status"] },
+                `Đã chuyển sang "${o.label}"`,
+              )
+            }
             className={`rounded-full border px-2 py-0.5 text-2xs font-semibold transition ${
-              b.status === o.value ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 text-slate-600 hover:border-slate-400"
+              b.status === o.value
+                ? "border-slate-900 bg-slate-900 text-white"
+                : "border-slate-200 text-slate-600 hover:border-slate-400"
             }`}
           >
             {o.label}
@@ -762,14 +1118,23 @@ export function BookingsSection({
         size="small"
         className="w-full"
         value={b.staffName || UNASSIGNED}
-        onChange={(v) => patchBooking(b.id, { staffName: v === UNASSIGNED ? "" : v }, "Đã đổi người phụ trách")}
+        onChange={(v) =>
+          patchBooking(
+            b.id,
+            { staffName: v === UNASSIGNED ? "" : v },
+            "Đã đổi người phụ trách",
+          )
+        }
         options={[
           { value: UNASSIGNED, label: "Chưa phân công" },
           ...staffNames.map((n) => ({ value: n, label: n })),
         ]}
       />
       <div className="flex justify-end">
-        <Popconfirm title="Xoá lịch hẹn này?" onConfirm={() => removeBooking(b.id)}>
+        <Popconfirm
+          title="Xoá lịch hẹn này?"
+          onConfirm={() => removeBooking(b.id)}
+        >
           <Button size="small" type="text" danger icon={<LuTrash2 size={13} />}>
             Xoá
           </Button>
@@ -782,58 +1147,108 @@ export function BookingsSection({
     <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
       <PageHeader
         title="Lịch hẹn"
-        description={<>{view === "calendar"
+        description={
+          <>
+            {view === "calendar"
               ? `${days[0].format("DD/MM")} – ${days[CAL_DAYS - 1].format("DD/MM")} · ${inRange.length} lịch · ${todayCount} hôm nay · ${pendingCount} chờ xác nhận`
-              : "Toàn bộ lịch khách đặt trên Mini App và lịch đặt tại quầy."}</>}
+              : "Toàn bộ lịch khách đặt trên Mini App và lịch đặt tại quầy."}
+          </>
+        }
       />
       <FilterBar
-        filters={<><Segmented
-            size="small"
-            value={view}
-            onChange={(v) => setView(v as "calendar" | "list")}
-            options={[
-              { value: "calendar", label: "Lịch nhóm" },
-              { value: "list", label: "Danh sách" },
-            ]}
-          />
-<FilterSelect
-            size="small"
-            value={statusFilter}
-            onChange={setStatusFilter}
-            options={[{ value: "all", label: "Tất cả trạng thái" }, ...BOOKING_STATUS_OPTIONS]}
-          /></>}
-        actions={<><Button icon={<LuRepeat size={15} />} onClick={() => setTreatmentOpen(true)}>
-            Tạo liệu trình
-          </Button>
-          <Button type="primary" icon={<LuPlus size={15} />} onClick={() => setModal({ open: true })}>
-            Đặt lịch
-          </Button></>}
+        filters={
+          <>
+            <Segmented
+              size="small"
+              value={view}
+              onChange={(v) => setView(v as "calendar" | "list")}
+              options={[
+                { value: "calendar", label: "Lịch nhóm" },
+                { value: "list", label: "Danh sách" },
+              ]}
+            />
+            <FilterSelect
+              size="small"
+              value={statusFilter}
+              onChange={setStatusFilter}
+              options={[
+                { value: "all", label: "Tất cả trạng thái" },
+                ...BOOKING_STATUS_OPTIONS,
+              ]}
+            />
+          </>
+        }
+        actions={
+          <>
+            <Button
+              icon={<LuRepeat size={15} />}
+              onClick={() => setTreatmentOpen(true)}
+            >
+              Tạo liệu trình
+            </Button>
+            <Button
+              type="primary"
+              icon={<LuPlus size={15} />}
+              onClick={() => setModal({ open: true })}
+            >
+              Đặt lịch
+            </Button>
+          </>
+        }
       />
 
       {view === "calendar" ? (
         <>
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-1">
-              <Button size="small" icon={<LuChevronLeft size={14} />} onClick={() => setStart((d) => d.subtract(CAL_DAYS, "day"))} />
-              <Button size="small" onClick={() => setStart(dayjs().subtract(1, "day").startOf("day"))}>
+              <Button
+                size="small"
+                icon={<LuChevronLeft size={14} />}
+                onClick={() => setStart((d) => d.subtract(CAL_DAYS, "day"))}
+              />
+              <Button
+                size="small"
+                onClick={() =>
+                  setStart(dayjs().subtract(1, "day").startOf("day"))
+                }
+              >
                 Hôm nay
               </Button>
-              <Button size="small" icon={<LuChevronRight size={14} />} onClick={() => setStart((d) => d.add(CAL_DAYS, "day"))} />
+              <Button
+                size="small"
+                icon={<LuChevronRight size={14} />}
+                onClick={() => setStart((d) => d.add(CAL_DAYS, "day"))}
+              />
             </div>
             <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
-              {(Object.keys(STATUS_STYLE) as StoreBookingItem["status"][]).map((k) => (
-                <span key={k} className="flex items-center gap-1">
-                  <span className={`h-2 w-2 rounded-full ${STATUS_STYLE[k].dot}`} /> {STATUS_STYLE[k].label}
-                </span>
-              ))}
+              {(Object.keys(STATUS_STYLE) as StoreBookingItem["status"][]).map(
+                (k) => (
+                  <span key={k} className="flex items-center gap-1">
+                    <span
+                      className={`h-2 w-2 rounded-full ${STATUS_STYLE[k].dot}`}
+                    />{" "}
+                    {STATUS_STYLE[k].label}
+                  </span>
+                ),
+              )}
               <label className="flex cursor-pointer items-center gap-1.5">
-                <Switch size="small" checked={hideCancelled} onChange={setHideCancelled} /> Ẩn lịch đã huỷ
+                <Switch
+                  size="small"
+                  checked={hideCancelled}
+                  onChange={setHideCancelled}
+                />{" "}
+                Ẩn lịch đã huỷ
               </label>
             </div>
           </div>
 
           <div className="overflow-x-auto rounded-xl border border-slate-200">
-            <div className="grid min-w-[900px]" style={{ gridTemplateColumns: `170px repeat(${CAL_DAYS}, minmax(0, 1fr))` }}>
+            <div
+              className="grid min-w-[900px]"
+              style={{
+                gridTemplateColumns: `170px repeat(${CAL_DAYS}, minmax(0, 1fr))`,
+              }}
+            >
               {/* Hàng tiêu đề ngày */}
               <div className="sticky left-0 z-10 border-b border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold uppercase tracking-wide text-slate-400">
                 Nhân viên
@@ -848,13 +1263,19 @@ export function BookingsSection({
                     key={key}
                     className={`border-b border-l border-slate-200 px-2 py-2 text-center ${isToday ? "bg-brand-50" : "bg-slate-50"}`}
                   >
-                    <div className={`text-xs font-bold ${isToday ? "text-brand-600" : isPast ? "text-slate-400" : "text-slate-500"}`}>
+                    <div
+                      className={`text-xs font-bold ${isToday ? "text-brand-600" : isPast ? "text-slate-400" : "text-slate-500"}`}
+                    >
                       {isToday ? "Hôm nay" : WEEKDAY[d.day()]}
                     </div>
-                    <div className={`text-base font-extrabold ${isToday ? "text-brand-600" : isPast ? "text-slate-400" : "text-slate-900"}`}>
+                    <div
+                      className={`text-base font-extrabold ${isToday ? "text-brand-600" : isPast ? "text-slate-400" : "text-slate-900"}`}
+                    >
                       {d.format("DD/MM")}
                     </div>
-                    <div className="text-xs text-slate-400">{count ? `${count} lịch` : "—"}</div>
+                    <div className="text-xs text-slate-400">
+                      {count ? `${count} lịch` : "—"}
+                    </div>
                   </div>
                 );
               })}
@@ -865,15 +1286,28 @@ export function BookingsSection({
                   <div className="sticky left-0 z-10 flex items-start gap-2 border-b border-slate-100 bg-white px-3 py-2.5">
                     <span
                       className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-black ${
-                        staff === UNASSIGNED ? "border border-dashed border-slate-300 text-slate-400" : "bg-slate-900 text-white"
+                        staff === UNASSIGNED
+                          ? "border border-dashed border-slate-300 text-slate-400"
+                          : "bg-slate-900 text-white"
                       }`}
                     >
-                      {staff === UNASSIGNED ? "?" : staff.slice(0, 1).toUpperCase()}
+                      {staff === UNASSIGNED
+                        ? "?"
+                        : staff.slice(0, 1).toUpperCase()}
                     </span>
                     <div className="min-w-0">
-                      <div className="truncate text-xs font-bold text-slate-800">{staff === UNASSIGNED ? "Chưa phân công" : staff}</div>
+                      <div className="truncate text-xs font-bold text-slate-800">
+                        {staff === UNASSIGNED ? "Chưa phân công" : staff}
+                      </div>
                       <div className="text-xs text-slate-400">
-                        {inRange.filter((b) => (staff === UNASSIGNED ? !b.staffName?.trim() : b.staffName?.trim() === staff)).length} lịch
+                        {
+                          inRange.filter((b) =>
+                            staff === UNASSIGNED
+                              ? !b.staffName?.trim()
+                              : b.staffName?.trim() === staff,
+                          ).length
+                        }{" "}
+                        lịch
                       </div>
                     </div>
                   </div>
@@ -884,7 +1318,12 @@ export function BookingsSection({
                     return (
                       <div
                         key={date}
-                        {...(date >= todayStr ? dnd.dropProps(cellKey, { date, staffName: staff === UNASSIGNED ? "" : staff }) : {})}
+                        {...(date >= todayStr
+                          ? dnd.dropProps(cellKey, {
+                              date,
+                              staffName: staff === UNASSIGNED ? "" : staff,
+                            })
+                          : {})}
                         className={`group relative min-h-[76px] space-y-1 border-b border-l border-slate-100 p-1.5 transition ${
                           dnd.overKey === cellKey
                             ? "bg-brand-100/70 ring-2 ring-inset ring-brand-400"
@@ -908,17 +1347,26 @@ export function BookingsSection({
                               type="button"
                               {...dnd.dragProps(b)}
                               onDragStartCapture={() => setOpenChip(null)}
-                              className={`block w-full cursor-grab rounded-lg border px-1.5 py-1 text-left transition hover:shadow-sm active:cursor-grabbing ${STATUS_STYLE[b.status].chip} ${
+                              className={`block w-full relative cursor-grab rounded-lg border px-1.5 py-1 text-left transition hover:shadow-sm active:cursor-grabbing ${STATUS_STYLE[b.status].chip} ${
                                 dnd.dragId === b.id ? "opacity-40" : ""
                               }`}
                             >
-                              <div className="flex items-center gap-1 text-xs font-bold">
-                                <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${STATUS_STYLE[b.status].dot}`} />
+                              {" "}
+                              <div className="absolute right-0.5 top-0 text-[9px] font-normal text-slate-600">
                                 {b.timeSlot}
-                                <span className="truncate font-semibold">{b.customerName}</span>
+                              </div>
+                              <div className="flex items-center gap-1 text-[9px] font-bold">
+                                <span
+                                  className={`h-1.5 w-1.5 shrink-0 rounded-full ${STATUS_STYLE[b.status].dot}`}
+                                />
+                                <span className="truncate font-semibold">
+                                  {b.customerName}
+                                </span>
                               </div>
                               <div className="flex min-w-0 items-center gap-1">
-                                <span className="truncate text-xs opacity-75">{b.serviceName}</span>
+                                <span className="truncate text-xs opacity-75">
+                                  {b.serviceName}
+                                </span>
                                 <TreatmentBadge b={b} />
                               </div>
                             </button>
@@ -927,7 +1375,14 @@ export function BookingsSection({
                         {date >= todayStr && (
                           <button
                             type="button"
-                            onClick={() => setModal({ open: true, date, staffName: staff === UNASSIGNED ? undefined : staff })}
+                            onClick={() =>
+                              setModal({
+                                open: true,
+                                date,
+                                staffName:
+                                  staff === UNASSIGNED ? undefined : staff,
+                              })
+                            }
                             className="flex w-full items-center justify-center rounded-lg border border-dashed border-transparent py-0.5 text-slate-300 opacity-0 transition hover:border-brand-300 hover:text-brand-600 group-hover:opacity-100"
                             title="Đặt lịch vào ô này"
                           >
@@ -943,17 +1398,29 @@ export function BookingsSection({
           </div>
           {bookings.length === 0 && (
             <div className="mt-3 text-center text-xs text-slate-400">
-              Chưa có lịch hẹn. Khách đặt trên Mini App sẽ hiện ở đây — hoặc bấm “Đặt lịch” để tạo cho khách.
+              Chưa có lịch hẹn. Khách đặt trên Mini App sẽ hiện ở đây — hoặc bấm
+              “Đặt lịch” để tạo cho khách.
             </div>
           )}
         </>
       ) : (
         <>
-          <FilterBar filters={<Input type="date" value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} className="w-full sm:!w-40" />} />
+          <FilterBar
+            filters={
+              <Input
+                type="date"
+                value={dateFilter}
+                onChange={(e) => setDateFilter(e.target.value)}
+                className="w-full sm:!w-40"
+              />
+            }
+          />
           <Table
             rowKey="id"
             size="small"
-            dataSource={[...filteredList].sort((x, y) => (y.date + y.timeSlot).localeCompare(x.date + x.timeSlot))}
+            dataSource={[...filteredList].sort((x, y) =>
+              (y.date + y.timeSlot).localeCompare(x.date + x.timeSlot),
+            )}
             pagination={{ pageSize: 10, hideOnSinglePage: true }}
             columns={[
               {
@@ -963,7 +1430,9 @@ export function BookingsSection({
                     <div className="text-xs font-bold text-brand-600">
                       {r.timeSlot} · {dayjs(r.date).format("DD/MM/YYYY")}
                     </div>
-                    <div className="font-mono text-xs text-slate-400">{r.code}</div>
+                    <div className="font-mono text-xs text-slate-400">
+                      {r.code}
+                    </div>
                   </div>
                 ),
               },
@@ -971,7 +1440,9 @@ export function BookingsSection({
                 title: "Khách hàng",
                 render: (_, r) => (
                   <div>
-                    <div className="font-semibold text-slate-900">{r.customerName}</div>
+                    <div className="font-semibold text-slate-900">
+                      {r.customerName}
+                    </div>
                     <div className="text-xs text-slate-500">{r.phone}</div>
                   </div>
                 ),
@@ -983,11 +1454,17 @@ export function BookingsSection({
                     <div className="flex items-center gap-1.5 font-medium text-slate-800">
                       {r.serviceName} <TreatmentBadge b={r} />
                     </div>
-                    {r.note && <div className="text-xs text-slate-400">{r.note}</div>}
+                    {r.note && (
+                      <div className="text-xs text-slate-400">{r.note}</div>
+                    )}
                   </div>
                 ),
               },
-              { title: "Phụ trách", dataIndex: "staffName", render: (v) => v || <span className="text-slate-400">—</span> },
+              {
+                title: "Phụ trách",
+                dataIndex: "staffName",
+                render: (v) => v || <span className="text-slate-400">—</span>,
+              },
               {
                 title: "Trạng thái",
                 dataIndex: "status",
@@ -1005,7 +1482,10 @@ export function BookingsSection({
                 title: "",
                 width: 56,
                 render: (_, r) => (
-                  <Popconfirm title="Xoá lịch hẹn này?" onConfirm={() => removeBooking(r.id)}>
+                  <Popconfirm
+                    title="Xoá lịch hẹn này?"
+                    onConfirm={() => removeBooking(r.id)}
+                  >
                     <Button size="small" danger icon={<LuTrash2 size={13} />} />
                   </Popconfirm>
                 ),
@@ -1023,7 +1503,29 @@ export function BookingsSection({
         store={store}
         onCreate={handleCreate}
       />
-      <TreatmentModal open={treatmentOpen} onClose={() => setTreatmentOpen(false)} store={store} staffOptions={staffNames} onCreate={handleCreateTreatment} />
+      <BookingCheckoutModal
+        open={!!checkout}
+        store={store}
+        booking={checkout}
+        onClose={() => setCheckout(null)}
+        onDone={(b, order) => {
+          updateCurrentStore((s) => ({
+            ...s,
+            bookings: (s.bookings ?? []).map((x) =>
+              x.id === b.id ? { ...x, status: b.status, result: b.result } : x,
+            ),
+            orders: order ? [order, ...(s.orders ?? [])] : s.orders,
+          }));
+          setCheckout(null);
+        }}
+      />
+      <TreatmentModal
+        open={treatmentOpen}
+        onClose={() => setTreatmentOpen(false)}
+        store={store}
+        staffOptions={staffNames}
+        onCreate={handleCreateTreatment}
+      />
     </div>
   );
 }
@@ -1040,13 +1542,18 @@ export function EventsSection({
   const [form] = Form.useForm();
   const events = store.events ?? [];
 
-  const handleAddEvent = (values: Omit<StoreEventItem, "id" | "participants">) => {
+  const handleAddEvent = (
+    values: Omit<StoreEventItem, "id" | "participants">,
+  ) => {
     const newItem: StoreEventItem = {
       ...values,
       id: `ev_${Date.now()}`,
       participants: 0,
     };
-    updateCurrentStore((s) => ({ ...s, events: [newItem, ...(s.events ?? [])] }));
+    updateCurrentStore((s) => ({
+      ...s,
+      events: [newItem, ...(s.events ?? [])],
+    }));
     setModalOpen(false);
     form.resetFields();
     message.success("Đã thêm sự kiện mới!");
@@ -1063,10 +1570,20 @@ export function EventsSection({
     <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
       <PageHeader
         title="Sự kiện & Chiến dịch Mini App"
-        description={<>Quản lý Flash Sale, Check-in tích điểm và sự kiện cửa hàng.</>}
-        actions={<><Button type="primary" icon={<LuPlus size={15} />} onClick={() => setModalOpen(true)}>
-          Tạo sự kiện
-        </Button></>}
+        description={
+          <>Quản lý Flash Sale, Check-in tích điểm và sự kiện cửa hàng.</>
+        }
+        actions={
+          <>
+            <Button
+              type="primary"
+              icon={<LuPlus size={15} />}
+              onClick={() => setModalOpen(true)}
+            >
+              Tạo sự kiện
+            </Button>
+          </>
+        }
       />
 
       <Table
@@ -1081,7 +1598,9 @@ export function EventsSection({
             render: (t, r) => (
               <div>
                 <div className="font-semibold text-slate-900">{t}</div>
-                {r.description && <div className="text-xs text-slate-500">{r.description}</div>}
+                {r.description && (
+                  <div className="text-xs text-slate-500">{r.description}</div>
+                )}
               </div>
             ),
           },
@@ -1102,8 +1621,20 @@ export function EventsSection({
             title: "Trạng thái",
             dataIndex: "status",
             render: (st) => (
-              <Tag color={st === "running" ? "green" : st === "upcoming" ? "gold" : "default"}>
-                {st === "running" ? "Đang chạy" : st === "upcoming" ? "Sắp diễn ra" : "Đã kết thúc"}
+              <Tag
+                color={
+                  st === "running"
+                    ? "green"
+                    : st === "upcoming"
+                      ? "gold"
+                      : "default"
+                }
+              >
+                {st === "running"
+                  ? "Đang chạy"
+                  : st === "upcoming"
+                    ? "Sắp diễn ra"
+                    : "Đã kết thúc"}
               </Tag>
             ),
           },
@@ -1116,7 +1647,10 @@ export function EventsSection({
             title: "",
             width: 60,
             render: (_, r) => (
-              <Popconfirm title="Xóa sự kiện?" onConfirm={() => removeEvent(r.id)}>
+              <Popconfirm
+                title="Xóa sự kiện?"
+                onConfirm={() => removeEvent(r.id)}
+              >
                 <Button size="small" danger icon={<LuTrash2 size={13} />} />
               </Popconfirm>
             ),
@@ -1124,7 +1658,12 @@ export function EventsSection({
         ]}
       />
 
-      <Modal title="Tạo sự kiện / chiến dịch" open={modalOpen} onCancel={() => setModalOpen(false)} footer={null}>
+      <Modal
+        title="Tạo sự kiện / chiến dịch"
+        open={modalOpen}
+        onCancel={() => setModalOpen(false)}
+        footer={null}
+      >
         <Form
           form={form}
           layout="vertical"
@@ -1136,7 +1675,11 @@ export function EventsSection({
             endDate: dayjs().add(7, "day").format("YYYY-MM-DD"),
           }}
         >
-          <Form.Item name="title" label="Tên sự kiện" rules={[{ required: true, message: "Nhập tên sự kiện" }]}>
+          <Form.Item
+            name="title"
+            label="Tên sự kiện"
+            rules={[{ required: true, message: "Nhập tên sự kiện" }]}
+          >
             <Input placeholder="VD: Tuần lễ tri ân khách hàng" />
           </Form.Item>
           <div className="grid gap-x-4 sm:grid-cols-2">
@@ -1191,14 +1734,22 @@ export function SupportSection({
   const [form] = Form.useForm();
   const tickets = store.tickets ?? [];
 
-  const submitTicket = (values: { subject: string; category: StoreSupportTicket["category"]; priority: StoreSupportTicket["priority"]; message: string }) => {
+  const submitTicket = (values: {
+    subject: string;
+    category: StoreSupportTicket["category"];
+    priority: StoreSupportTicket["priority"];
+    message: string;
+  }) => {
     const ticket: StoreSupportTicket = {
       id: `tk_${Date.now()}`,
       ...values,
       status: "open",
       createdAt: dayjs().format("DD/MM/YYYY HH:mm"),
     };
-    updateCurrentStore((s) => ({ ...s, tickets: [ticket, ...(s.tickets ?? [])] }));
+    updateCurrentStore((s) => ({
+      ...s,
+      tickets: [ticket, ...(s.tickets ?? [])],
+    }));
     form.resetFields();
     message.success("Đã gửi yêu cầu hỗ trợ tới đội ngũ kỹ thuật recloud.vn!");
   };
@@ -1207,10 +1758,12 @@ export function SupportSection({
     <div className="grid gap-5 lg:grid-cols-12">
       <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5 lg:col-span-5">
         <h3 className="mb-1 flex items-center gap-2 text-base font-semibold text-slate-900">
-          <LuHeadphones size={18} className="text-brand-600" /> Gửi yêu cầu hỗ trợ
+          <LuHeadphones size={18} className="text-brand-600" /> Gửi yêu cầu hỗ
+          trợ
         </h3>
         <p className="mb-4 text-xs text-slate-500">
-          Hotline kỹ thuật: <strong>{siteConfig.phoneDisplay}</strong> · Zalo hỗ trợ duyệt Mini App 24/7
+          Hotline kỹ thuật: <strong>{siteConfig.phoneDisplay}</strong> · Zalo hỗ
+          trợ duyệt Mini App 24/7
         </p>
         <Form
           form={form}
@@ -1218,7 +1771,11 @@ export function SupportSection({
           onFinish={submitTicket}
           initialValues={{ category: "technical", priority: "normal" }}
         >
-          <Form.Item name="subject" label="Tiêu đề" rules={[{ required: true, message: "Nhập tiêu đề hỗ trợ" }]}>
+          <Form.Item
+            name="subject"
+            label="Tiêu đề"
+            rules={[{ required: true, message: "Nhập tiêu đề hỗ trợ" }]}
+          >
             <Input placeholder="VD: Cần hỗ trợ kết nối Zalo Pay / OA" />
           </Form.Item>
           <div className="grid gap-x-4 sm:grid-cols-2">
@@ -1242,8 +1799,15 @@ export function SupportSection({
               />
             </Form.Item>
           </div>
-          <Form.Item name="message" label="Nội dung chi tiết" rules={[{ required: true, message: "Nhập nội dung" }]}>
-            <Input.TextArea rows={3} placeholder="Mô tả vấn đề bạn đang gặp..." />
+          <Form.Item
+            name="message"
+            label="Nội dung chi tiết"
+            rules={[{ required: true, message: "Nhập nội dung" }]}
+          >
+            <Input.TextArea
+              rows={3}
+              placeholder="Mô tả vấn đề bạn đang gặp..."
+            />
           </Form.Item>
           <Button type="primary" htmlType="submit" block>
             Gửi yêu cầu
@@ -1252,17 +1816,38 @@ export function SupportSection({
       </div>
 
       <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5 lg:col-span-7">
-        <h3 className="mb-3 text-base font-semibold text-slate-900">Lịch sử hỗ trợ ({tickets.length})</h3>
-        {tickets.length === 0 && <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa gửi yêu cầu hỗ trợ nào" className="!my-8" />}
+        <h3 className="mb-3 text-base font-semibold text-slate-900">
+          Lịch sử hỗ trợ ({tickets.length})
+        </h3>
+        {tickets.length === 0 && (
+          <Empty
+            image={Empty.PRESENTED_IMAGE_SIMPLE}
+            description="Chưa gửi yêu cầu hỗ trợ nào"
+            className="!my-8"
+          />
+        )}
         <div className="space-y-3">
           {tickets.map((tk) => (
-            <div key={tk.id} className="rounded-xl border border-slate-100 bg-slate-50 p-3.5">
+            <div
+              key={tk.id}
+              className="rounded-xl border border-slate-100 bg-slate-50 p-3.5"
+            >
               <div className="flex items-start justify-between gap-2">
                 <div>
                   <div className="font-bold text-slate-900">{tk.subject}</div>
-                  <div className="mt-0.5 text-xs text-slate-600">{tk.message}</div>
+                  <div className="mt-0.5 text-xs text-slate-600">
+                    {tk.message}
+                  </div>
                 </div>
-                <Tag color={tk.status === "resolved" ? "green" : tk.status === "in_progress" ? "blue" : "orange"}>
+                <Tag
+                  color={
+                    tk.status === "resolved"
+                      ? "green"
+                      : tk.status === "in_progress"
+                        ? "blue"
+                        : "orange"
+                  }
+                >
                   {tk.status === "resolved" ? (
                     <span className="inline-flex items-center gap-1">
                       <LuCircleCheck size={11} /> Đã xử lý
@@ -1287,7 +1872,11 @@ export function SupportSection({
   );
 }
 
-const DOC_CATEGORY_OPTIONS: { value: StoreDocumentItem["category"]; label: string; color: string }[] = [
+const DOC_CATEGORY_OPTIONS: {
+  value: StoreDocumentItem["category"];
+  label: string;
+  color: string;
+}[] = [
   { value: "warranty", label: "Chính sách bảo hành", color: "blue" },
   { value: "return", label: "Quy định đổi trả hàng", color: "orange" },
   { value: "payment", label: "Thanh toán & Giao nhận", color: "green" },
@@ -1312,14 +1901,18 @@ export function DocumentsSection({
   const [createOpen, setCreateOpen] = useState(false);
   const [createForm] = Form.useForm();
 
-  const filteredDocs = catFilter === "all" ? docs : docs.filter((d) => d.category === catFilter);
-  const currentDoc = docs.find((d) => d.id === selectedDocId) ?? filteredDocs[0] ?? docs[0];
+  const filteredDocs =
+    catFilter === "all" ? docs : docs.filter((d) => d.category === catFilter);
+  const currentDoc =
+    docs.find((d) => d.id === selectedDocId) ?? filteredDocs[0] ?? docs[0];
 
   const patchDoc = (id: string, patch: Partial<StoreDocumentItem>) => {
     updateCurrentStore((s) => ({
       ...s,
       documents: (s.documents ?? []).map((d) =>
-        d.id === id ? { ...d, ...patch, updatedAt: dayjs().format("DD/MM/YYYY HH:mm") } : d,
+        d.id === id
+          ? { ...d, ...patch, updatedAt: dayjs().format("DD/MM/YYYY HH:mm") }
+          : d,
       ),
     }));
   };
@@ -1364,7 +1957,8 @@ export function DocumentsSection({
   };
 
   const getCatMeta = (cat: StoreDocumentItem["category"]) =>
-    DOC_CATEGORY_OPTIONS.find((c) => c.value === cat) ?? DOC_CATEGORY_OPTIONS[0];
+    DOC_CATEGORY_OPTIONS.find((c) => c.value === cat) ??
+    DOC_CATEGORY_OPTIONS[0];
 
   return (
     <div className="grid gap-5 lg:grid-cols-12">
@@ -1372,9 +1966,15 @@ export function DocumentsSection({
       <div className="rounded-xl border border-slate-200 bg-white p-4 lg:col-span-4">
         <div className="mb-3 flex items-center justify-between gap-2">
           <h3 className="flex items-center gap-2 text-sm font-bold text-slate-900">
-            <LuBookOpen size={17} className="text-brand-600" /> Thư viện &amp; Tài liệu ({docs.length})
+            <LuBookOpen size={17} className="text-brand-600" /> Thư viện &amp;
+            Tài liệu ({docs.length})
           </h3>
-          <Button type="primary" size="small" icon={<LuPlus size={14} />} onClick={() => setCreateOpen(true)}>
+          <Button
+            type="primary"
+            size="small"
+            icon={<LuPlus size={14} />}
+            onClick={() => setCreateOpen(true)}
+          >
             Tạo mới
           </Button>
         </div>
@@ -1386,7 +1986,10 @@ export function DocumentsSection({
           className="mb-3 w-full"
           options={[
             { value: "all", label: "Tất cả danh mục chính sách" },
-            ...DOC_CATEGORY_OPTIONS.map((c) => ({ value: c.value, label: c.label })),
+            ...DOC_CATEGORY_OPTIONS.map((c) => ({
+              value: c.value,
+              label: c.label,
+            })),
           ]}
         />
 
@@ -1407,7 +2010,9 @@ export function DocumentsSection({
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-xs font-bold text-slate-900">{doc.title}</div>
+                    <div className="truncate text-xs font-bold text-slate-900">
+                      {doc.title}
+                    </div>
                     <div className="mt-1 flex flex-wrap items-center gap-1.5">
                       <Tag color={cat.color} className="m-0 text-xs">
                         {cat.label}
@@ -1419,9 +2024,18 @@ export function DocumentsSection({
                       )}
                     </div>
                   </div>
-                  <LuFileText size={15} className={active ? "shrink-0 text-brand-600" : "shrink-0 text-slate-400"} />
+                  <LuFileText
+                    size={15}
+                    className={
+                      active
+                        ? "shrink-0 text-brand-600"
+                        : "shrink-0 text-slate-400"
+                    }
+                  />
                 </div>
-                <div className="mt-2 text-xs text-slate-400">Cập nhật: {doc.updatedAt}</div>
+                <div className="mt-2 text-xs text-slate-400">
+                  Cập nhật: {doc.updatedAt}
+                </div>
               </button>
             );
           })}
@@ -1462,11 +2076,16 @@ export function DocumentsSection({
                   size="small"
                   type="primary"
                   icon={<LuSave size={13} />}
-                  onClick={() => message.success(`Đã lưu "${currentDoc.title}"`)}
+                  onClick={() =>
+                    message.success(`Đã lưu "${currentDoc.title}"`)
+                  }
                 >
                   Lưu tài liệu
                 </Button>
-                <Popconfirm title="Xóa tài liệu này?" onConfirm={() => deleteDoc(currentDoc.id)}>
+                <Popconfirm
+                  title="Xóa tài liệu này?"
+                  onConfirm={() => deleteDoc(currentDoc.id)}
+                >
                   <Button size="small" danger icon={<LuTrash2 size={13} />} />
                 </Popconfirm>
               </div>
@@ -1476,49 +2095,72 @@ export function DocumentsSection({
               <div className="space-y-3">
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div>
-                    <div className="mb-1 text-xs font-semibold text-slate-600">Tiêu đề tài liệu</div>
+                    <div className="mb-1 text-xs font-semibold text-slate-600">
+                      Tiêu đề tài liệu
+                    </div>
                     <Input
                       value={currentDoc.title}
-                      onChange={(e) => patchDoc(currentDoc.id, { title: e.target.value })}
+                      onChange={(e) =>
+                        patchDoc(currentDoc.id, { title: e.target.value })
+                      }
                     />
                   </div>
                   <div>
-                    <div className="mb-1 text-xs font-semibold text-slate-600">Danh mục</div>
+                    <div className="mb-1 text-xs font-semibold text-slate-600">
+                      Danh mục
+                    </div>
                     <Select
                       className="w-full"
                       value={currentDoc.category}
                       onChange={(v) => patchDoc(currentDoc.id, { category: v })}
-                      options={DOC_CATEGORY_OPTIONS.map((c) => ({ value: c.value, label: c.label }))}
+                      options={DOC_CATEGORY_OPTIONS.map((c) => ({
+                        value: c.value,
+                        label: c.label,
+                      }))}
                     />
                   </div>
                 </div>
                 <div>
-                  <div className="mb-1 text-xs font-semibold text-slate-600">Đường dẫn (Slug)</div>
+                  <div className="mb-1 text-xs font-semibold text-slate-600">
+                    Đường dẫn (Slug)
+                  </div>
                   <Input
                     size="small"
                     prefix={<span className="text-slate-400">/docs/</span>}
                     value={currentDoc.slug}
-                    onChange={(e) => patchDoc(currentDoc.id, { slug: e.target.value })}
+                    onChange={(e) =>
+                      patchDoc(currentDoc.id, { slug: e.target.value })
+                    }
                   />
                 </div>
                 <div>
-                  <div className="mb-1 text-xs font-semibold text-slate-600">Nội dung chi tiết</div>
+                  <div className="mb-1 text-xs font-semibold text-slate-600">
+                    Nội dung chi tiết
+                  </div>
                   <Input.TextArea
                     rows={12}
                     value={currentDoc.content}
-                    onChange={(e) => patchDoc(currentDoc.id, { content: e.target.value })}
+                    onChange={(e) =>
+                      patchDoc(currentDoc.id, { content: e.target.value })
+                    }
                     placeholder="Viết chính sách bảo hành, quy định đổi trả, hướng dẫn thanh toán, lưu ý..."
                   />
                 </div>
               </div>
             ) : (
               <div className="rounded-2xl border border-slate-100 bg-slate-50 p-5">
-                <Tag color={getCatMeta(currentDoc.category).color} className="mb-2">
+                <Tag
+                  color={getCatMeta(currentDoc.category).color}
+                  className="mb-2"
+                >
                   {getCatMeta(currentDoc.category).label}
                 </Tag>
-                <h2 className="text-lg font-extrabold text-slate-900">{currentDoc.title}</h2>
+                <h2 className="text-lg font-extrabold text-slate-900">
+                  {currentDoc.title}
+                </h2>
                 <div className="mt-1 text-xs text-slate-400">
-                  Cập nhật lần cuối: {currentDoc.updatedAt} · Đường dẫn: /docs/{currentDoc.slug}
+                  Cập nhật lần cuối: {currentDoc.updatedAt} · Đường dẫn: /docs/
+                  {currentDoc.slug}
                 </div>
                 <div className="mt-4 whitespace-pre-line text-sm leading-relaxed text-slate-700">
                   {currentDoc.content}
@@ -1527,7 +2169,9 @@ export function DocumentsSection({
             )}
           </div>
         ) : (
-          <div className="py-16 text-center text-sm text-slate-400">Chọn một tài liệu bên trái hoặc tạo tài liệu mới.</div>
+          <div className="py-16 text-center text-sm text-slate-400">
+            Chọn một tài liệu bên trái hoặc tạo tài liệu mới.
+          </div>
         )}
       </div>
 
@@ -1544,14 +2188,26 @@ export function DocumentsSection({
           onFinish={handleCreateDoc}
           initialValues={{ category: "warranty" }}
         >
-          <Form.Item name="title" label="Tiêu đề" rules={[{ required: true, message: "Nhập tiêu đề tài liệu" }]}>
+          <Form.Item
+            name="title"
+            label="Tiêu đề"
+            rules={[{ required: true, message: "Nhập tiêu đề tài liệu" }]}
+          >
             <Input placeholder="VD: Chính sách bảo hành 1 đổi 1" />
           </Form.Item>
           <Form.Item name="category" label="Loại tài liệu">
-            <Select options={DOC_CATEGORY_OPTIONS.map((c) => ({ value: c.value, label: c.label }))} />
+            <Select
+              options={DOC_CATEGORY_OPTIONS.map((c) => ({
+                value: c.value,
+                label: c.label,
+              }))}
+            />
           </Form.Item>
           <Form.Item name="content" label="Nội dung ban đầu">
-            <Input.TextArea rows={4} placeholder="Nhập nội dung chính sách, quy định hoặc lưu ý..." />
+            <Input.TextArea
+              rows={4}
+              placeholder="Nhập nội dung chính sách, quy định hoặc lưu ý..."
+            />
           </Form.Item>
           <Button type="primary" htmlType="submit" block className="font-bold">
             Tạo tài liệu

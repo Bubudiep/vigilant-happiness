@@ -57,6 +57,9 @@ export const serializeOrder = (o: {
   source?: string;
   status: string;
   paymentMethod: string;
+  paidAmount?: number;
+  bookingId?: string | null;
+  treatmentId?: string | null;
   note: string | null;
   createdAt: Date;
   items?: { productId: string | null; productName: string; unitPrice: number; quantity: number; imageUrl: string | null }[];
@@ -77,6 +80,9 @@ export const serializeOrder = (o: {
   source: o.source ?? "miniapp",
   status: o.status,
   paymentMethod: o.paymentMethod,
+  paid: o.paidAmount ?? o.totalAmount,
+  ...(o.bookingId ? { bookingId: o.bookingId } : {}),
+  ...(o.treatmentId ? { treatmentId: o.treatmentId } : {}),
   note: o.note ?? undefined,
   createdAt: o.createdAt.toISOString(),
 });

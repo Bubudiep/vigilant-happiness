@@ -270,6 +270,8 @@ model Store {
   media            StoreMedia[]
   banners          StoreBanner[]
   orders           StoreOrder[]
+  payments         StorePayment[]
+  treatments       StoreTreatment[]
   bookings         StoreBooking[]
   events           StoreEvent[]
   documents        StoreDocument[]
@@ -488,12 +490,55 @@ model StoreOrder {
   source         String           @default("miniapp")
   status         String           @default("pending")
   paymentMethod  String           @default("cod")
+  /// Số tiền đã thu — đơn hoàn thành có paidAmount < totalAmount = khách còn nợ (công nợ)
+  paidAmount     Int              @default(0)
+  /// Đơn thu tiền của 1 lịch hẹn (bill dịch vụ + bán thêm + phụ thu)
+  bookingId      String?
+  /// Đơn gói của liệu trình (trả trọn gói / trả linh hoạt)
+  treatmentId    String?
   note           String?
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
   items          StoreOrderItem[]
+  payments       StorePayment[]
 
   @@index([storeId, status, createdAt])
+}
+
+/// Lần thu tiền (thu khi thanh toán lịch hẹn, thu gói liệu trình, thu nợ)
+model StorePayment {
+  id         String      @id @default(cuid())
+  storeId    String
+  store      Store       @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  orderId    String?
+  order      StoreOrder? @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  customerId String?
+  amount     Int
+  method     String      @default("cash")
+  note       String?
+  createdAt  DateTime    @default(now())
+
+  @@index([storeId, createdAt])
+  @@index([orderId])
+}
+
+/// Liệu trình của khách: cách thu tiền (theo buổi / trọn gói / linh hoạt) & đơn gói. id = treatmentId của các lịch hẹn
+model StoreTreatment {
+  id           String   @id
+  storeId      String
+  store        Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  customerId   String?
+  customerName String
+  phone        String
+  name         String
+  /// session = thu từng buổi khi làm · package = thu trọn gói (có thể trả trước 1 phần) · flexible = thu linh hoạt, ghi nợ
+  billing      String   @default("session")
+  /// Giá cả liệu trình (package / flexible)
+  price        Int      @default(0)
+  orderId      String?
+  createdAt    DateTime @default(now())
+
+  @@index([storeId, customerId])
 }
 
 /// Chi tiết từng sản phẩm trong đơn hàng của Store

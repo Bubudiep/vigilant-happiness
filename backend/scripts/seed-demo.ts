@@ -701,12 +701,40 @@ async function seedTreatments(stores: { id: string; slug: string }[]) {
   for (const st of stores) {
     const specs = TREATMENTS[st.slug];
     if (!specs) continue;
+    // Dọn liệu trình mẫu cũ: đơn gói / đơn thu tiền buổi, cách thu tiền, lịch hẹn
+    await prisma.storeOrder.deleteMany({ where: { storeId: st.id, treatmentId: { startsWith: "LTDEMO" } } });
+    await prisma.storeTreatment.deleteMany({ where: { storeId: st.id, id: { startsWith: "LTDEMO" } } });
     await prisma.storeBooking.deleteMany({ where: { storeId: st.id, treatmentId: { startsWith: "LTDEMO" } } });
     // Dịch vụ khai liệu trình mặc định (gợi ý khi tạo)
     for (const t of specs) {
       await prisma.storeProduct.updateMany({ where: { storeId: st.id, name: t.service }, data: { treatmentSessions: t.sessions, treatmentIntervalDays: t.interval } });
     }
     const customers = await prisma.storeCustomer.findMany({ where: { storeId: st.id }, orderBy: { createdAt: "asc" }, take: 12 });
+    const priceOf = async (name: string) => {
+      const p = await prisma.storeProduct.findFirst({ where: { storeId: st.id, name }, select: { id: true, price: true, salePrice: true } });
+      return { id: p?.id ?? null, price: p ? (p.salePrice ?? p.price) : 300_000 };
+    };
+    let orderNo = 0;
+    const order = (data: { customerId: string; customerName: string; phone: string; name: string; productId: string | null; price: number; paid: number; at: Date; source: string; treatmentId: string; bookingId?: string }) =>
+      prisma.storeOrder.create({
+        data: {
+          storeId: st.id,
+          customerId: data.customerId,
+          code: `DMLTO${st.slug.slice(5, 7).toUpperCase()}${String(++orderNo).padStart(3, "0")}`,
+          customerName: data.customerName,
+          phone: data.phone,
+          subtotal: data.price,
+          totalAmount: data.price,
+          paidAmount: data.paid,
+          source: data.source,
+          status: "completed",
+          paymentMethod: rnd() > 0.5 ? "cash" : "bank_transfer",
+          treatmentId: data.treatmentId,
+          bookingId: data.bookingId ?? null,
+          createdAt: data.at,
+          items: { create: [{ productId: data.productId, productName: data.name, unitPrice: data.price, quantity: 1, lineTotal: data.price }] },
+        },
+      });
     // Ngày bắt đầu của từng liệu trình (số ngày so với hôm nay)
     const starts = [-63, -45, -30, -21, -12, -5, 1];
     for (const [k, start] of starts.entries()) {
@@ -716,13 +744,26 @@ async function seedTreatments(stores: { id: string; slug: string }[]) {
       const tid = `LTDEMO${st.slug.slice(5, 9).toUpperCase()}${k}`;
       const stopped = k === 1; // khách dừng giữa chừng
       const slot = SLOT[k % SLOT.length];
+      // Cách thu tiền: 0 → linh hoạt (đã trả 40%), 3 → trọn gói (trả đủ), còn lại thu theo buổi (1 buổi khách nợ)
+      const billing = k === 0 ? "flexible" : k === 3 ? "package" : "session";
+      const svc = await priceOf(t.service);
+      const pkgName = /buổi/.test(t.service) ? t.service : `${t.service} · ${t.sessions} buổi`;
+      if (billing !== "session") {
+        const price = /buổi/.test(t.service) ? svc.price : Math.round((svc.price * t.sessions * 0.85) / 10_000) * 10_000;
+        const paid = billing === "package" ? price : Math.round((price * 0.4) / 10_000) * 10_000;
+        const o = await order({ customerId: c.id, customerName: c.name, phone: c.phone, name: `Gói ${pkgName}`, productId: null, price, paid, at: daysFromNow(start, 9), source: "treatment", treatmentId: tid });
+        await prisma.storeTreatment.create({ data: { id: tid, storeId: st.id, customerId: c.id, customerName: c.name, phone: c.phone, name: pkgName, billing, price, orderId: o.id } });
+        await prisma.storePayment.create({ data: { storeId: st.id, orderId: o.id, customerId: c.id, amount: paid, method: o.paymentMethod, note: "Trả trước gói", createdAt: daysFromNow(start, 9) } });
+      } else {
+        await prisma.storeTreatment.create({ data: { id: tid, storeId: st.id, customerId: c.id, customerName: c.name, phone: c.phone, name: pkgName, billing } });
+      }
       for (let i = 0; i < t.sessions; i++) {
         const d = start + i * t.interval;
         const past = d < 0;
         // 1 buổi quá hẹn (đã qua ngày nhưng chưa làm) ở liệu trình thứ 3
         const overdue = k === 2 && past && d >= -t.interval;
         const status = stopped && i >= 3 ? "cancelled" : overdue ? "confirmed" : past ? (rnd() > 0.92 ? "cancelled" : "completed") : "confirmed";
-        await prisma.storeBooking.create({
+        const bk = await prisma.storeBooking.create({
           data: {
             storeId: st.id,
             customerId: c.id,
@@ -742,6 +783,11 @@ async function seedTreatments(stores: { id: string; slug: string }[]) {
             result: status === "completed" ? t.results[i % t.results.length] : null,
           },
         });
+        // Thu theo buổi: buổi đã làm có bill (buổi thứ 2 của liệu trình 2 khách còn nợ một nửa)
+        if (billing === "session" && status === "completed") {
+          const owe = k === 2 && i === 1;
+          await order({ customerId: c.id, customerName: c.name, phone: c.phone, name: t.service, productId: svc.id, price: svc.price, paid: owe ? Math.round(svc.price / 2) : svc.price, at: daysFromNow(d, 11), source: "booking", treatmentId: tid, bookingId: bk.id });
+        }
         total++;
       }
     }
