@@ -1065,33 +1065,6 @@ export function BookingsSection({
         bookings={bookings}
         onCancelRest={cancelTreatmentRest}
       />
-      {b.status !== "cancelled" &&
-        (() => {
-          const paidOrder = paidOrderOf(store, b.id);
-          return paidOrder ? (
-            <div className="flex items-center justify-between rounded-lg bg-emerald-50 px-2 py-1.5 text-emerald-700">
-              <span>
-                Đã thu tiền ·{" "}
-                <span className="font-mono">{paidOrder.code}</span>
-              </span>
-              <b className="tabular-nums">
-                {paidOrder.total.toLocaleString("vi-VN")}đ
-              </b>
-            </div>
-          ) : (
-            <Button
-              block
-              type="primary"
-              icon={<LuReceipt size={14} />}
-              onClick={() => {
-                setOpenChip(null);
-                setCheckout(b);
-              }}
-            >
-              Thu tiền · hiện bill
-            </Button>
-          );
-        })()}
       <div className="flex flex-wrap gap-1">
         {BOOKING_STATUS_OPTIONS.map((o) => (
           <button
@@ -1130,7 +1103,8 @@ export function BookingsSection({
           ...staffNames.map((n) => ({ value: n, label: n })),
         ]}
       />
-      <div className="flex justify-end">
+      {/* Hàng cuối: Xoá (trái) ⟷ Thu tiền / Đã thu (phải) */}
+      <div className="flex items-center justify-between gap-2">
         <Popconfirm
           title="Xoá lịch hẹn này?"
           onConfirm={() => removeBooking(b.id)}
@@ -1139,6 +1113,29 @@ export function BookingsSection({
             Xoá
           </Button>
         </Popconfirm>
+        {b.status !== "cancelled" &&
+          (() => {
+            const paidOrder = paidOrderOf(store, b.id);
+            return paidOrder ? (
+              <Tooltip title={`Đơn ${paidOrder.code}`}>
+                <Tag color="green" className="!m-0">
+                  Đã thu {paidOrder.total.toLocaleString("vi-VN")}đ
+                </Tag>
+              </Tooltip>
+            ) : (
+              <Button
+                size="small"
+                type="primary"
+                icon={<LuReceipt size={13} />}
+                onClick={() => {
+                  setOpenChip(null);
+                  setCheckout(b);
+                }}
+              >
+                Thu tiền
+              </Button>
+            );
+          })()}
       </div>
     </div>
   );
