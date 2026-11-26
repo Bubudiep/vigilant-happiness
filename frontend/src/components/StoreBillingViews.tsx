@@ -1,5 +1,6 @@
 import {
   App as AntApp,
+  AutoComplete,
   Button,
   Checkbox,
   Empty,
@@ -34,6 +35,7 @@ import { sendTreatmentResult } from "../data/album-api";
 import { ApiError } from "../data/platform-api";
 import {
   isService,
+  previewVoucher,
   type PaymentMethod,
   type StoreBookingItem,
   type StoreConfig,
@@ -115,6 +117,15 @@ export function BookingCheckoutModal({
   const [result, setResult] = useState("");
   const [sendResult, setSendResult] = useState(true);
   const [busy, setBusy] = useState(false);
+  // Voucher: mã chung hoặc mã thẻ — kiểm tra bằng preview-voucher, máy chủ tính lại khi thu tiền
+  const [voucherInput, setVoucherInput] = useState("");
+  const [voucher, setVoucher] = useState<{
+    code: string;
+    title: string;
+    discount: number;
+  } | null>(null);
+  const [voucherErr, setVoucherErr] = useState<string | null>(null);
+  const [checking, setChecking] = useState(false);
 
   const sellable = useMemo(
     () =>
@@ -136,6 +147,9 @@ export function BookingCheckoutModal({
   useEffect(() => {
     if (!open || !booking) return;
     setDiscount(0);
+    setVoucher(null);
+    setVoucherInput("");
+    setVoucherErr(null);
     setMethod("cash");
     setPaid(null);
     setPlan(null);
@@ -166,7 +180,52 @@ export function BookingCheckoutModal({
   }, [open, booking?.id]);
 
   const subtotal = lines.reduce((s, l) => s + l.unitPrice * l.quantity, 0);
-  const total = Math.max(0, subtotal - discount);
+  const voucherOff = Math.min(subtotal, voucher?.discount ?? 0);
+  const total = Math.max(0, subtotal - voucherOff - discount);
+
+  const applyVoucher = async (codeIn?: string) => {
+    const code = (codeIn ?? voucherInput).trim();
+    if (!code || !booking) return;
+    setChecking(true);
+    setVoucherErr(null);
+    try {
+      const r = await previewVoucher(store.id, {
+        code,
+        subtotal,
+        shippingFee: 0,
+        customerId: booking.customerId ?? undefined,
+      });
+      setVoucher(r);
+      setVoucherInput("");
+    } catch (e) {
+      setVoucher(null);
+      setVoucherErr(errText(e, "Mã không hợp lệ"));
+    } finally {
+      setChecking(false);
+    }
+  };
+  // Bill đổi → tính lại số tiền giảm của mã đang áp
+  useEffect(() => {
+    if (!voucher || !booking) return;
+    const t = setTimeout(() => {
+      previewVoucher(store.id, {
+        code: voucher.code,
+        subtotal,
+        shippingFee: 0,
+        customerId: booking.customerId ?? undefined,
+      })
+        .then((r) => setVoucher(r))
+        .catch((e) => {
+          setVoucher(null);
+          setVoucherErr(errText(e, "Mã không còn áp dụng được"));
+        });
+    }, 400);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [subtotal]);
+  const voucherOptions = (store.vouchers ?? [])
+    .filter((v) => v.active && dayjs().isBefore(dayjs(v.endDate).endOf("day")))
+    .map((v) => ({ value: v.code, label: `${v.code} — ${v.title}` }));
   const pay = paid ?? total;
   const owe = Math.max(0, total - pay);
   const patch = (key: string, p: Partial<Line>) =>
@@ -209,6 +268,7 @@ export function BookingCheckoutModal({
           quantity: l.quantity,
         })),
         extraDiscount: discount || undefined,
+        voucherCode: voucher?.code,
         paymentMethod: method,
         paid: pay,
         treatmentPaid: planPaid || undefined,
@@ -419,12 +479,10 @@ export function BookingCheckoutModal({
               options={[
                 {
                   label: "Dịch vụ",
-                  options: sellable
-                    .filter(isService)
-                    .map((p) => ({
-                      value: p.id,
-                      label: `${p.name} · ${money(p.salePrice ?? p.price)}`,
-                    })),
+                  options: sellable.filter(isService).map((p) => ({
+                    value: p.id,
+                    label: `${p.name} · ${money(p.salePrice ?? p.price)}`,
+                  })),
                 },
                 {
                   label: "Sản phẩm",
@@ -494,12 +552,58 @@ export function BookingCheckoutModal({
               <span>Tạm tính</span>
               <span>{money(subtotal)}</span>
             </div>
+            {/* Voucher */}
+            <div className="flex items-center justify-between gap-2 text-slate-600">
+              <span className="shrink-0">Voucher</span>
+              {voucher ? (
+                <span className="flex min-w-0 items-center gap-1">
+                  <Tooltip title={voucher.title}>
+                    <Tag
+                      color="magenta"
+                      closable
+                      onClose={() => setVoucher(null)}
+                      className="!m-0 font-mono"
+                    >
+                      {voucher.code}
+                    </Tag>
+                  </Tooltip>
+                  <span className="text-red-600">−{money(voucherOff)}</span>
+                </span>
+              ) : (
+                <span className="flex items-center gap-1">
+                  <AutoComplete
+                    size="small"
+                    value={voucherInput}
+                    options={voucherOptions}
+                    onChange={(v) =>
+                      setVoucherInput(String(v ?? "").toUpperCase())
+                    }
+                    onSelect={(v) => applyVoucher(String(v))}
+                    placeholder="Nhập / chọn mã"
+                    className="!w-32"
+                    popupMatchSelectWidth={260}
+                  />
+                  <Button
+                    size="small"
+                    loading={checking}
+                    onClick={() => applyVoucher()}
+                  >
+                    Áp
+                  </Button>
+                </span>
+              )}
+            </div>
+            {voucherErr && (
+              <div className="text-right text-2xs text-red-600">
+                {voucherErr}
+              </div>
+            )}
             <div className="flex items-center justify-between text-slate-600">
-              <span>Giảm giá</span>
+              <span>Giảm thêm</span>
               <InputNumber
                 size="small"
                 min={0}
-                max={subtotal}
+                max={Math.max(0, subtotal - voucherOff)}
                 step={10000}
                 value={discount}
                 onChange={(v) => setDiscount(Number(v) || 0)}

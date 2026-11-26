@@ -24,6 +24,8 @@ export interface TreatmentBilling {
 export interface CheckoutInput {
   items: CreateOrderInput["items"];
   extraDiscount?: number;
+  /** Mã voucher (mã chung / mã thẻ) */
+  voucherCode?: string;
   paymentMethod: PaymentMethod;
   /** Khách trả — thiếu so với tổng thì ghi nợ */
   paid: number;

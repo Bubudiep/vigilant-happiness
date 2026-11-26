@@ -49,6 +49,7 @@ export class BillingService {
     body: {
       items?: AdminOrderInput["items"];
       extraDiscount?: number;
+      voucherCode?: string;
       paymentMethod?: string;
       paid?: number;
       treatmentPaid?: number;
@@ -76,6 +77,7 @@ export class BillingService {
             phone: b.phone,
             items,
             extraDiscount: body.extraDiscount,
+            voucherCode: typeof body.voucherCode === "string" ? body.voucherCode : undefined,
             paymentMethod: m,
             status: "completed",
             note: [`Lịch hẹn ${b.code} · ${b.serviceName}`, body.note?.trim()].filter(Boolean).join(" — "),
