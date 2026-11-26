@@ -578,6 +578,8 @@ export function OverviewSection({
 
       <StorePlanCard
         storeId={store.id}
+        storeName={store.name}
+        phone={store.phone}
         refreshKey={`${store.products.length}-${store.staff?.length ?? 0}`}
         onSupport={() => onNavigate("support")}
       />
