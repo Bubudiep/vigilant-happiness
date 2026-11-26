@@ -227,10 +227,10 @@ function SidebarNav<K extends string>({
   );
 }
 
-/** SidebarGroupLabel — tên nhóm menu ("Vận hành", "Hàng hoá & nhân sự"…): chữ nhỏ 8px, nhạt, không viết hoa */
+/** SidebarGroupLabel — tên nhóm menu ("Vận hành", "Hàng hoá & nhân sự"…): chữ 10px, nhạt, không viết hoa */
 export function SidebarGroupLabel({ children }: { children: ReactNode }) {
   return (
-    <div data-ui="SidebarGroupLabel" className="mb-0.5 px-2 text-3xs font-medium leading-3 text-slate-400">
+    <div data-ui="SidebarGroupLabel" className="mb-0.5 px-2 text-xs font-medium leading-4 text-slate-400">
       {children}
     </div>
   );

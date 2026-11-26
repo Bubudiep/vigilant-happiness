@@ -59,9 +59,9 @@ Mỗi phần có thuộc tính `data-ui="<Tên>"`. Mở F12 → Elements rồi t
 
 | Lớp | Cỡ | Dùng cho |
 |---|---|---|
-| `text-3xs` | 8px | Tên nhóm menu, nhãn thẻ số liệu |
+| `text-3xs` | 8px | Nhãn thẻ số liệu |
 | `text-2xs` | 9px | Chú thích, đường dẫn vị trí |
-| `text-xs` | 10px | Mục menu, chữ phụ |
+| `text-xs` | 10px | Mục menu, tên nhóm menu (SidebarGroupLabel), chữ phụ |
 | `text-sm` | 11px | Nội dung chính |
 | `text-base` | 12px | Tiêu đề khối |
 | `text-lg` | 14px | Tiêu đề trang |
