@@ -1,5 +1,5 @@
 import { PartialType } from "@nestjs/swagger";
-import { IsArray, IsBoolean, IsIn, IsInt, IsObject, IsOptional, IsString, Matches, MaxLength, Min } from "class-validator";
+import { IsArray, IsBoolean, IsIn, IsInt, IsObject, IsOptional, IsString, Matches, Max, MaxLength, Min } from "class-validator";
 
 export class CreateStoreDto {
   @IsOptional()
@@ -202,6 +202,19 @@ export class UpsertProductDto {
   @IsInt()
   @Min(0)
   durationMin?: number | null;
+
+  /** Liệu trình mặc định (dịch vụ): số buổi, số ngày giữa 2 buổi */
+  @IsOptional()
+  @IsInt()
+  @Min(2)
+  @Max(100)
+  treatmentSessions?: number | null;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(365)
+  treatmentIntervalDays?: number | null;
 
   @IsOptional()
   @IsArray()

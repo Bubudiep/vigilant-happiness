@@ -152,7 +152,9 @@ export function ProductsSection({
       ...values,
       // Dịch vụ không quản lý kho; hàng hoá không có thời lượng; nguyên liệu không có BOM / tuỳ chọn / giá bán riêng
       // Tồn kho chỉ thay đổi qua Nhập kho / bán hàng — form không gửi tồn kho
-      ...(values.kind === "service" ? {} : { durationMin: null }),
+      ...(values.kind === "service"
+        ? { treatmentSessions: values.treatmentSessions || null, treatmentIntervalDays: values.treatmentSessions ? values.treatmentIntervalDays || 7 : null }
+        : { durationMin: null, treatmentSessions: null, treatmentIntervalDays: null }),
       stock: undefined,
       salePrice: values.salePrice ?? null,
       price: values.price ?? 0,
@@ -487,6 +489,16 @@ export function ProductsSection({
               <Form.Item label="Nhãn" name="tag">
                 <Input placeholder="Bán chạy, Mới…" />
               </Form.Item>
+            )}
+            {formKind === "service" && (
+              <>
+                <Form.Item label="Liệu trình (số buổi)" name="treatmentSessions" extra="Để trống nếu làm 1 lần">
+                  <InputNumber className="!w-full" min={2} max={100} placeholder="VD: 6" />
+                </Form.Item>
+                <Form.Item label="Mỗi buổi cách (ngày)" name="treatmentIntervalDays" extra="Gợi ý khi tạo liệu trình cho khách">
+                  <InputNumber className="!w-full" min={1} max={365} placeholder="VD: 7" />
+                </Form.Item>
+              </>
             )}
           </FormGrid>
           {formKind !== "material" && <ProfitPreview price={formSale ?? formPrice ?? 0} cost={formBom.length && liveItem ? costOf(liveItem) : (formCost ?? 0)} />}

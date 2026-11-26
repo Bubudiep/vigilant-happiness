@@ -67,6 +67,9 @@ export interface StoreProductItem {
   stock?: number;
   /** Thời lượng dịch vụ (phút) */
   durationMin?: number | null;
+  /** Liệu trình mặc định của dịch vụ: số buổi & số ngày giữa 2 buổi */
+  treatmentSessions?: number | null;
+  treatmentIntervalDays?: number | null;
   /** Giá vốn (đ / đơn vị) — món có BOM thì tính từ nguyên liệu */
   costPrice?: number;
   bom?: BomLine[] | null;
@@ -174,6 +177,11 @@ export interface StoreBookingItem {
   staffName?: string;
   status: "pending" | "confirmed" | "completed" | "cancelled";
   note?: string;
+  /** Liệu trình: các buổi cùng treatmentId; buổi thứ treatmentSeq / treatmentTotal */
+  treatmentId?: string;
+  treatmentName?: string;
+  treatmentSeq?: number;
+  treatmentTotal?: number;
   createdAt: string;
 }
 

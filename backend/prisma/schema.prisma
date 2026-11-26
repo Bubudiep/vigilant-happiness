@@ -351,6 +351,9 @@ model StoreProduct {
   combo       Json?
   /// Thời lượng dịch vụ (phút) — chỉ dùng khi kind = service
   durationMin Int?
+  /// Liệu trình mặc định của dịch vụ: số buổi & số ngày giữa 2 buổi (gợi ý khi tạo liệu trình cho khách)
+  treatmentSessions     Int?
+  treatmentIntervalDays Int?
   imageUrl    String?
   gallery     Json?
   active      Boolean          @default(true)
@@ -529,10 +532,16 @@ model StoreBooking {
   staffName    String?
   status       String         @default("pending")
   note         String?
+  /// Liệu trình: các buổi cùng 1 liệu trình chung treatmentId; buổi thứ treatmentSeq / treatmentTotal
+  treatmentId    String?
+  treatmentName  String?
+  treatmentSeq   Int?
+  treatmentTotal Int?
   createdAt    DateTime       @default(now())
   updatedAt    DateTime       @updatedAt
 
   @@index([storeId, bookingDate, status])
+  @@index([storeId, treatmentId])
 }
 
 /// Sự kiện & Chiến dịch khuyến mãi của Store

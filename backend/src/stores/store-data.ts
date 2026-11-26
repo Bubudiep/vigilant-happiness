@@ -19,6 +19,10 @@ export const serializeBooking = (b: {
   staffName: string | null;
   status: string;
   note: string | null;
+  treatmentId?: string | null;
+  treatmentName?: string | null;
+  treatmentSeq?: number | null;
+  treatmentTotal?: number | null;
   createdAt: Date;
 }) => ({
   id: b.id,
@@ -32,6 +36,7 @@ export const serializeBooking = (b: {
   staffName: b.staffName ?? undefined,
   status: b.status,
   note: b.note ?? undefined,
+  ...(b.treatmentId ? { treatmentId: b.treatmentId, treatmentName: b.treatmentName ?? undefined, treatmentSeq: b.treatmentSeq ?? undefined, treatmentTotal: b.treatmentTotal ?? undefined } : {}),
   createdAt: b.createdAt.toISOString(),
 });
 
@@ -198,6 +203,11 @@ export const SPECS = {
     staffName: "string",
     status: { oneOf: BOOKING_STATUS },
     note: "string",
+    // Liệu trình (web quản trị tạo nhiều buổi cùng treatmentId)
+    treatmentId: "string",
+    treatmentName: "string",
+    treatmentSeq: "int",
+    treatmentTotal: "int",
   },
   events: {
     title: "string",
