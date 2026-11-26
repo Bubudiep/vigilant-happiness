@@ -24,7 +24,7 @@ const moneyInput = {
 type StockAfter = { id: string; stock: number; costPrice: number }[];
 
 /** Mặt hàng nhập kho được: hàng hoá / nguyên liệu không có định mức BOM */
-export const stockable = (p: StoreProductItem) => !isService(p) && !(p.bom?.length);
+export const stockable = (p: StoreProductItem) => !isService(p) && !(p.bom?.length) && !p.combo;
 /** Dùng làm nguyên liệu được: không phải dịch vụ, không có BOM riêng */
 export const ingredientOptions = (products: StoreProductItem[], selfId?: string) =>
   products

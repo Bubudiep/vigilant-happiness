@@ -515,7 +515,7 @@ export default function StoreConsole({
   const zaloPreviewUrl = getZaloStoreUrl(store.slug);
 
   // Số sản phẩm (không tính dịch vụ) sắp hết / hết hàng — hiện ở menu "Sản phẩm & Dịch vụ"
-  const lowStock = store.products.filter((p) => p.kind !== "service" && p.kind !== "material" && !p.bom?.length && (p.stock ?? 0) <= LOW_STOCK).length;
+  const lowStock = store.products.filter((p) => p.kind !== "service" && p.kind !== "material" && !p.bom?.length && !p.combo && (p.stock ?? 0) <= LOW_STOCK).length;
   const navItems: { key: StoreNavKey; label: string; icon: React.ReactNode; badge?: number; alert?: boolean }[] = [
     { key: "overview", label: "Tổng quan", icon: <LuLayoutDashboard size={17} /> },
     { key: "pos", label: "Bán hàng", icon: <LuLayoutGrid size={17} /> },

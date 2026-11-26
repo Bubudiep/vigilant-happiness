@@ -1,3 +1,4 @@
+import { parseCombo } from "./combo";
 import { parseBom } from "./inventory";
 import { parseOptions } from "./options";
 import { ConflictException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
@@ -314,8 +315,21 @@ export class StoresService {
 
   /** Kiểm tra định mức BOM & tuỳ chọn; trả dữ liệu ghi vào DB */
   private async productData(storeId: string, productId: string | null, dto: UpdateProductDto) {
-    const { bom, options, ...rest } = dto;
+    const { bom, options, combo, ...rest } = dto;
     const data: Record<string, unknown> = { ...rest };
+    // Combo: giá = tổng giá món − giảm (máy chủ tự tính); combo không có BOM / tuỳ chọn riêng
+    if (combo !== undefined) {
+      const parsed = await parseCombo(this.prisma, storeId, productId, combo);
+      data.combo = parsed ? (parsed.combo as unknown as Prisma.InputJsonValue) : Prisma.DbNull;
+      if (parsed) {
+        data.price = parsed.base;
+        data.salePrice = parsed.price < parsed.base ? parsed.price : null;
+        data.kind = "product";
+        data.bom = Prisma.DbNull;
+        data.options = Prisma.DbNull;
+        return data;
+      }
+    }
     if (bom !== undefined) {
       const lines = await parseBom(this.prisma, storeId, productId, bom);
       data.bom = lines && lines.length ? lines : Prisma.DbNull;

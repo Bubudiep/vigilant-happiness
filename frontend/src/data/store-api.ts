@@ -45,6 +45,13 @@ export interface OptionGroup {
   choices: OptionChoice[];
 }
 
+/** Combo = nhiều món đang bán gộp thành 1 sản phẩm, có giảm giá */
+export interface ComboConfig {
+  items: { productId: string; quantity: number }[];
+  discountType: "amount" | "percent";
+  discountValue: number;
+}
+
 export interface StoreProductItem {
   id: string;
   /** product = hàng hoá (có tồn kho) | service = dịch vụ (không quản lý kho). Thiếu = product */
@@ -63,6 +70,8 @@ export interface StoreProductItem {
   costPrice?: number;
   bom?: BomLine[] | null;
   options?: OptionGroup[] | null;
+  /** Combo: các món bên trong + giảm giá (giá = tổng món − giảm) */
+  combo?: ComboConfig | null;
   imageUrl?: string;
   description?: string;
   active: boolean;

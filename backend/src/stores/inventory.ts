@@ -1,11 +1,12 @@
 import { BadRequestException } from "@nestjs/common";
 import type { Prisma } from "@prisma/client";
+import { readCombo } from "./combo";
 
 /** 1 dòng định mức: dùng `quantity` đơn vị (theo đơn vị của nguyên liệu, VD 20 g) cho 1 đơn vị thành phẩm */
 export type BomLine = { productId: string; quantity: number };
 
 type Tx = Prisma.TransactionClient;
-type ProductLite = { id: string; kind: string; stock: number; costPrice: number; bom: unknown; options?: unknown };
+type ProductLite = { id: string; kind: string; stock: number; costPrice: number; bom: unknown; options?: unknown; combo?: unknown };
 
 export const readBom = (raw: unknown): BomLine[] =>
   Array.isArray(raw)
@@ -34,29 +35,46 @@ export async function parseBom(tx: Tx, storeId: string, productId: string | null
   return lines;
 }
 
-/** Giá vốn 1 đơn vị: có BOM → tổng giá vốn nguyên liệu; không → costPrice */
-export function unitCostOf(p: ProductLite, byId: Map<string, ProductLite>) {
+/** Giá vốn 1 đơn vị: combo → tổng giá vốn các món; có BOM → tổng giá vốn nguyên liệu; không → costPrice */
+export function unitCostOf(p: ProductLite, byId: Map<string, ProductLite>): number {
+  const combo = readCombo(p.combo);
+  if (combo) return Math.round(combo.items.reduce((s, l) => { const it = byId.get(l.productId); return s + (it ? unitCostOf(it, byId) : 0) * l.quantity; }, 0));
   const bom = readBom(p.bom);
   if (!bom.length) return p.costPrice;
   return Math.round(bom.reduce((sum, l) => sum + (byId.get(l.productId)?.costPrice ?? 0) * l.quantity, 0));
 }
 
-/** Số lượng có thể làm từ tồn nguyên liệu (BOM) */
-export function makeableOf(p: ProductLite, byId: Map<string, ProductLite>) {
+/** Số lượng có thể làm từ tồn nguyên liệu (BOM) / từ tồn các món trong combo */
+export function makeableOf(p: ProductLite, byId: Map<string, ProductLite>): number | null {
+  const combo = readCombo(p.combo);
+  if (combo) {
+    const caps = combo.items.flatMap((l) => {
+      const it = byId.get(l.productId);
+      if (!it) return [0];
+      const each = makeableOf(it, byId) ?? (it.kind === "service" ? null : Math.max(0, it.stock));
+      return each === null ? [] : [Math.floor(each / l.quantity)];
+    });
+    return caps.length ? Math.min(...caps) : null;
+  }
   const bom = readBom(p.bom);
   if (!bom.length) return null;
   return Math.max(0, Math.min(...bom.map((l) => Math.floor(Math.max(0, byId.get(l.productId)?.stock ?? 0) / l.quantity))));
 }
 
-/** Nạp sản phẩm + nguyên liệu của chúng (1 cấp) */
+/** Nạp sản phẩm + món trong combo + nguyên liệu của chúng (BOM món & BOM lựa chọn) */
 export async function loadWithIngredients(tx: Tx, storeId: string, ids: string[]) {
   const products = ids.length ? await tx.storeProduct.findMany({ where: { storeId, id: { in: ids } } }) : [];
+  // Món nằm trong combo
+  const comboIds = [...new Set(products.flatMap((p) => readCombo(p.combo)?.items.map((l) => l.productId) ?? []))].filter((id) => !ids.includes(id));
+  const comboItems = comboIds.length ? await tx.storeProduct.findMany({ where: { storeId, id: { in: comboIds } } }) : [];
+  const all = [...products, ...comboItems];
+  const have = new Set(all.map((p) => p.id));
   // Nguyên liệu của BOM món + của các lựa chọn (size L thêm sữa, topping…)
   const optionIngredients = (raw: unknown) =>
     (Array.isArray(raw) ? (raw as { choices?: { bom?: unknown }[] }[]) : []).flatMap((g) => (g?.choices ?? []).flatMap((c) => readBom(c?.bom).map((l) => l.productId)));
-  const ing = [...new Set(products.flatMap((p) => [...readBom(p.bom).map((l) => l.productId), ...optionIngredients(p.options)]))].filter((id) => !ids.includes(id));
+  const ing = [...new Set(all.flatMap((p) => [...readBom(p.bom).map((l) => l.productId), ...optionIngredients(p.options)]))].filter((id) => !have.has(id));
   const more = ing.length ? await tx.storeProduct.findMany({ where: { storeId, id: { in: ing } } }) : [];
-  return new Map([...products, ...more].map((p) => [p.id, p as ProductLite]));
+  return new Map([...all, ...more].map((p) => [p.id, p as ProductLite]));
 }
 
 /**
@@ -72,8 +90,14 @@ export async function moveStockForOrder(
   const ids = [...new Set(items.map((i) => i.productId).filter((x): x is string => !!x))];
   if (!ids.length) return;
   const byId = await loadWithIngredients(tx, storeId, ids);
+  // Combo → tách thành từng món bên trong (tuỳ chọn của dòng combo không áp cho món con)
+  const lines: typeof items = items.flatMap((i) => {
+    const combo = i.productId ? readCombo(byId.get(i.productId)?.combo) : null;
+    if (!combo) return [i];
+    return combo.items.map((l) => ({ productId: l.productId, quantity: l.quantity * i.quantity }));
+  });
   const delta = new Map<string, number>();
-  for (const i of items) {
+  for (const i of lines) {
     const p = i.productId ? byId.get(i.productId) : undefined;
     if (!p) continue;
     const bom = readBom(p.bom);

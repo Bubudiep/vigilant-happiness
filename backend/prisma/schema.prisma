@@ -347,6 +347,8 @@ model StoreProduct {
   bom         Json?
   /// Phân loại & bán kèm: [{ id, name, multiple, required, max, choices: [{ id, name, price, bom? }] }]
   options     Json?
+  /// Combo: { items: [{ productId, quantity }], discountType: amount|percent, discountValue } — giá = tổng món − giảm
+  combo       Json?
   /// Thời lượng dịch vụ (phút) — chỉ dùng khi kind = service
   durationMin Int?
   imageUrl    String?

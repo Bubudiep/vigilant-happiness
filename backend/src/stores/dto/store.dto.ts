@@ -164,6 +164,11 @@ export class UpsertProductDto {
   @IsArray()
   options?: unknown[] | null;
 
+  /** Combo: { items: [{ productId, quantity }], discountType: "amount" | "percent", discountValue } — null = bỏ combo */
+  @IsOptional()
+  @IsObject()
+  combo?: { items: { productId: string; quantity: number }[]; discountType: "amount" | "percent"; discountValue: number } | null;
+
   @IsString()
   @MaxLength(140)
   name!: string;

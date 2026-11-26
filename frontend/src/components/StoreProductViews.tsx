@@ -1,6 +1,6 @@
 import { App as AntApp, Button, Collapse, Form, Input, InputNumber, Modal, Popconfirm, Radio, Segmented, Switch, Table, Tag, Tooltip } from "antd";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { LuClock, LuFlaskConical, LuHistory, LuPackage, LuPackagePlus, LuPlus, LuSearch, LuSparkles, LuTrash2 } from "react-icons/lu";
+import { LuClock, LuFlaskConical, LuHistory, LuLayers, LuPackage, LuPackagePlus, LuPlus, LuSearch, LuSparkles, LuTrash2 } from "react-icons/lu";
 import { ApiError } from "../data/platform-api";
 import {
   addStoreProduct,
@@ -15,11 +15,13 @@ import {
   type StoreProductItem,
   updateStoreProduct,
 } from "../data/store-api";
+import { ComboModal, comboSummary } from "./StoreComboViews";
 import { BomEditor, OptionsEditor, StockReceiptModal, StockReceiptsDrawer } from "./StoreInventoryViews";
 import { FilterBar, FilterSelect, FORM_PROPS, FormFooter, FormGrid, PageHeader, StatCard, StatGrid } from "./ui";
 
 export type StockState = "service" | "bom" | "out" | "low" | "ok";
-const hasBom = (p: StoreProductItem) => !!p.bom?.length;
+/** Món tính "làm được" từ nguyên liệu (BOM) hoặc từ các món bên trong (combo) — không nhập tồn trực tiếp */
+const hasBom = (p: StoreProductItem) => !!p.bom?.length || !!p.combo;
 export const stockState = (p: StoreProductItem): StockState =>
   isService(p) && !hasBom(p) ? "service" : hasBom(p) ? "bom" : (p.stock ?? 0) <= 0 ? "out" : (p.stock ?? 0) <= LOW_STOCK ? "low" : "ok";
 
@@ -70,6 +72,7 @@ export function ProductsSection({
   const [saving, setSaving] = useState(false);
   const [receipt, setReceipt] = useState<{ open: boolean; productId?: string }>({ open: false });
   const [history, setHistory] = useState(false);
+  const [comboModal, setComboModal] = useState<{ open: boolean; item?: StoreProductItem }>({ open: false });
   const [inv, setInv] = useState<InventorySummary | null>(null);
   const [form] = Form.useForm<FormValues>();
   const formKind = Form.useWatch("kind", form) as ProductKind | undefined;
@@ -135,6 +138,7 @@ export function ProductsSection({
   };
 
   const open = (item?: StoreProductItem, asKind: ProductKind = kind === "service" || kind === "material" ? (kind as ProductKind) : "product") => {
+    if (item?.combo) return setComboModal({ open: true, item });
     setModal({ open: true, item });
     form.resetFields();
     form.setFieldsValue(
@@ -250,6 +254,9 @@ export function ProductsSection({
               <Button icon={<LuSparkles size={14} />} onClick={() => open(undefined, "service")}>
                 Dịch vụ
               </Button>
+              <Button icon={<LuLayers size={14} />} onClick={() => setComboModal({ open: true })}>
+                Thêm combo
+              </Button>
               <Button type="primary" icon={<LuPlus size={14} />} onClick={() => open(undefined, "product")}>
                 Thêm sản phẩm
               </Button>
@@ -280,7 +287,9 @@ export function ProductsSection({
                       {p.name}
                     </div>
                     <div className="truncate text-xs text-slate-500">
-                      {[p.category, p.sku && `SKU ${p.sku}`, p.unit, p.options?.length ? `${p.options.map((g) => g.name).join(", ")}` : null].filter(Boolean).join(" · ")}
+                      {p.combo
+                        ? comboSummary(p.combo, products)
+                        : [p.category, p.sku && `SKU ${p.sku}`, p.unit, p.options?.length ? `${p.options.map((g) => g.name).join(", ")}` : null].filter(Boolean).join(" · ")}
                     </div>
                   </div>
                 </div>
@@ -294,7 +303,14 @@ export function ProductsSection({
                   <Tag color={KIND[kindOf(p)].color} className="!m-0">
                     {KIND[kindOf(p)].label}
                   </Tag>
-                  {hasBom(p) && (
+                  {p.combo && (
+                    <Tooltip title={`${comboSummary(p.combo, products)} · giảm ${p.combo.discountType === "percent" ? `${p.combo.discountValue}%` : money(p.combo.discountValue)}`}>
+                      <Tag color="magenta" className="!m-0">
+                        Combo
+                      </Tag>
+                    </Tooltip>
+                  )}
+                  {!!p.bom?.length && (
                     <Tooltip title={`Định mức: ${p.bom!.map((l) => `${products.find((x) => x.id === l.productId)?.name ?? "?"} ×${l.quantity}`).join(", ")}`}>
                       <Tag className="!m-0">BOM</Tag>
                     </Tooltip>
@@ -350,7 +366,7 @@ export function ProductsSection({
                 if (st === "bom") {
                   const n = invById.get(p.id)?.makeable;
                   return (
-                    <Tooltip title="Tính từ tồn nguyên liệu theo định mức">
+                    <Tooltip title={p.combo ? "Tính từ tồn các món trong combo" : "Tính từ tồn nguyên liệu theo định mức"}>
                       <span className={`text-xs ${n === 0 ? "font-semibold text-red-600" : "text-slate-600"}`}>
                         Làm được <b className="tabular-nums">{n ?? "…"}</b>
                       </span>
@@ -402,6 +418,19 @@ export function ProductsSection({
           ]}
         />
       </div>
+
+      <ComboModal
+        open={comboModal.open}
+        store={store}
+        item={comboModal.item}
+        onClose={() => setComboModal({ open: false })}
+        onSaved={(saved, created) => {
+          if (created) onLocal((s) => ({ ...s, products: [saved, ...s.products] }));
+          else replace(saved);
+          setComboModal({ open: false });
+          loadInv();
+        }}
+      />
 
       <Modal
         title={modal.item ? `Sửa ${KIND[kindOf(modal.item)].label.toLowerCase()}` : `Thêm ${KIND[formKind ?? "product"].label.toLowerCase()}`}
