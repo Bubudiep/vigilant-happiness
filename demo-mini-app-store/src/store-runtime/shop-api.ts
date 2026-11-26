@@ -34,6 +34,20 @@ export interface ShopAlbumDetail extends ShopAlbumSummary {
   photos: ShopAlbumPhoto[];
 }
 
+/** Thẻ "Kết quả buổi liệu trình" (cửa hàng gửi khách) */
+export interface ShopTreatmentCard {
+  type: "treatment_result";
+  treatmentName: string;
+  seq: number;
+  total: number;
+  done: number;
+  date: string;
+  timeSlot: string;
+  staffName?: string | null;
+  result: string;
+  next?: { seq: number; date: string; timeSlot: string } | null;
+}
+
 /** direction "out" = cửa hàng gửi cho khách, "in" = khách gửi cửa hàng */
 export interface ShopMessage {
   id: string;
@@ -41,6 +55,8 @@ export interface ShopMessage {
   body: string;
   createdAt: string;
   albumId?: string | null;
+  /** Tin dạng thẻ (VD kết quả buổi liệu trình) — có thì hiện thẻ thay cho body */
+  card?: ShopTreatmentCard | null;
 }
 
 export interface ShopUnread {

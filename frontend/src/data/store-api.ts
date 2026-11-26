@@ -182,6 +182,8 @@ export interface StoreBookingItem {
   treatmentName?: string;
   treatmentSeq?: number;
   treatmentTotal?: number;
+  /** Kết quả / ghi chú của buổi (nhập khi hoàn thành) */
+  result?: string;
   createdAt: string;
 }
 

@@ -3,6 +3,7 @@
  *
  *   npm run seed:demo            → xoá dữ liệu mẫu cũ rồi tạo lại
  *   npm run seed:demo -- --clean → chỉ xoá dữ liệu mẫu
+ *   npm run seed:demo -- --treatments → chỉ tạo lại liệu trình mẫu (spa, phòng khám) cho store mẫu đang có
  *
  * Chỉ đụng tới bản ghi có dấu "mẫu", không sửa dữ liệu thật:
  *   khách nền tảng email *@demo.remini.vn · store slug demo-* · lead source "demo" ·
@@ -633,7 +634,128 @@ async function seedStore(spec: StoreSpec, owner: { id: string }, subscriptionId:
   return { id: sid, slug: spec.slug, products: products.length, customers: customers.length };
 }
 
+/**
+ * Liệu trình mẫu (spa, phòng khám): mỗi liệu trình = N lịch hẹn cùng treatmentId "LTDEMO…".
+ * Buổi đã qua: phần lớn Hoàn thành kèm kết quả buổi; có 1 liệu trình đã dừng và 1 buổi quá hẹn.
+ * Chạy lại được: xoá liệu trình mẫu cũ của store trước khi tạo.
+ */
+const TREATMENTS: Record<string, { service: string; sessions: number; interval: number; staff: string; results: string[] }[]> = {
+  "demo-lotusspa": [
+    {
+      service: "Liệu trình trị mụn 10 buổi",
+      sessions: 10,
+      interval: 7,
+      staff: "Mai Linh",
+      results: [
+        "Da dầu, mụn viêm vùng má & cằm — làm sạch sâu, lấy nhân mụn, đắp mặt nạ làm dịu",
+        "Mụn viêm giảm ~30%, không lên mụn mới. Dặn hạn chế đồ ngọt",
+        "Da bớt đỏ, còn mụn ẩn vùng trán — chiếu ánh sáng xanh 15'",
+        "Mụn viêm gần hết, bắt đầu mờ thâm bằng peel nhẹ",
+        "Thâm mờ khoảng 40%, da căng hơn. Khách hài lòng",
+        "Lên 2 nốt mụn mới do thức khuya — xử lý tại chỗ",
+        "Da ổn định, lỗ chân lông se hơn",
+      ],
+    },
+    {
+      service: "Chăm sóc da cơ bản 60'",
+      sessions: 6,
+      interval: 14,
+      staff: "Mai Linh",
+      results: ["Da khô thiếu nước — cấp ẩm HA, massage nâng cơ", "Da ẩm hơn, bớt bong tróc", "Tẩy tế bào chết nhẹ, da sáng hơn", "Da đều màu, khách muốn thêm gói tắm trắng"],
+    },
+    {
+      service: "Tắm trắng thảo dược",
+      sessions: 8,
+      interval: 7,
+      staff: "Hồng Nhung",
+      results: ["Da body sạm vùng tay chân — ủ thảo dược 30'", "Da sáng hơn 1 tông", "Khách bị kích ứng nhẹ vùng cổ — giảm thời gian ủ", "Không còn kích ứng, da đều màu"],
+    },
+  ],
+  "demo-babysee": [
+    {
+      service: "Gói theo dõi thai kỳ 8 mốc",
+      sessions: 8,
+      interval: 28,
+      staff: "BS. Lê Thu Hằng",
+      results: [
+        "Thai 12 tuần, độ mờ da gáy 1,4 mm — bình thường. Hẹn mốc 16 tuần",
+        "Thai 16 tuần, tim thai 152 l/p, nước ối bình thường",
+        "Hình thái học tuần 22: chưa phát hiện bất thường, bánh nhau mặt trước",
+        "Thai 26 tuần ~950 g, đường huyết mẹ hơi cao — tư vấn dinh dưỡng",
+        "Thai 30 tuần ~1,5 kg, ngôi đầu",
+      ],
+    },
+    {
+      service: "Khám thai định kỳ",
+      sessions: 6,
+      interval: 28,
+      staff: "BS. Lê Thu Hằng",
+      results: ["Huyết áp 110/70, mẹ khoẻ. Bổ sung sắt + canxi", "Tăng 1,5 kg so với lần trước — phù hợp", "Mẹ hơi phù chân nhẹ, dặn nghỉ ngơi kê cao chân"],
+    },
+  ],
+};
+
+async function seedTreatments(stores: { id: string; slug: string }[]) {
+  const SLOT = ["09:00", "10:30", "13:00", "14:30", "16:00"];
+  let total = 0;
+  for (const st of stores) {
+    const specs = TREATMENTS[st.slug];
+    if (!specs) continue;
+    await prisma.storeBooking.deleteMany({ where: { storeId: st.id, treatmentId: { startsWith: "LTDEMO" } } });
+    // Dịch vụ khai liệu trình mặc định (gợi ý khi tạo)
+    for (const t of specs) {
+      await prisma.storeProduct.updateMany({ where: { storeId: st.id, name: t.service }, data: { treatmentSessions: t.sessions, treatmentIntervalDays: t.interval } });
+    }
+    const customers = await prisma.storeCustomer.findMany({ where: { storeId: st.id }, orderBy: { createdAt: "asc" }, take: 12 });
+    // Ngày bắt đầu của từng liệu trình (số ngày so với hôm nay)
+    const starts = [-63, -45, -30, -21, -12, -5, 1];
+    for (const [k, start] of starts.entries()) {
+      const t = specs[k % specs.length];
+      const c = customers[k % customers.length];
+      if (!c) break;
+      const tid = `LTDEMO${st.slug.slice(5, 9).toUpperCase()}${k}`;
+      const stopped = k === 1; // khách dừng giữa chừng
+      const slot = SLOT[k % SLOT.length];
+      for (let i = 0; i < t.sessions; i++) {
+        const d = start + i * t.interval;
+        const past = d < 0;
+        // 1 buổi quá hẹn (đã qua ngày nhưng chưa làm) ở liệu trình thứ 3
+        const overdue = k === 2 && past && d >= -t.interval;
+        const status = stopped && i >= 3 ? "cancelled" : overdue ? "confirmed" : past ? (rnd() > 0.92 ? "cancelled" : "completed") : "confirmed";
+        await prisma.storeBooking.create({
+          data: {
+            storeId: st.id,
+            customerId: c.id,
+            code: `DMLT${st.slug.slice(5, 7).toUpperCase()}${k}${String(i + 1).padStart(2, "0")}`,
+            customerName: c.name,
+            phone: c.phone,
+            serviceName: t.service,
+            bookingDate: daysFromNow(d, 0),
+            timeSlot: slot,
+            staffName: t.staff,
+            status,
+            note: stopped && i === 3 ? "Khách báo chuyển công tác, tạm dừng liệu trình" : null,
+            treatmentId: tid,
+            treatmentName: /buổi/.test(t.service) ? t.service : `${t.service} · ${t.sessions} buổi`,
+            treatmentSeq: i + 1,
+            treatmentTotal: t.sessions,
+            result: status === "completed" ? t.results[i % t.results.length] : null,
+          },
+        });
+        total++;
+      }
+    }
+  }
+  return total;
+}
+
 async function main() {
+  // npm run seed:demo -- --treatments → chỉ (tạo lại) liệu trình mẫu cho các store mẫu đang có, không xoá dữ liệu khác
+  if (hasFlag("--treatments")) {
+    const stores = await prisma.store.findMany({ where: { slug: { startsWith: "demo-" } }, select: { id: true, slug: true } });
+    console.log("Đã tạo lịch hẹn liệu trình mẫu:", await seedTreatments(stores));
+    return;
+  }
   await clean();
   if (hasFlag("--clean")) return;
 
@@ -792,6 +914,7 @@ async function main() {
     await prisma.project.updateMany({ where: { customerId: customers[s.customerIdx].id }, data: { storeId: r.id } });
     results.push(r);
   }
+  await seedTreatments(results);
   // Quán cà phê: nguyên liệu + định mức (BOM) + size / topping + phiếu nhập kho
   const cafeStore = results.find((x) => x.slug === "demo-mochuong");
   if (cafeStore) {

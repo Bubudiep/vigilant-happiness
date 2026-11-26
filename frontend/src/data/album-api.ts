@@ -54,11 +54,28 @@ export interface AlbumDetail extends AlbumSummary {
   photos: AlbumPhoto[];
 }
 
+/** Thẻ "Kết quả buổi liệu trình" gửi cho khách */
+export interface TreatmentResultCard {
+  type: "treatment_result";
+  bookingId: string;
+  treatmentName: string;
+  serviceName: string;
+  seq: number;
+  total: number;
+  done: number;
+  date: string;
+  timeSlot: string;
+  staffName?: string | null;
+  result: string;
+  next?: { seq: number; date: string; timeSlot: string } | null;
+}
+
 export interface StoreMessage {
   id: string;
   direction: "in" | "out";
   body: string;
   albumId?: string | null;
+  card?: TreatmentResultCard | null;
   readAt?: string | null;
   createdAt: string;
 }
@@ -109,6 +126,13 @@ export const fetchConversations = (storeId: string) => api<Conversation[]>(`${ba
 export const fetchStoreThread = (storeId: string, customerId: string) => api<StoreMessage[]>(`${base(storeId)}/messages/${customerId}`);
 export const sendStoreMessage = (storeId: string, customerId: string, body: string) =>
   api<StoreMessage>(`${base(storeId)}/messages/${customerId}`, { method: "POST", body: JSON.stringify({ body }) });
+
+/** Lưu kết quả buổi liệu trình (đánh dấu Hoàn thành) rồi gửi cho khách dạng thẻ trong chat */
+export const sendTreatmentResult = (storeId: string, bookingId: string, result: string) =>
+  api<{ message: StoreMessage; booking: { id: string; status: string; result: string } }>(`${base(storeId)}/messages/treatment-result/${bookingId}`, {
+    method: "POST",
+    body: JSON.stringify({ result }),
+  });
 
 /** Thu nhỏ ảnh trước khi tải (cạnh dài tối đa 2048px, JPEG 85%) — ảnh gốc để ở link Drive. */
 export async function shrinkImage(file: File, maxSide = 2048): Promise<Blob> {

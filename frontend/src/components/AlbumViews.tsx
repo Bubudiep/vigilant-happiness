@@ -62,6 +62,7 @@ import { fmtBytes } from "../data/format";
 import { MAX_BATCH_FILES, MAX_SINGLE_BYTES, splitBatches } from "../data/upload-batch";
 import type { StoreConfig } from "../data/store-api";
 import { FilterBar, FilterSelect, PageHeader } from "./ui";
+import { TreatmentResultCard } from "./TreatmentResultCard";
 
 const errMsg = (e: unknown, fb = "Thao tác thất bại") => (e instanceof ApiError ? e.message : fb);
 
@@ -1198,6 +1199,17 @@ export function CustomerThread({
         {msgs.length === 0 && <div className="py-3 text-center text-xs text-slate-400">Chưa có tin nhắn</div>}
         {msgs.map((m) => (
           <div key={m.id} className={`flex ${m.direction === "out" ? "justify-end" : "justify-start"}`}>
+            {m.card?.type === "treatment_result" ? (
+              <TreatmentResultCard
+                card={m.card}
+                footer={
+                  <>
+                    {dayjs(m.createdAt).format("HH:mm DD/MM")}
+                    {m.direction === "out" && (m.readAt ? " · đã xem" : " · đã gửi")}
+                  </>
+                }
+              />
+            ) : (
             <div
               className={`max-w-[85%] rounded-2xl px-2.5 py-1.5 text-xs ${
                 m.direction === "out" ? "bg-brand-600 text-white" : "border border-slate-200 bg-white text-slate-800"
@@ -1209,6 +1221,7 @@ export function CustomerThread({
                 {m.direction === "out" && (m.readAt ? " · đã xem" : "")}
               </div>
             </div>
+            )}
           </div>
         ))}
       </div>

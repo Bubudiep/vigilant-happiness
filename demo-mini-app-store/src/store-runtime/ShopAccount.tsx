@@ -14,6 +14,7 @@ import {
   ShopUnread,
 } from "./shop-api";
 import { getShopSession, ShopApiError, ShopAuthError, shopLogin, ShopSession } from "./shop-session";
+import { TreatmentResultCard } from "./TreatmentResultCard";
 
 /**
  * Khu vực khách của gian hàng (album ảnh + tin nhắn): nút nổi nhỏ ở góc dưới phải, mở panel toàn màn hình.
@@ -339,6 +340,12 @@ function Messages({ slug, primary, onExpired }: { slug: string; primary: string;
         {data.length === 0 && <div className="py-12 text-center text-sm text-slate-400">Chưa có tin nhắn. Hãy nhắn cho cửa hàng nhé!</div>}
         {data.map((m) => {
           const mine = m.direction === "in";
+          if (m.card?.type === "treatment_result")
+            return (
+              <div key={m.id} className="flex justify-start">
+                <TreatmentResultCard card={m.card} primary={primary} time={fmtTime(m.createdAt)} />
+              </div>
+            );
           return (
             <div key={m.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
               <div

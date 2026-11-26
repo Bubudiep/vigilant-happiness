@@ -23,6 +23,7 @@ export const serializeBooking = (b: {
   treatmentName?: string | null;
   treatmentSeq?: number | null;
   treatmentTotal?: number | null;
+  result?: string | null;
   createdAt: Date;
 }) => ({
   id: b.id,
@@ -37,6 +38,7 @@ export const serializeBooking = (b: {
   status: b.status,
   note: b.note ?? undefined,
   ...(b.treatmentId ? { treatmentId: b.treatmentId, treatmentName: b.treatmentName ?? undefined, treatmentSeq: b.treatmentSeq ?? undefined, treatmentTotal: b.treatmentTotal ?? undefined } : {}),
+  ...(b.result ? { result: b.result } : {}),
   createdAt: b.createdAt.toISOString(),
 });
 
@@ -208,6 +210,7 @@ export const SPECS = {
     treatmentName: "string",
     treatmentSeq: "int",
     treatmentTotal: "int",
+    result: "text",
   },
   events: {
     title: "string",

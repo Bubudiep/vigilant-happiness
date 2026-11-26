@@ -360,6 +360,56 @@ export class AlbumsService {
     return this.prisma.storeMessage.create({ data: { storeId, customerId, direction, body: text.slice(0, 2000) } });
   }
 
+  /**
+   * Gửi kết quả 1 buổi liệu trình cho khách (tin dạng thẻ "treatment_result" trong hộp thư Mini App).
+   * Có `result` → lưu luôn kết quả & đánh dấu buổi Hoàn thành trước khi gửi.
+   */
+  async sendTreatmentResult(storeId: string, bookingId: string, result?: string) {
+    const b = await this.prisma.storeBooking.findFirst({ where: { id: bookingId, storeId } });
+    if (!b) throw new NotFoundException("Không tìm thấy lịch hẹn");
+    if (!b.treatmentId) throw new BadRequestException("Lịch hẹn này không thuộc liệu trình");
+    const text = (result ?? b.result ?? "").trim().slice(0, 2000);
+    if (!text) throw new BadRequestException("Nhập kết quả buổi trước khi gửi");
+    // Khách của lịch: theo customerId, không có thì tìm theo SĐT
+    const customerId =
+      b.customerId ?? (await this.prisma.storeCustomer.findFirst({ where: { storeId, phone: b.phone }, select: { id: true } }))?.id ?? null;
+    if (!customerId) throw new BadRequestException("Khách chưa có trong danh sách khách hàng của cửa hàng — chưa gửi tin được");
+
+    const booking = await this.prisma.storeBooking.update({
+      where: { id: b.id },
+      data: { status: "completed", result: text, customerId },
+    });
+    const all = await this.prisma.storeBooking.findMany({
+      where: { storeId, treatmentId: b.treatmentId },
+      select: { treatmentSeq: true, status: true, bookingDate: true, timeSlot: true },
+      orderBy: { treatmentSeq: "asc" },
+    });
+    const next = all.find((x) => (x.treatmentSeq ?? 0) > (b.treatmentSeq ?? 0) && (x.status === "pending" || x.status === "confirmed"));
+    const day = (d: Date) => d.toISOString().slice(0, 10);
+    const card = {
+      type: "treatment_result",
+      bookingId: b.id,
+      treatmentName: b.treatmentName ?? b.serviceName,
+      serviceName: b.serviceName,
+      seq: b.treatmentSeq,
+      total: b.treatmentTotal ?? all.length,
+      done: all.filter((x) => x.status === "completed").length,
+      date: day(b.bookingDate),
+      timeSlot: b.timeSlot,
+      staffName: b.staffName,
+      result: text,
+      next: next ? { seq: next.treatmentSeq, date: day(next.bookingDate), timeSlot: next.timeSlot } : null,
+    };
+    const [y, m, d] = card.date.split("-");
+    const body =
+      `Kết quả buổi ${card.seq}/${card.total} — ${card.treatmentName} (${d}/${m}/${y}):\n${text}` +
+      (card.next ? `\nBuổi tiếp theo: ${card.next.date.split("-").reverse().join("/")} lúc ${card.next.timeSlot}` : "");
+    const message = await this.prisma.storeMessage.create({
+      data: { storeId, customerId, direction: "out", body, card: card as Prisma.InputJsonValue },
+    });
+    return { message, booking: { id: booking.id, status: booking.status, result: booking.result } };
+  }
+
   /** Hội thoại của store kiểu Zalo: tin cuối cùng + số tin chưa đọc theo từng khách. */
   async conversations(storeId: string) {
     const [last, unread] = await Promise.all([

@@ -124,6 +124,13 @@ export class StoreAlbumsController {
     return this.albums.thread(id, customerId, "in");
   }
 
+  @Post("messages/treatment-result/:bookingId")
+  @ApiOperation({ summary: "Gửi kết quả buổi liệu trình cho khách (tin dạng thẻ); { result? } = lưu kết quả + hoàn thành buổi rồi gửi" })
+  async sendTreatmentResult(@Req() req: AppRequest, @Param("id") id: string, @Param("bookingId") bookingId: string, @Body("result") result?: string) {
+    await this.stores.ensureSection(req.auth!, id, "bookings");
+    return this.albums.sendTreatmentResult(id, bookingId, typeof result === "string" ? result : undefined);
+  }
+
   @Post("messages/:customerId")
   async send(@Req() req: AppRequest, @Param("id") id: string, @Param("customerId") customerId: string, @Body("body") body: string) {
     await this.stores.ensureSection(req.auth!, id, "albums");

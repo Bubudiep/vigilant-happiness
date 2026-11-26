@@ -537,6 +537,8 @@ model StoreBooking {
   treatmentName  String?
   treatmentSeq   Int?
   treatmentTotal Int?
+  /// Kết quả / ghi chú của buổi (nhập khi hoàn thành — VD tình trạng da, liều dùng)
+  result         String?
   createdAt    DateTime       @default(now())
   updatedAt    DateTime       @updatedAt
 
@@ -640,6 +642,8 @@ model StoreMessage {
   body       String
   albumId    String?
   album      StoreAlbum?   @relation(fields: [albumId], references: [id], onDelete: SetNull)
+  /// Tin dạng thẻ (VD { type: "treatment_result", … } — kết quả buổi liệu trình); body là bản chữ thay thế
+  card       Json?
   readAt     DateTime?
   createdAt  DateTime      @default(now())
 

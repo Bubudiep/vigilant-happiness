@@ -17,13 +17,24 @@ import {
 } from "antd";
 import dayjs, { type Dayjs } from "dayjs";
 import { useEffect, useMemo, useState } from "react";
-import { LuCircleAlert, LuPhone, LuRepeat, LuSearch } from "react-icons/lu";
+import {
+  LuCheck,
+  LuCircleAlert,
+  LuNotebookPen,
+  LuPhone,
+  LuRepeat,
+  LuSearch,
+  LuSend,
+  LuX,
+} from "react-icons/lu";
 import {
   isService,
   type StoreBookingItem,
   type StoreConfig,
 } from "../data/store-api";
 import { FormGrid, PageHeader } from "./ui";
+import { sendTreatmentResult } from "../data/album-api";
+import { ApiError } from "../data/platform-api";
 
 /**
  * Liệu trình — 1 dịch vụ làm nhiều buổi (VD triệt lông 6 buổi, mỗi buổi cách 4 tuần).
@@ -262,7 +273,7 @@ export function TreatmentModal({
     note?: string;
   }) => {
     const id = `LT${dayjs().format("YYMMDD")}${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
-    const name = `${v.serviceName.trim()} · ${rows.length} buổi`;
+    const name = /buổi/i.test(v.serviceName) ? v.serviceName.trim() : `${v.serviceName.trim()} · ${rows.length} buổi`;
     const now = Date.now();
     onCreate(
       rows.map((r, i) => ({
@@ -626,16 +637,16 @@ export function TreatmentsSection({
       )
     : [];
 
-  const setStatus = (
+  const patchSessions = (
     ids: string[],
-    status: StoreBookingItem["status"],
+    patch: Partial<StoreBookingItem>,
     msg: string,
   ) => {
     const set = new Set(ids);
     updateCurrentStore((s) => ({
       ...s,
       bookings: (s.bookings ?? []).map((b) =>
-        set.has(b.id) ? { ...b, status } : b,
+        set.has(b.id) ? { ...b, ...patch } : b,
       ),
     }));
     message.success(msg);
@@ -761,7 +772,12 @@ export function TreatmentsSection({
               )}
               <div className="space-y-3">
                 {curPlans.map((p) => (
-                  <TreatmentCard key={p.id} plan={p} onStatus={setStatus} />
+                  <TreatmentCard
+                    key={p.id}
+                    storeId={store.id}
+                    plan={p}
+                    onPatch={patchSessions}
+                  />
                 ))}
               </div>
             </>
@@ -790,18 +806,62 @@ export function TreatmentsSection({
   );
 }
 
-/** TreatmentCard — 1 liệu trình: tiến độ, buổi tiếp theo, từng buổi (đổi trạng thái), dừng liệu trình */
+/** TreatmentCard — 1 liệu trình: tiến độ, buổi tiếp theo, dòng thời gian các buổi (đổi trạng thái, kết quả buổi), dừng liệu trình */
 function TreatmentCard({
+  storeId,
   plan,
-  onStatus,
+  onPatch,
 }: {
+  storeId: string;
   plan: Plan;
-  onStatus: (
+  onPatch: (
     ids: string[],
-    status: StoreBookingItem["status"],
+    patch: Partial<StoreBookingItem>,
     msg: string,
   ) => void;
 }) {
+  const { message } = AntApp.useApp();
+  // SessionResultModal — nhập kết quả / ghi chú khi đánh dấu Hoàn thành (hoặc sửa lại sau)
+  const [resultFor, setResultFor] = useState<StoreBookingItem | null>(null);
+  const [resultText, setResultText] = useState("");
+  const openResult = (b: StoreBookingItem) => {
+    setResultFor(b);
+    setResultText(b.result ?? "");
+  };
+  const saveResult = () => {
+    if (!resultFor) return;
+    onPatch(
+      [resultFor.id],
+      { status: "completed", result: resultText.trim() || undefined },
+      `Buổi ${resultFor.treatmentSeq}: đã hoàn thành`,
+    );
+    setResultFor(null);
+  };
+  // Lưu & gửi: máy chủ lưu kết quả + hoàn thành buổi, rồi gửi thẻ kết quả vào chat của khách
+  const [sending, setSending] = useState(false);
+  const sendResult = async () => {
+    if (!resultFor) return;
+    setSending(true);
+    try {
+      const r = await sendTreatmentResult(
+        storeId,
+        resultFor.id,
+        resultText.trim(),
+      );
+      onPatch(
+        [resultFor.id],
+        { status: "completed", result: r.booking.result },
+        `Đã gửi kết quả buổi ${resultFor.treatmentSeq} cho khách`,
+      );
+      setResultFor(null);
+    } catch (e) {
+      message.error(
+        e instanceof ApiError ? e.message : "Không gửi được kết quả",
+      );
+    } finally {
+      setSending(false);
+    }
+  };
   const total = plan.sessions.length;
   const done = plan.sessions.filter((b) => b.status === "completed").length;
   const open = plan.sessions.filter(isOpen);
@@ -854,46 +914,172 @@ function TreatmentCard({
           />
         </div>
       </div>
-      <div className="mt-2 grid gap-x-4 sm:grid-cols-2">
-        {plan.sessions.map((b) => (
-          <div
-            key={b.id}
-            className="flex items-center gap-2 border-t border-slate-100 py-0.5 text-xs"
-          >
-            <span className="w-12 shrink-0 font-semibold text-violet-700">
-              Buổi {b.treatmentSeq}
-            </span>
-            <span
-              className={`flex-1 tabular-nums ${b.status === "cancelled" ? "text-slate-400 line-through" : "text-slate-700"}`}
+      {/* TreatmentTimeline — mỗi buổi 1 hàng, nối bằng đường dọc */}
+      <ol data-ui="TreatmentTimeline" className="mt-3">
+        {plan.sessions.map((b, i) => {
+          const isNext = b.id === next?.id;
+          const late = isOpen(b) && b.date < today;
+          const days = dayjs(b.date).diff(dayjs(today), "day");
+          const last = i === total - 1;
+          return (
+            <li
+              key={b.id}
+              className={`relative rounded-md p-1 text-xs ${isNext ? "bg-violet-50" : ""}`}
             >
-              {WEEKDAY[dayjs(b.date).day()]} {dayjs(b.date).format("DD/MM/YY")}{" "}
-              · {b.timeSlot}
-            </span>
-            <Select
-              size="small"
-              variant="borderless"
-              value={b.status}
-              popupMatchSelectWidth={false}
-              onChange={(v) =>
-                onStatus([b.id], v, `Buổi ${b.treatmentSeq}: đã cập nhật`)
-              }
-              options={BOOKING_STATUS.map((o) => ({
-                value: o.value,
-                label: (
-                  <Tag
-                    className="!m-0"
-                    color={
-                      STATUS_TAG[o.value as StoreBookingItem["status"]].color
-                    }
+              {/* Đường nối & nút mốc */}
+              {!last && (
+                <span
+                  className={`absolute bottom-[-18px] left-[13px] top-[18px] w-0.5 ${b.status === "completed" ? "bg-violet-400" : "bg-slate-200"}`}
+                />
+              )}
+              <div className="flex items-center gap-3">
+                <span
+                  className={`relative z-[1] flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full border-2 text-white ${
+                    b.status === "completed"
+                      ? "border-violet-600 bg-violet-600"
+                      : b.status === "cancelled"
+                        ? "border-slate-300 bg-slate-100 !text-slate-400"
+                        : late
+                          ? "border-red-500 bg-white"
+                          : isNext
+                            ? "border-violet-600 bg-white ring-4 ring-violet-100"
+                            : "border-slate-300 bg-white"
+                  }`}
+                >
+                  {b.status === "completed" ? (
+                    <LuCheck size={11} strokeWidth={3} />
+                  ) : b.status === "cancelled" ? (
+                    <LuX size={10} strokeWidth={3} />
+                  ) : null}
+                </span>
+                <span
+                  className={`w-12 shrink-0 font-semibold ${b.status === "cancelled" ? "text-slate-400" : "text-violet-700"}`}
+                >
+                  Buổi {b.treatmentSeq}
+                </span>
+                <span
+                  className={`w-36 shrink-0 tabular-nums ${b.status === "cancelled" ? "text-slate-400 line-through" : "text-slate-800"}`}
+                >
+                  {WEEKDAY[dayjs(b.date).day()]}{" "}
+                  {dayjs(b.date).format("DD/MM/YYYY")} · {b.timeSlot}
+                </span>
+                <span
+                  className={`min-w-0 flex-1 truncate ${late ? "font-semibold text-red-600" : "text-slate-400"}`}
+                >
+                  {isOpen(b)
+                    ? late
+                      ? `Quá hẹn ${-days} ngày`
+                      : days === 0
+                        ? "Hôm nay"
+                        : days === 1
+                          ? "Ngày mai"
+                          : `Còn ${days} ngày`
+                    : ""}
+                  {b.staffName && (
+                    <span className="text-slate-400">
+                      {isOpen(b) ? " · " : ""}
+                      {b.staffName}
+                    </span>
+                  )}
+                </span>
+                {b.status === "completed" && (
+                  <Tooltip
+                    title={b.result ? "Sửa kết quả buổi" : "Thêm kết quả buổi"}
                   >
-                    {o.label}
-                  </Tag>
-                ),
-              }))}
-            />
+                    <Button
+                      size="small"
+                      type="text"
+                      icon={<LuNotebookPen size={13} />}
+                      onClick={() => openResult(b)}
+                    />
+                  </Tooltip>
+                )}
+                <Select
+                  size="small"
+                  variant="borderless"
+                  value={b.status}
+                  popupMatchSelectWidth={false}
+                  onChange={(v) =>
+                    v === "completed"
+                      ? openResult(b)
+                      : onPatch(
+                          [b.id],
+                          { status: v },
+                          `Buổi ${b.treatmentSeq}: đã cập nhật`,
+                        )
+                  }
+                  options={BOOKING_STATUS.map((o) => ({
+                    value: o.value,
+                    label: (
+                      <Tag
+                        className="!m-0"
+                        color={
+                          STATUS_TAG[o.value as StoreBookingItem["status"]]
+                            .color
+                        }
+                      >
+                        {o.label}
+                      </Tag>
+                    ),
+                  }))}
+                />
+              </div>
+              {/* SessionResult — kết quả / ghi chú của buổi */}
+              {b.result && (
+                <button
+                  type="button"
+                  onClick={() => openResult(b)}
+                  className="ml-[30px] mt-1 block w-[calc(100%-30px)] whitespace-pre-line rounded-md border border-slate-100 bg-slate-50 px-2 py-1 text-left text-xs leading-relaxed text-slate-600 transition hover:border-slate-200"
+                >
+                  {b.result}
+                </button>
+              )}
+            </li>
+          );
+        })}
+      </ol>
+      <Modal
+        title={
+          resultFor
+            ? `Hoàn thành buổi ${resultFor.treatmentSeq}/${resultFor.treatmentTotal} — ${dayjs(resultFor.date).format("DD/MM/YYYY")}`
+            : ""
+        }
+        open={!!resultFor}
+        onCancel={() => setResultFor(null)}
+        destroyOnHidden
+        footer={
+          <div className="flex justify-end gap-2">
+            <Button onClick={() => setResultFor(null)}>Huỷ</Button>
+            <Button onClick={saveResult}>Lưu</Button>
+            <Tooltip title="Lưu & gửi khách dạng thẻ trong tin nhắn Mini App">
+              <Button
+                type="primary"
+                icon={<LuSend size={14} />}
+                loading={sending}
+                disabled={!resultText.trim()}
+                onClick={sendResult}
+              >
+                Lưu & gửi khách
+              </Button>
+            </Tooltip>
           </div>
-        ))}
-      </div>
+        }
+      >
+        <div data-ui="SessionResultModal">
+          <div className="mb-1.5 text-xs text-slate-500">
+            Kết quả / ghi chú buổi này (tình trạng, liều dùng, dặn dò…) — xem
+            lại ở các buổi sau.
+          </div>
+          <Input.TextArea
+            autoFocus
+            value={resultText}
+            onChange={(e) => setResultText(e.target.value)}
+            autoSize={{ minRows: 3, maxRows: 8 }}
+            maxLength={2000}
+            placeholder="VD: Mụn viêm giảm ~30%, da bớt đỏ. Dặn dùng kem chống nắng."
+          />
+        </div>
+      </Modal>
       {open.length > 0 && (
         <div className="mt-1 flex justify-end">
           <Popconfirm
@@ -902,9 +1088,9 @@ function TreatmentCard({
             okButtonProps={{ danger: true }}
             cancelText="Không"
             onConfirm={() =>
-              onStatus(
+              onPatch(
                 open.map((b) => b.id),
-                "cancelled",
+                { status: "cancelled" },
                 `Đã dừng liệu trình (huỷ ${open.length} buổi)`,
               )
             }
