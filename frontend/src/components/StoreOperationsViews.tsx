@@ -1045,11 +1045,43 @@ export function BookingsSection({
 
   const chipDetail = (b: StoreBookingItem) => (
     <div className="w-[280px] space-y-2 text-xs">
-      <div>
-        <div className="text-sm font-bold text-slate-900">{b.customerName}</div>
-        <a href={`tel:${b.phone}`} className="tabular-nums text-brand-600">
-          {b.phone}
-        </a>
+      {/* Đầu: tên khách (trái) ⟷ trạng thái dạng select (phải) */}
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="truncate text-sm font-bold text-slate-900">
+            {b.customerName}
+          </div>
+          <a href={`tel:${b.phone}`} className="tabular-nums text-brand-600">
+            {b.phone}
+          </a>
+        </div>
+        <Select
+          size="small"
+          variant="borderless"
+          value={b.status}
+          popupMatchSelectWidth={false}
+          className="-mr-2 shrink-0"
+          onChange={(v) =>
+            patchBooking(
+              b.id,
+              { status: v },
+              `Đã chuyển sang "${BOOKING_STATUS_OPTIONS.find((o) => o.value === v)?.label}"`,
+            )
+          }
+          options={BOOKING_STATUS_OPTIONS.map((o) => ({
+            value: o.value,
+            label: (
+              <Tag
+                className="!m-0"
+                color={
+                  BOOKING_STATUS_COLOR[o.value as StoreBookingItem["status"]]
+                }
+              >
+                {o.label}
+              </Tag>
+            ),
+          }))}
+        />
       </div>
       <div className="rounded-lg bg-slate-50 p-2 text-slate-600">
         <div className="font-semibold text-slate-800">{b.serviceName}</div>
@@ -1065,28 +1097,6 @@ export function BookingsSection({
         bookings={bookings}
         onCancelRest={cancelTreatmentRest}
       />
-      <div className="flex flex-wrap gap-1">
-        {BOOKING_STATUS_OPTIONS.map((o) => (
-          <button
-            key={o.value}
-            type="button"
-            onClick={() =>
-              patchBooking(
-                b.id,
-                { status: o.value as StoreBookingItem["status"] },
-                `Đã chuyển sang "${o.label}"`,
-              )
-            }
-            className={`rounded-full border px-2 py-0.5 text-2xs font-semibold transition ${
-              b.status === o.value
-                ? "border-slate-900 bg-slate-900 text-white"
-                : "border-slate-200 text-slate-600 hover:border-slate-400"
-            }`}
-          >
-            {o.label}
-          </button>
-        ))}
-      </div>
       <Select
         size="small"
         className="w-full"
