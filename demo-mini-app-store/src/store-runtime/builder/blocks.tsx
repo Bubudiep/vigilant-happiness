@@ -34,6 +34,21 @@ export interface VoucherLike {
   active?: boolean;
 }
 
+/** Lịch hẹn của khách đang đăng nhập (Mini App) — dùng cho khối Lịch hẹn của tôi / Liệu trình của tôi */
+export interface BookingLike {
+  id: string;
+  serviceName: string;
+  date: string;
+  timeSlot: string;
+  staffName?: string | null;
+  status: "pending" | "confirmed" | "completed" | "cancelled";
+  treatmentId?: string;
+  treatmentName?: string;
+  treatmentSeq?: number;
+  treatmentTotal?: number;
+  result?: string;
+}
+
 export interface RenderCtx {
   theme: BuilderTheme;
   products: ProductLike[];
@@ -46,6 +61,10 @@ export interface RenderCtx {
   onMemberLogout?: () => void;
   /** Tem thật của khách đang đăng nhập (Mini App) — có thì ưu tiên hơn số tem trong thiết kế */
   memberStamps?: { count: number; required: number; reward: string; icon: string } | null;
+  /**
+   * Lịch hẹn của khách: undefined = đang thiết kế (hiện dữ liệu mẫu) · null = Mini App, chưa đăng nhập · mảng = dữ liệu thật
+   */
+  myBookings?: BookingLike[] | null;
   /**
    * Mini App: bấm "+" / "Chọn" / thẻ sản phẩm → mở chọn size/topping & thêm vào giỏ.
    * productId = null khi mục nhập tay không khớp tên món nào đang bán.
@@ -1328,6 +1347,213 @@ function MemberAuthBlock({ block, ctx }: { block: Block; ctx: RenderCtx }) {
   );
 }
 
+/* ------------------------------------------------------------------ */
+/* Lịch hẹn & Liệu trình của khách (dữ liệu thật ở Mini App, mẫu khi thiết kế) */
+
+const WD = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
+const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const parseYmd = (s: string) => {
+  const [y, m, d] = s.split("-").map(Number);
+  return new Date(y, m - 1, d);
+};
+const dm = (s: string) => {
+  const d = parseYmd(s);
+  return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`;
+};
+const isOpenBooking = (b: BookingLike) => b.status === "pending" || b.status === "confirmed";
+const BOOKING_STATUS: Record<BookingLike["status"], { label: string; color: string }> = {
+  pending: { label: "Chờ xác nhận", color: "#d97706" },
+  confirmed: { label: "Đã xác nhận", color: "#0284c7" },
+  completed: { label: "Hoàn thành", color: "#059669" },
+  cancelled: { label: "Đã huỷ", color: "#94a3b8" },
+};
+
+/** Dữ liệu mẫu khi xem trong Miniapp Studio (chưa có khách đăng nhập) */
+function sampleBookings(): BookingLike[] {
+  const day = (n: number) => ymd(new Date(Date.now() + n * 86_400_000));
+  const t = (seq: number, d: number, status: BookingLike["status"], result?: string): BookingLike => ({
+    id: `demo_t${seq}`,
+    serviceName: "Liệu trình trị mụn",
+    date: day(d),
+    timeSlot: "09:00",
+    staffName: "Mai Linh",
+    status,
+    treatmentId: "demo",
+    treatmentName: "Liệu trình trị mụn 6 buổi",
+    treatmentSeq: seq,
+    treatmentTotal: 6,
+    result,
+  });
+  return [
+    t(1, -14, "completed", "Da dầu, mụn viêm vùng má — làm sạch sâu"),
+    t(2, -7, "completed", "Mụn viêm giảm ~30%, da bớt đỏ"),
+    t(3, 0, "confirmed"),
+    t(4, 7, "confirmed"),
+    t(5, 14, "confirmed"),
+    t(6, 21, "confirmed"),
+    { id: "demo_b1", serviceName: "Gội đầu dưỡng sinh", date: day(2), timeSlot: "14:30", staffName: "Bích Trâm", status: "pending" },
+  ];
+}
+
+/** Khách chưa đăng nhập (Mini App) → mời đăng nhập để xem */
+function MemberGate({ ctx, text }: { ctx: RenderCtx; text: string }) {
+  return (
+    <div className="rounded-2xl bg-white p-4 text-center shadow-[0_1px_3px_rgba(15,23,42,0.06)]">
+      <div className="text-[12.5px] text-slate-500">{text}</div>
+      <button
+        type="button"
+        onClick={() => ctx.onOpenMemberAuth?.("login")}
+        className="mt-2.5 rounded-full px-4 py-2 text-[12.5px] font-bold text-white"
+        style={{ background: ctx.theme.primary }}
+      >
+        Đăng nhập
+      </button>
+    </div>
+  );
+}
+
+/** MyBookingsBlock — "Lịch hẹn của tôi": các lịch sắp tới (hoặc lịch sử) của khách đang đăng nhập */
+function MyBookingsBlock({ block, ctx }: { block: Block; ctx: RenderCtx }) {
+  const { theme } = ctx;
+  const history = block.props.variant === "history";
+  const limit = block.props.limit ?? 3;
+  const all = ctx.myBookings === undefined ? sampleBookings() : ctx.myBookings;
+  const today = ymd(new Date());
+  const list = (all ?? [])
+    .filter((b) => (history ? !isOpenBooking(b) || b.date < today : isOpenBooking(b) && b.date >= today))
+    .sort((a, b) => (history ? (b.date + b.timeSlot).localeCompare(a.date + a.timeSlot) : (a.date + a.timeSlot).localeCompare(b.date + b.timeSlot)))
+    .slice(0, limit);
+  return (
+    <div className="px-4 py-2">
+      <div className="mb-2 flex items-end justify-between">
+        <div>
+          <EditableText value={block.props.title} editable={ctx.editable} onCommit={(x) => ctx.onEditProp("title", x)} className="block text-[15px] font-bold text-slate-900" />
+          <EditableText value={block.props.subtitle} editable={ctx.editable} onCommit={(x) => ctx.onEditProp("subtitle", x)} className="block text-[11px] text-slate-500" />
+        </div>
+      </div>
+      {all === null ? (
+        <MemberGate ctx={ctx} text="Đăng nhập để xem lịch hẹn của bạn" />
+      ) : (
+        <div className="space-y-2">
+          {list.map((b) => {
+            const d = parseYmd(b.date);
+            const st = BOOKING_STATUS[b.status];
+            return (
+              <div key={b.id} className="flex items-center gap-3 rounded-2xl bg-white p-2.5 shadow-[0_1px_3px_rgba(15,23,42,0.06)]">
+                <div className="flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-xl" style={{ background: `${theme.primary}14`, color: theme.primary }}>
+                  <span className="text-[10px] font-semibold leading-none">{b.date === today ? "Hôm nay" : WD[d.getDay()]}</span>
+                  <span className="mt-0.5 text-[17px] font-extrabold leading-none">{d.getDate()}</span>
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-[13px] font-bold text-slate-900">{b.serviceName}</div>
+                  <div className="truncate text-[11px] text-slate-500">
+                    {b.timeSlot} · {dm(b.date)}
+                    {b.staffName ? ` · ${b.staffName}` : ""}
+                  </div>
+                  {b.treatmentId && (
+                    <span className="mt-0.5 inline-block rounded-full px-1.5 text-[10px] font-semibold" style={{ background: "#ede9fe", color: "#6d28d9" }}>
+                      Liệu trình · buổi {b.treatmentSeq}/{b.treatmentTotal}
+                    </span>
+                  )}
+                </div>
+                <span className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ background: `${st.color}1a`, color: st.color }}>
+                  {st.label}
+                </span>
+              </div>
+            );
+          })}
+          {!list.length && (
+            <div className="rounded-2xl bg-white p-4 text-center text-[12px] text-slate-400 shadow-[0_1px_3px_rgba(15,23,42,0.06)]">
+              {history ? "Chưa có lịch sử hẹn" : "Bạn chưa có lịch hẹn sắp tới"}
+            </div>
+          )}
+          {block.props.ctaLabel && (
+            <div
+              onClick={(e) => {
+                if (ctx.editable) return;
+                e.stopPropagation();
+                ctx.onRequireMemberAuth?.("booking", "Đặt lịch hẹn");
+              }}
+              className="cursor-pointer rounded-xl py-2.5 text-center text-[13px] font-bold"
+              style={{ background: `${theme.primary}14`, color: theme.primary }}
+            >
+              <EditableText value={block.props.ctaLabel} editable={ctx.editable} onCommit={(x) => ctx.onEditProp("ctaLabel", x)} />
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** MyTreatmentsBlock — "Liệu trình của tôi": tiến độ từng liệu trình, buổi tiếp theo, kết quả buổi gần nhất */
+function MyTreatmentsBlock({ block, ctx }: { block: Block; ctx: RenderCtx }) {
+  const { theme } = ctx;
+  const all = ctx.myBookings === undefined ? sampleBookings() : ctx.myBookings;
+  const today = ymd(new Date());
+  const groups = new Map<string, BookingLike[]>();
+  for (const b of all ?? []) if (b.treatmentId) groups.set(b.treatmentId, [...(groups.get(b.treatmentId) ?? []), b]);
+  const plans = [...groups.values()]
+    .map((s) => s.sort((a, b) => (a.treatmentSeq ?? 0) - (b.treatmentSeq ?? 0)))
+    .sort((a, b) => Number(b.some(isOpenBooking)) - Number(a.some(isOpenBooking)))
+    .slice(0, block.props.limit ?? 2);
+  return (
+    <div className="px-4 py-2">
+      <EditableText value={block.props.title} editable={ctx.editable} onCommit={(x) => ctx.onEditProp("title", x)} className="block text-[15px] font-bold text-slate-900" />
+      <EditableText value={block.props.subtitle} editable={ctx.editable} onCommit={(x) => ctx.onEditProp("subtitle", x)} className="mb-2 block text-[11px] text-slate-500" />
+      {all === null ? (
+        <MemberGate ctx={ctx} text="Đăng nhập để theo dõi liệu trình của bạn" />
+      ) : !plans.length ? (
+        <div className="rounded-2xl bg-white p-4 text-center text-[12px] text-slate-400 shadow-[0_1px_3px_rgba(15,23,42,0.06)]">Bạn chưa có liệu trình nào</div>
+      ) : (
+        <div className="space-y-2.5">
+          {plans.map((s) => {
+            const total = s[0].treatmentTotal ?? s.length;
+            const done = s.filter((b) => b.status === "completed").length;
+            const next = s.find((b) => isOpenBooking(b));
+            const last = [...s].reverse().find((b) => b.status === "completed" && b.result);
+            return (
+              <div key={s[0].treatmentId} className="overflow-hidden rounded-2xl bg-white shadow-[0_1px_3px_rgba(15,23,42,0.06)]">
+                <div className="px-3.5 pb-3 pt-2.5 text-white" style={{ background: `linear-gradient(135deg, ${theme.primary}, ${theme.primary}bb)` }}>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="truncate text-[14px] font-bold">{s[0].treatmentName ?? s[0].serviceName}</span>
+                    <span className="shrink-0 text-[11px] font-semibold text-white/85">
+                      {done}/{total} buổi
+                    </span>
+                  </div>
+                  <div className="mt-2 flex gap-[3px]">
+                    {Array.from({ length: Math.min(total, 24) }, (_, i) => (
+                      <span key={i} className={`h-1.5 flex-1 rounded-full ${i < done ? "bg-white" : "bg-white/30"}`} />
+                    ))}
+                  </div>
+                </div>
+                <div className="space-y-1.5 px-3.5 py-2.5 text-[12px]">
+                  {next ? (
+                    <div className="flex items-center gap-2" style={{ color: next.date < today ? "#dc2626" : theme.primary }}>
+                      <Icon name="calendar" size={14} />
+                      <span>
+                        Buổi {next.treatmentSeq}: <b>{WD[parseYmd(next.date).getDay()]} {dm(next.date)} · {next.timeSlot}</b>
+                        {next.date < today && " (quá hẹn)"}
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="font-semibold text-emerald-600">{done >= total ? "Đã hoàn thành liệu trình 🎉" : "Liệu trình đã dừng"}</div>
+                  )}
+                  {last && (
+                    <div className="rounded-xl bg-slate-50 px-2.5 py-1.5 text-slate-600">
+                      <span className="font-semibold text-slate-700">Kết quả buổi {last.treatmentSeq}:</span> {last.result}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function BlockRenderer({ block, ctx }: { block: Block; ctx: RenderCtx }) {
   switch (block.type) {
     case "header":
@@ -1354,6 +1580,10 @@ export function BlockRenderer({ block, ctx }: { block: Block; ctx: RenderCtx }) 
       return <VoucherListBlock block={block} ctx={ctx} />;
     case "booking":
       return <BookingBlock block={block} ctx={ctx} />;
+    case "myBookings":
+      return <MyBookingsBlock block={block} ctx={ctx} />;
+    case "myTreatments":
+      return <MyTreatmentsBlock block={block} ctx={ctx} />;
     case "news":
       return <NewsBlock block={block} ctx={ctx} />;
     case "form":

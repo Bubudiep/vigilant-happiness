@@ -17,6 +17,8 @@ export type BlockType =
   | "memberCard"
   | "voucherList"
   | "booking"
+  | "myBookings"
+  | "myTreatments"
   | "news"
   | "form"
   | "profile"

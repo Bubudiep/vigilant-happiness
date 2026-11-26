@@ -6,7 +6,7 @@ import { templateBasePath } from "@/templates/paths";
 import { findLiveTemplate } from "@/templates";
 
 import { fetchPublicStore, PublicStore, StoreLoadError } from "./api";
-import { BlockRenderer, DocumentLike, ProductLike, RenderCtx, VoucherLike } from "./builder/blocks";
+import { BlockRenderer, BookingLike, DocumentLike, ProductLike, RenderCtx, VoucherLike } from "./builder/blocks";
 import { Icon } from "./builder/icons";
 import { BuilderAuthConfig, BuilderPage, BuilderSchema, DEFAULT_BUILDER_AUTH } from "./builder/types";
 import { CartBar, CartSheet, ProductSheet, useCart } from "./cart";
@@ -119,6 +119,15 @@ function StoreScreen({ store, schema }: { store: PublicStore; schema: BuilderSch
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [store.slug, program?.required, memberLoggedIn]);
 
+  // Lịch hẹn & liệu trình của khách đang đăng nhập (khối "Lịch hẹn của tôi" / "Liệu trình của tôi")
+  const [myBookings, setMyBookings] = useState<BookingLike[] | null>(null);
+  useEffect(() => {
+    if (!memberLoggedIn || !getShopSession(store.slug)) return setMyBookings(null);
+    shopFetch<BookingLike[]>(store.slug, "/me/bookings")
+      .then(setMyBookings)
+      .catch(() => setMyBookings([]));
+  }, [store.slug, memberLoggedIn]);
+
   useEffect(() => {
     if (!toast) return;
     const t = setTimeout(() => setToast(null), 2400);
@@ -210,6 +219,7 @@ function StoreScreen({ store, schema }: { store: PublicStore; schema: BuilderSch
               auth: authConfig,
               isMemberLoggedIn: memberLoggedIn,
               memberStamps,
+              myBookings,
               onAddToCart: (id, label) => (id ? setPicking(id) : setToast(`“${label}” chưa mở bán online`)),
               onRequireMemberAuth: requireAuth,
               onOpenMemberAuth: (tab = "login") => setAuthSheet({ open: true, tab }),
