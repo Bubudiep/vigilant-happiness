@@ -3,13 +3,19 @@
  * Chỉ áp dụng trong html.admin-ui, không ảnh hưởng khung xem trước Mini App (.phone-ui).
  */
 
-/* Button size="small": cao 28px (mặc định antd theo theme là 22px) */
+/* Button size="small": cao 26px (mặc định antd theo theme là 22px) */
 html.admin-ui .ant-btn.ant-btn-sm:not(.phone-ui *) {
-  height: 28px;
+  height: 26px;
+  font-size: 10px;
   padding-inline: 8px;
+  display: inline-flex;
+  align-items: center;
 }
 /* Nút chỉ có biểu tượng (vuông) */
 html.admin-ui .ant-btn.ant-btn-sm.ant-btn-icon-only:not(.phone-ui *) {
-  width: 28px;
+  width: 26px;
   padding-inline: 0;
+}
+.ant-segmented-item-label {
+  font-size: 10px;
 }

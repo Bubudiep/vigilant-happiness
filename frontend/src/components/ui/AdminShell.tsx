@@ -1,5 +1,5 @@
 import { Button, Drawer, Modal, Tooltip } from "antd";
-import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { LuChevronRight, LuCornerDownLeft, LuMenu, LuPanelLeftClose, LuPanelLeftOpen, LuSearch } from "react-icons/lu";
 
 export interface ShellNavItem<K extends string = string> {
@@ -211,8 +211,10 @@ function SidebarNav<K extends string>({
   mini: boolean;
   onSelect: (key: K) => void;
 }) {
+  const navRef = useRef<HTMLElement>(null);
   return (
-    <nav data-ui="SidebarNav" className="space-y-3">
+    <nav ref={navRef} data-ui="SidebarNav" className="relative space-y-3">
+      <SidebarActiveIndicator navRef={navRef} watch={`${active}|${mini}|${groups.map((g) => g.items.length).join()}`} />
       {groups.map((g, gi) => (
         <div key={g.title} data-ui="SidebarGroup">
           {mini ? gi > 0 && <div className="mx-auto mb-3 h-px w-6 bg-slate-300" /> : <SidebarGroupLabel>{g.title}</SidebarGroupLabel>}
@@ -227,6 +229,46 @@ function SidebarNav<K extends string>({
   );
 }
 
+/**
+ * SidebarActiveIndicator — khối nền xanh nhạt + vạch trái "trôi" tới mục đang chọn (thay cho nền / vạch cố định ở từng mục).
+ * Đo vị trí SidebarItem có aria-current="page" trong SidebarNav; lần đầu đặt thẳng, các lần sau trượt mượt.
+ */
+function SidebarActiveIndicator({ navRef, watch }: { navRef: React.RefObject<HTMLElement | null>; watch: string }) {
+  const [box, setBox] = useState<{ top: number; left: number; width: number; height: number } | null>(null);
+  const [animate, setAnimate] = useState(false);
+  useLayoutEffect(() => {
+    const nav = navRef.current;
+    if (!nav) return;
+    const measure = () => {
+      const el = nav.querySelector<HTMLElement>('[data-ui="SidebarItem"][aria-current="page"]');
+      if (!el) return setBox(null);
+      const n = nav.getBoundingClientRect();
+      const r = el.getBoundingClientRect();
+      setBox({ top: r.top - n.top, left: r.left - n.left, width: r.width, height: r.height });
+    };
+    measure();
+    // Bật hiệu ứng sau lần đo đầu tiên (mở trang không bị trượt từ trên xuống)
+    const t = requestAnimationFrame(() => setAnimate(true));
+    const ro = new ResizeObserver(measure);
+    ro.observe(nav);
+    return () => {
+      cancelAnimationFrame(t);
+      ro.disconnect();
+    };
+  }, [navRef, watch]);
+  if (!box) return null;
+  return (
+    <span
+      aria-hidden
+      data-ui="SidebarActiveIndicator"
+      className={`pointer-events-none absolute left-0 top-0 rounded-md bg-brand-50 ${animate ? "transition-[transform,width,height] duration-200 ease-out" : ""}`}
+      style={{ transform: `translate(${box.left}px, ${box.top}px)`, width: box.width, height: box.height }}
+    >
+      <span className="absolute inset-y-1.5 left-0 w-[3px] rounded-r bg-brand-600" />
+    </span>
+  );
+}
+
 /** SidebarGroupLabel — tên nhóm menu ("Vận hành", "Hàng hoá & nhân sự"…): chữ 10px, nhạt, không viết hoa */
 export function SidebarGroupLabel({ children }: { children: ReactNode }) {
   return (
@@ -236,7 +278,7 @@ export function SidebarGroupLabel({ children }: { children: ReactNode }) {
   );
 }
 
-/** SidebarItem — 1 mục menu: biểu tượng · tên · SidebarBadge; đang chọn = nền xanh nhạt + vạch trái */
+/** SidebarItem — 1 mục menu: biểu tượng · tên · SidebarBadge; nền + vạch của mục đang chọn do SidebarActiveIndicator vẽ */
 function SidebarItem<K extends string>({ item, active, mini, onClick }: { item: ShellNavItem<K>; active: boolean; mini: boolean; onClick: () => void }) {
   const btn = (
     <button
@@ -245,10 +287,9 @@ function SidebarItem<K extends string>({ item, active, mini, onClick }: { item: 
       onClick={onClick}
       aria-current={active ? "page" : undefined}
       className={`group relative flex h-7 w-full items-center gap-2 rounded-md text-left text-xs transition-colors ${mini ? "justify-center" : "px-2"} ${
-        active ? "bg-brand-50 font-semibold text-brand-700" : "font-medium text-slate-700 hover:bg-slate-100 hover:text-slate-900"
+        active ? "font-semibold text-brand-700" : "font-medium text-slate-700 hover:bg-slate-100 hover:text-slate-900"
       }`}
     >
-      {active && <span className="absolute inset-y-1.5 left-0 w-[3px] rounded-r bg-brand-600" />}
       <span className={`flex shrink-0 [&>svg]:h-[15px] [&>svg]:w-[15px] ${active ? "text-brand-600" : "text-slate-400 group-hover:text-slate-600"}`}>
         {item.icon}
       </span>

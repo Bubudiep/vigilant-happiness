@@ -33,7 +33,8 @@ Mỗi phần có thuộc tính `data-ui="<Tên>"`. Mở F12 → Elements rồi t
 | `SidebarNav` | Toàn bộ danh sách menu | `ui/AdminShell.tsx` |
 | `SidebarGroup` | Một nhóm menu | `ui/AdminShell.tsx` |
 | `SidebarGroupLabel` | Tên nhóm: "Vận hành", "Hàng hoá & nhân sự", "Khách hàng"… | `ui/AdminShell.tsx` |
-| `SidebarItem` | Một mục menu | `ui/AdminShell.tsx` |
+| `SidebarItem` | Một mục menu |
+| `SidebarActiveIndicator` | Khối nền xanh có vạch trái, trượt tới mục đang chọn | `ui/AdminShell.tsx` | `ui/AdminShell.tsx` |
 | `SidebarBadge` | Số đếm bên phải mục menu | `ui/AdminShell.tsx` |
 | `SidebarFooter` | Cuối menu trái, chỗ bật/tắt Mini App | `ui/AdminShell.tsx` (nội dung ở StoreConsole) |
 | `PageContent` | Vùng nội dung bên phải | `ui/AdminShell.tsx` |
