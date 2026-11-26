@@ -92,3 +92,25 @@ html.admin-ui .ant-table-thead > tr > th { font-size: var(--fs-xs); color: rgb(v
 /* Nhãn form, mô tả phụ của antd */
 html.admin-ui .ant-form-item-extra, html.admin-ui .ant-form-item-explain { font-size: var(--fs-2xs); }
 html.admin-ui .ant-empty-description { font-size: var(--fs-xs); color: rgb(var(--slate-400)); }
+
+/* Modal: luôn nằm gọn trong màn hình (cách mép trên / dưới 24px), header & footer đứng yên, chỉ thân modal cuộn.
+   Thanh cuộn nằm sát mép phải khung modal (thân modal kéo ra hết bề ngang, bù lại bằng padding). */
+.ant-modal-wrap:not(.ant-modal-centered) .ant-modal { top: 24px; padding-bottom: 0; }
+.ant-modal-wrap .ant-modal { max-width: calc(100vw - 24px); }
+.ant-modal-wrap .ant-modal .ant-modal-container { display: flex; flex-direction: column; max-height: calc(100dvh - 48px); }
+.ant-modal-wrap .ant-modal .ant-modal-header,
+.ant-modal-wrap .ant-modal .ant-modal-footer { flex-shrink: 0; }
+.ant-modal-wrap .ant-modal .ant-modal-body {
+  flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+  scrollbar-width: thin; scrollbar-color: rgb(var(--slate-300)) transparent;
+  /* Bóng mờ ở mép trên / dưới chỉ hiện khi còn nội dung để cuộn (lớp "local" che bóng khi đã cuộn tới mép) */
+  background:
+    linear-gradient(#fff 30%, rgb(255 255 255 / 0)) top / 100% 24px no-repeat local,
+    linear-gradient(rgb(255 255 255 / 0), #fff 70%) bottom / 100% 24px no-repeat local,
+    radial-gradient(farthest-side at 50% 0, rgb(15 23 42 / 0.1), transparent) top / 100% 8px no-repeat scroll,
+    radial-gradient(farthest-side at 50% 100%, rgb(15 23 42 / 0.1), transparent) bottom / 100% 8px no-repeat scroll;
+}
+/* Modal tự đặt padding cho body (VD tìm nhanh) thì giữ nguyên; còn lại kéo body ra sát mép, chừa chỗ viền focus */
+.ant-modal-wrap .ant-modal .ant-modal-body:not([style*="padding"]) {
+  margin: -4px -24px; padding: 4px 24px;
+}
