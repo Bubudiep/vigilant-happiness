@@ -167,7 +167,12 @@ export function ProductsSection({
       options:
         values.kind === "material"
           ? []
-          : (values.options ?? []).map((g) => ({ ...g, max: g.multiple ? (g.max ?? null) : null, choices: (g.choices ?? []).map((c) => ({ ...c, price: c.price ?? 0 })) })),
+          : (values.options ?? []).map((g) => ({
+              ...g,
+              max: g.multiple ? (g.max ?? null) : null,
+              // Nguyên liệu dùng thêm của lựa chọn: bỏ dòng trống (chưa chọn nguyên liệu / chưa nhập SL)
+              choices: (g.choices ?? []).map((c) => ({ ...c, price: c.price ?? 0, bom: (c.bom ?? []).filter((l) => l?.productId && l.quantity) })),
+            })),
     };
     setSaving(true);
     try {
@@ -487,7 +492,7 @@ export function ProductsSection({
                   children: (
                     <>
                       <div className="mb-2 text-xs text-slate-500">Khách chọn khi gọi món; giá lựa chọn cộng thêm vào giá bán. “Chọn 1” cho size / phân loại, “Chọn nhiều” cho topping.</div>
-                      <OptionsEditor />
+                      <OptionsEditor store={store} selfId={modal.item?.id} />
                     </>
                   ),
                 },

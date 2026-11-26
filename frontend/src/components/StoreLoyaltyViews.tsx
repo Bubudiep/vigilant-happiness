@@ -17,11 +17,25 @@ import {
 } from "antd";
 import dayjs from "dayjs";
 import { lazy, Suspense, useState } from "react";
-import { LuCrown, LuPlus, LuPrinter, LuStamp, LuTicket, LuTrash2, LuUsers } from "react-icons/lu";
-import { StoreConfig, StoreMemberTierItem, StoreVoucherItem } from "../data/store-api";
+import {
+  LuCrown,
+  LuPlus,
+  LuPrinter,
+  LuStamp,
+  LuTicket,
+  LuTrash2,
+  LuUsers,
+} from "react-icons/lu";
+import {
+  StoreConfig,
+  StoreMemberTierItem,
+  StoreVoucherItem,
+} from "../data/store-api";
 
 // Mã thẻ / in thẻ / xuất Excel — tải khi mở (kèm thư viện QR & Excel)
-const VoucherCodesDrawer = lazy(() => import("./VoucherCards").then((m) => ({ default: m.VoucherCodesDrawer })));
+const VoucherCodesDrawer = lazy(() =>
+  import("./VoucherCards").then((m) => ({ default: m.VoucherCodesDrawer })),
+);
 
 export const DEFAULT_MEMBER_TIERS: StoreMemberTierItem[] = [
   {
@@ -85,8 +99,14 @@ export function LoyaltySection({
   const tiers = store.memberTiers ?? DEFAULT_MEMBER_TIERS;
   const vouchers = store.vouchers ?? [];
 
-  const [tierModal, setTierModal] = useState<{ open: boolean; item?: StoreMemberTierItem }>({ open: false });
-  const [voucherModal, setVoucherModal] = useState<{ open: boolean; item?: StoreVoucherItem }>({ open: false });
+  const [tierModal, setTierModal] = useState<{
+    open: boolean;
+    item?: StoreMemberTierItem;
+  }>({ open: false });
+  const [voucherModal, setVoucherModal] = useState<{
+    open: boolean;
+    item?: StoreVoucherItem;
+  }>({ open: false });
   const [tierForm] = Form.useForm();
   const [voucherForm] = Form.useForm();
 
@@ -107,28 +127,52 @@ export function LoyaltySection({
     );
   };
 
-  const saveTier = (values: Omit<StoreMemberTierItem, "id" | "color"> & { color: string | { toHexString?: () => string } }) => {
-    const hexColor = typeof values.color === "string" ? values.color : values.color?.toHexString?.() || "#1657f3";
+  const saveTier = (
+    values: Omit<StoreMemberTierItem, "id" | "color"> & {
+      color: string | { toHexString?: () => string };
+    },
+  ) => {
+    const hexColor =
+      typeof values.color === "string"
+        ? values.color
+        : values.color?.toHexString?.() || "#1657f3";
     const normalized: Omit<StoreMemberTierItem, "id"> = {
       ...values,
-      code: (values.code || values.name).trim().toLowerCase().replace(/[^a-z0-9]+/g, "_"),
+      code: (values.code || values.name)
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "_"),
       color: hexColor,
     };
     updateCurrentStore((s) => {
       const list = s.memberTiers ?? DEFAULT_MEMBER_TIERS;
       if (tierModal.item) {
-        return { ...s, memberTiers: list.map((t) => (t.id === tierModal.item!.id ? { ...t, ...normalized } : t)) };
+        return {
+          ...s,
+          memberTiers: list.map((t) =>
+            t.id === tierModal.item!.id ? { ...t, ...normalized } : t,
+          ),
+        };
       }
-      return { ...s, memberTiers: [...list, { id: `tier_${Date.now()}`, ...normalized }] };
+      return {
+        ...s,
+        memberTiers: [...list, { id: `tier_${Date.now()}`, ...normalized }],
+      };
     });
     setTierModal({ open: false });
-    message.success(tierModal.item ? "Đã cập nhật hạng thành viên" : "Đã thêm hạng thành viên mới");
+    message.success(
+      tierModal.item
+        ? "Đã cập nhật hạng thành viên"
+        : "Đã thêm hạng thành viên mới",
+    );
   };
 
   const deleteTier = (id: string) => {
     updateCurrentStore((s) => ({
       ...s,
-      memberTiers: (s.memberTiers ?? DEFAULT_MEMBER_TIERS).filter((t) => t.id !== id),
+      memberTiers: (s.memberTiers ?? DEFAULT_MEMBER_TIERS).filter(
+        (t) => t.id !== id,
+      ),
     }));
     message.success("Đã xoá hạng thành viên");
   };
@@ -162,17 +206,24 @@ export function LoyaltySection({
         return {
           ...s,
           vouchers: list.map((v) =>
-            v.id === voucherModal.item!.id ? { ...v, ...values, code: cleanCode } : v,
+            v.id === voucherModal.item!.id
+              ? { ...v, ...values, code: cleanCode }
+              : v,
           ),
         };
       }
       return {
         ...s,
-        vouchers: [{ id: `vc_${Date.now()}`, usedCount: 0, ...values, code: cleanCode }, ...list],
+        vouchers: [
+          { id: `vc_${Date.now()}`, usedCount: 0, ...values, code: cleanCode },
+          ...list,
+        ],
       };
     });
     setVoucherModal({ open: false });
-    message.success(voucherModal.item ? "Đã cập nhật voucher" : "Đã tạo voucher mới");
+    message.success(
+      voucherModal.item ? "Đã cập nhật voucher" : "Đã tạo voucher mới",
+    );
   };
 
   const deleteVoucher = (id: string) => {
@@ -186,12 +237,14 @@ export function LoyaltySection({
   const toggleVoucherActive = (id: string, active: boolean) => {
     updateCurrentStore((s) => ({
       ...s,
-      vouchers: (s.vouchers ?? []).map((v) => (v.id === id ? { ...v, active } : v)),
+      vouchers: (s.vouchers ?? []).map((v) =>
+        v.id === id ? { ...v, active } : v,
+      ),
     }));
   };
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
+    <div className="rounded-xl border border-slate-200 bg-white p-4 pt-0 sm:p-5 sm:pt-1">
       <Tabs
         defaultActiveKey="tiers"
         items={[
@@ -206,9 +259,14 @@ export function LoyaltySection({
               <div className="space-y-4 pt-1">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="text-xs text-slate-500">
-                    Thiết lập ngưỡng chi tiêu, hệ số tích điểm và chiết khấu tự động cho từng hạng khách hàng.
+                    Thiết lập ngưỡng chi tiêu, hệ số tích điểm và chiết khấu tự
+                    động cho từng hạng khách hàng.
                   </p>
-                  <Button type="primary" icon={<LuPlus size={15} />} onClick={() => openTierModal()}>
+                  <Button
+                    type="primary"
+                    icon={<LuPlus size={15} />}
+                    onClick={() => openTierModal()}
+                  >
                     Thêm hạng mới
                   </Button>
                 </div>
@@ -226,7 +284,9 @@ export function LoyaltySection({
                         <div>
                           <div
                             className="p-4 text-white"
-                            style={{ background: `linear-gradient(135deg, ${tier.color}, ${tier.color}cc)` }}
+                            style={{
+                              background: `linear-gradient(135deg, ${tier.color}, ${tier.color}cc)`,
+                            }}
                           >
                             <div className="flex items-center justify-between">
                               <span className="inline-flex items-center gap-1.5 text-sm font-extrabold">
@@ -237,14 +297,17 @@ export function LoyaltySection({
                               </span>
                             </div>
                             <div className="mt-2 text-xs text-white/85">
-                              Chi tiêu từ: <b>{tier.minSpent.toLocaleString("vi-VN")}đ</b>
+                              Chi tiêu từ:{" "}
+                              <b>{tier.minSpent.toLocaleString("vi-VN")}đ</b>
                             </div>
                           </div>
 
                           <div className="space-y-2 p-4 text-xs">
                             <div className="flex items-center justify-between text-slate-600">
                               <span>Ngưỡng điểm</span>
-                              <span className="font-bold text-slate-900">{tier.minPoints} điểm</span>
+                              <span className="font-bold text-slate-900">
+                                {tier.minPoints} điểm
+                              </span>
                             </div>
                             <div className="flex items-center justify-between text-slate-600">
                               <span>Hệ số tích điểm</span>
@@ -267,11 +330,21 @@ export function LoyaltySection({
                         </div>
 
                         <div className="flex items-center justify-end gap-1.5 border-t border-slate-100 px-3 py-2">
-                          <Button size="small" onClick={() => openTierModal(tier)}>
+                          <Button
+                            size="small"
+                            onClick={() => openTierModal(tier)}
+                          >
                             Sửa
                           </Button>
-                          <Popconfirm title="Xoá hạng này?" onConfirm={() => deleteTier(tier.id)}>
-                            <Button size="small" danger icon={<LuTrash2 size={13} />} />
+                          <Popconfirm
+                            title="Xoá hạng này?"
+                            onConfirm={() => deleteTier(tier.id)}
+                          >
+                            <Button
+                              size="small"
+                              danger
+                              icon={<LuTrash2 size={13} />}
+                            />
                           </Popconfirm>
                         </div>
                       </div>
@@ -285,10 +358,15 @@ export function LoyaltySection({
             key: "stamps",
             label: (
               <span className="inline-flex items-center gap-1.5 font-semibold">
-                <LuStamp size={15} /> Thẻ tích tem{store.stampProgram?.enabled ? ` (${store.stampProgram.required} tem)` : ""}
+                <LuStamp size={15} /> Thẻ tích tem
+                {store.stampProgram?.enabled
+                  ? ` (${store.stampProgram.required} tem)`
+                  : ""}
               </span>
             ),
-            children: <StampProgramPanel store={store} applyLocal={applyLocal} />,
+            children: (
+              <StampProgramPanel store={store} applyLocal={applyLocal} />
+            ),
           },
           {
             key: "vouchers",
@@ -301,9 +379,14 @@ export function LoyaltySection({
               <div className="space-y-4 pt-1">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="text-xs text-slate-500">
-                    Tạo mã giảm giá, freeship hoặc ưu đãi riêng theo từng hạng thành viên trên Zalo Mini App.
+                    Tạo mã giảm giá, freeship hoặc ưu đãi riêng theo từng hạng
+                    thành viên trên Zalo Mini App.
                   </p>
-                  <Button type="primary" icon={<LuPlus size={15} />} onClick={() => openVoucherModal()}>
+                  <Button
+                    type="primary"
+                    icon={<LuPlus size={15} />}
+                    onClick={() => openVoucherModal()}
+                  >
                     Tạo Voucher
                   </Button>
                 </div>
@@ -322,7 +405,9 @@ export function LoyaltySection({
                           <span className="rounded-md bg-brand-50 px-2 py-0.5 font-mono text-xs font-extrabold text-brand-700">
                             {code}
                           </span>
-                          <div className="mt-1 text-xs font-medium text-slate-800">{r.title}</div>
+                          <div className="mt-1 text-xs font-medium text-slate-800">
+                            {r.title}
+                          </div>
                         </div>
                       ),
                     },
@@ -338,7 +423,8 @@ export function LoyaltySection({
                                 : `Giảm ${r.discountValue.toLocaleString("vi-VN")}đ`}
                           </div>
                           <div className="text-xs text-slate-400">
-                            Đơn tối thiểu: {r.minOrderValue.toLocaleString("vi-VN")}đ
+                            Đơn tối thiểu:{" "}
+                            {r.minOrderValue.toLocaleString("vi-VN")}đ
                           </div>
                         </div>
                       ),
@@ -356,13 +442,23 @@ export function LoyaltySection({
                       title: "Lượt dùng",
                       width: 140,
                       render: (_, r) => {
-                        const pct = r.quantity > 0 ? Math.min(100, Math.round((r.usedCount / r.quantity) * 100)) : 0;
+                        const pct =
+                          r.quantity > 0
+                            ? Math.min(
+                                100,
+                                Math.round((r.usedCount / r.quantity) * 100),
+                              )
+                            : 0;
                         return (
                           <div>
                             <div className="text-xs font-semibold text-slate-700">
                               {r.usedCount} / {r.quantity}
                             </div>
-                            <Progress percent={pct} size="small" showInfo={false} />
+                            <Progress
+                              percent={pct}
+                              size="small"
+                              showInfo={false}
+                            />
                           </div>
                         );
                       },
@@ -373,18 +469,26 @@ export function LoyaltySection({
                       render: (_, r) =>
                         r.codeCount ? (
                           <div className="text-xs">
-                            <div className="font-bold text-slate-800">{r.codeCount.toLocaleString("vi-VN")} mã</div>
-                            <div className="text-slate-400">đã dùng {(r.codeUsed ?? 0).toLocaleString("vi-VN")}</div>
+                            <div className="font-bold text-slate-800">
+                              {r.codeCount.toLocaleString("vi-VN")} mã
+                            </div>
+                            <div className="text-slate-400">
+                              đã dùng{" "}
+                              {(r.codeUsed ?? 0).toLocaleString("vi-VN")}
+                            </div>
                           </div>
                         ) : (
-                          <span className="text-xs text-slate-400">Mã chung</span>
+                          <span className="text-xs text-slate-400">
+                            Mã chung
+                          </span>
                         ),
                     },
                     {
                       title: "Hạn sử dụng",
                       render: (_, r) => (
                         <span className="text-xs text-slate-600">
-                          {dayjs(r.startDate).format("DD/MM")} → {dayjs(r.endDate).format("DD/MM/YY")}
+                          {dayjs(r.startDate).format("DD/MM")} →{" "}
+                          {dayjs(r.endDate).format("DD/MM/YY")}
                         </span>
                       ),
                     },
@@ -392,7 +496,11 @@ export function LoyaltySection({
                       title: "Bật",
                       dataIndex: "active",
                       render: (active, r) => (
-                        <Switch size="small" checked={active} onChange={(v) => toggleVoucherActive(r.id, v)} />
+                        <Switch
+                          size="small"
+                          checked={active}
+                          onChange={(v) => toggleVoucherActive(r.id, v)}
+                        />
                       ),
                     },
                     {
@@ -408,11 +516,21 @@ export function LoyaltySection({
                           >
                             Mã & in thẻ
                           </Button>
-                          <Button size="small" onClick={() => openVoucherModal(r)}>
+                          <Button
+                            size="small"
+                            onClick={() => openVoucherModal(r)}
+                          >
                             Sửa
                           </Button>
-                          <Popconfirm title="Xoá voucher này?" onConfirm={() => deleteVoucher(r.id)}>
-                            <Button size="small" danger icon={<LuTrash2 size={13} />} />
+                          <Popconfirm
+                            title="Xoá voucher này?"
+                            onConfirm={() => deleteVoucher(r.id)}
+                          >
+                            <Button
+                              size="small"
+                              danger
+                              icon={<LuTrash2 size={13} />}
+                            />
                           </Popconfirm>
                         </div>
                       ),
@@ -424,7 +542,6 @@ export function LoyaltySection({
           },
         ]}
       />
-
       {codesFor && (
         <Suspense fallback={null}>
           <VoucherCodesDrawer
@@ -433,14 +550,23 @@ export function LoyaltySection({
             voucher={vouchers.find((v) => v.id === codesFor) ?? null}
             tierName={(() => {
               const code = vouchers.find((v) => v.id === codesFor)?.tierCode;
-              return code && code !== "all" ? tiers.find((t) => t.code === code)?.name : undefined;
+              return code && code !== "all"
+                ? tiers.find((t) => t.code === code)?.name
+                : undefined;
             })()}
             onClose={() => setCodesFor(null)}
             onStats={(id, st) =>
               applyLocal((s) => ({
                 ...s,
                 vouchers: (s.vouchers ?? []).map((v) =>
-                  v.id === id ? { ...v, codeCount: st.codeCount, codeUsed: st.codeUsed, ...(st.quantity ? { quantity: st.quantity } : {}) } : v,
+                  v.id === id
+                    ? {
+                        ...v,
+                        codeCount: st.codeCount,
+                        codeUsed: st.codeUsed,
+                        ...(st.quantity ? { quantity: st.quantity } : {}),
+                      }
+                    : v,
                 ),
               }))
             }
@@ -450,7 +576,11 @@ export function LoyaltySection({
 
       {/* Modal thêm / sửa Hạng thành viên */}
       <Modal
-        title={tierModal.item ? "Chỉnh sửa hạng thành viên" : "Thêm hạng thành viên mới"}
+        title={
+          tierModal.item
+            ? "Chỉnh sửa hạng thành viên"
+            : "Thêm hạng thành viên mới"
+        }
         open={tierModal.open}
         onCancel={() => setTierModal({ open: false })}
         footer={null}
@@ -458,7 +588,11 @@ export function LoyaltySection({
       >
         <Form form={tierForm} layout="vertical" onFinish={saveTier}>
           <div className="grid gap-x-4 sm:grid-cols-2">
-            <Form.Item name="name" label="Tên hạng" rules={[{ required: true, message: "Nhập tên hạng" }]}>
+            <Form.Item
+              name="name"
+              label="Tên hạng"
+              rules={[{ required: true, message: "Nhập tên hạng" }]}
+            >
               <Input placeholder="VD: Bạch Kim" />
             </Form.Item>
             <Form.Item name="code" label="Mã hạng (không dấu)">
@@ -466,10 +600,18 @@ export function LoyaltySection({
             </Form.Item>
           </div>
           <div className="grid gap-x-4 sm:grid-cols-2">
-            <Form.Item name="minSpent" label="Chi tiêu tối thiểu (đ)" rules={[{ required: true }]}>
+            <Form.Item
+              name="minSpent"
+              label="Chi tiêu tối thiểu (đ)"
+              rules={[{ required: true }]}
+            >
               <InputNumber className="w-full" min={0} step={500000} />
             </Form.Item>
-            <Form.Item name="minPoints" label="Điểm tối thiểu" rules={[{ required: true }]}>
+            <Form.Item
+              name="minPoints"
+              label="Điểm tối thiểu"
+              rules={[{ required: true }]}
+            >
               <InputNumber className="w-full" min={0} step={50} />
             </Form.Item>
           </div>
@@ -485,7 +627,10 @@ export function LoyaltySection({
             </Form.Item>
           </div>
           <Form.Item name="benefits" label="Quyền lợi hạng">
-            <Input.TextArea rows={2} placeholder="Mô tả quyền lợi nổi bật của hạng..." />
+            <Input.TextArea
+              rows={2}
+              placeholder="Mô tả quyền lợi nổi bật của hạng..."
+            />
           </Form.Item>
           <Button type="primary" htmlType="submit" block className="font-bold">
             Lưu hạng thành viên
@@ -503,19 +648,30 @@ export function LoyaltySection({
       >
         <Form form={voucherForm} layout="vertical" onFinish={saveVoucher}>
           <div className="grid gap-x-4 sm:grid-cols-2">
-            <Form.Item name="code" label="Mã Voucher" rules={[{ required: true, message: "Nhập mã voucher" }]}>
+            <Form.Item
+              name="code"
+              label="Mã Voucher"
+              rules={[{ required: true, message: "Nhập mã voucher" }]}
+            >
               <Input placeholder="VD: SALE20" className="uppercase" />
             </Form.Item>
             <Form.Item name="tierCode" label="Áp dụng cho hạng">
               <Select
                 options={[
                   { value: "all", label: "Tất cả khách hàng" },
-                  ...tiers.map((t) => ({ value: t.code, label: `Hạng ${t.name}` })),
+                  ...tiers.map((t) => ({
+                    value: t.code,
+                    label: `Hạng ${t.name}`,
+                  })),
                 ]}
               />
             </Form.Item>
           </div>
-          <Form.Item name="title" label="Tên chương trình / Mô tả" rules={[{ required: true, message: "Nhập tên voucher" }]}>
+          <Form.Item
+            name="title"
+            label="Tên chương trình / Mô tả"
+            rules={[{ required: true, message: "Nhập tên voucher" }]}
+          >
             <Input placeholder="VD: Giảm 20% cho đơn từ 399K" />
           </Form.Item>
           <div className="grid gap-x-4 sm:grid-cols-3">
@@ -528,10 +684,18 @@ export function LoyaltySection({
                 ]}
               />
             </Form.Item>
-            <Form.Item name="discountValue" label="Giá trị giảm" rules={[{ required: true }]}>
+            <Form.Item
+              name="discountValue"
+              label="Giá trị giảm"
+              rules={[{ required: true }]}
+            >
               <InputNumber className="w-full" min={0} />
             </Form.Item>
-            <Form.Item name="quantity" label="Số lượng mã" rules={[{ required: true }]}>
+            <Form.Item
+              name="quantity"
+              label="Số lượng mã"
+              rules={[{ required: true }]}
+            >
               <InputNumber className="w-full" min={1} />
             </Form.Item>
           </div>
@@ -551,7 +715,11 @@ export function LoyaltySection({
               <Input type="date" />
             </Form.Item>
           </div>
-          <Form.Item name="active" label="Kích hoạt ngay" valuePropName="checked">
+          <Form.Item
+            name="active"
+            label="Kích hoạt ngay"
+            valuePropName="checked"
+          >
             <Switch />
           </Form.Item>
           <Button type="primary" htmlType="submit" block className="font-bold">

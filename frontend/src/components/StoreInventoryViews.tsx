@@ -277,8 +277,15 @@ export function BomEditor({ store, selfId }: { store: StoreConfig; selfId?: stri
   );
 }
 
-/** Phân loại (size…) & bán kèm (topping…): Form.List "options" */
-export function OptionsEditor() {
+/**
+ * Phân loại (size…) & bán kèm (topping…): Form.List "options".
+ * Mỗi lựa chọn: tên · nguyên liệu dùng thêm + số lượng (trừ kho, cộng giá vốn) · giá cộng thêm.
+ */
+export function OptionsEditor({ store, selfId }: { store: StoreConfig; selfId?: string }) {
+  const form = Form.useFormInstance();
+  const options = (Form.useWatch("options", form) ?? []) as { choices?: { bom?: { productId?: string }[] }[] }[];
+  const byId = new Map(store.products.map((p) => [p.id, p]));
+  const ingOpts = ingredientOptions(store.products, selfId);
   return (
     <Form.List name="options">
       {(groups, { add, remove }) => (
@@ -303,17 +310,52 @@ export function OptionsEditor() {
               <Form.List name={[g.name, "choices"]}>
                 {(choices, c) => (
                   <div className="mt-2 space-y-1.5 pl-3">
-                    {choices.map((ch) => (
-                      <div key={ch.key} className="grid grid-cols-[minmax(0,1fr)_150px_32px] gap-2">
-                        <Form.Item name={[ch.name, "name"]} className="!mb-0" rules={[{ required: true, whitespace: true, message: "Tên" }]}>
-                          <Input size="small" placeholder="VD: Size L, Trân châu đen" />
-                        </Form.Item>
-                        <Form.Item name={[ch.name, "price"]} className="!mb-0">
-                          <InputNumber size="small" className="!w-full" {...moneyInput} placeholder="+ giá (đ)" />
-                        </Form.Item>
-                        <Button size="small" type="text" danger icon={<LuTrash2 size={13} />} onClick={() => c.remove(ch.name)} />
+                    {choices.length > 0 && (
+                      <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_96px_120px_28px] gap-2 text-2xs text-slate-400">
+                        <span>Lựa chọn</span>
+                        <span>Nguyên liệu dùng thêm</span>
+                        <span>Số lượng</span>
+                        <span>Giá cộng thêm</span>
+                        <span />
                       </div>
-                    ))}
+                    )}
+                    {choices.map((ch) => {
+                      const ing = options[g.name]?.choices?.[ch.name]?.bom?.[0]?.productId;
+                      const unit = ing ? byId.get(ing)?.unit : undefined;
+                      return (
+                        <div key={ch.key} className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_96px_120px_28px] gap-2">
+                          <Form.Item name={[ch.name, "name"]} className="!mb-0" rules={[{ required: true, whitespace: true, message: "Tên" }]}>
+                            <Input size="small" placeholder="VD: Size L, Trân châu đen" />
+                          </Form.Item>
+                          <Form.Item name={[ch.name, "bom", 0, "productId"]} className="!mb-0">
+                            <Select
+                              size="small"
+                              allowClear
+                              showSearch
+                              optionFilterProp="label"
+                              placeholder={ingOpts.length ? "Không dùng thêm" : "Chưa có nguyên liệu"}
+                              disabled={!ingOpts.length}
+                              options={ingOpts}
+                              onChange={(v) => {
+                                // Bỏ nguyên liệu → xoá luôn số lượng
+                                if (!v) form.setFieldValue(["options", g.name, "choices", ch.name, "bom"], []);
+                              }}
+                            />
+                          </Form.Item>
+                          <Form.Item
+                            name={[ch.name, "bom", 0, "quantity"]}
+                            className="!mb-0"
+                            rules={[{ required: !!ing, message: "SL" }]}
+                          >
+                            <InputNumber size="small" className="!w-full" min={1} precision={0} disabled={!ing} placeholder="SL" suffix={unit || undefined} />
+                          </Form.Item>
+                          <Form.Item name={[ch.name, "price"]} className="!mb-0">
+                            <InputNumber size="small" className="!w-full" {...moneyInput} placeholder="+ giá (đ)" />
+                          </Form.Item>
+                          <Button size="small" type="text" danger icon={<LuTrash2 size={13} />} onClick={() => c.remove(ch.name)} />
+                        </div>
+                      );
+                    })}
                     <Button size="small" type="link" className="!px-0" icon={<LuPlus size={13} />} onClick={() => c.add({ price: 0 })}>
                       Thêm lựa chọn
                     </Button>

@@ -134,7 +134,7 @@ function TopBar({
 }) {
   return (
     <header data-ui="TopBar" className="sticky top-0 z-40 flex h-12 items-center gap-2 border-b border-slate-200 bg-white px-2 sm:px-3">
-      <Button type="text" size="small" icon={<LuMenu size={16} />} onClick={onOpenMenu} className="lg:hidden" aria-label="Mở menu" />
+      <Button type="text" size="small" icon={<LuMenu size={16} />} onClick={onOpenMenu} className="lg:!hidden" aria-label="Mở menu" />
       <Tooltip title={collapsed ? "Mở rộng menu" : "Thu gọn menu"}>
         <Button
           type="text"
