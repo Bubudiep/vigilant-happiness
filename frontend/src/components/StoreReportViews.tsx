@@ -1,9 +1,9 @@
-import { App as AntApp, Empty, Segmented, Spin, Table, Tooltip } from "antd";
+import { App as AntApp, Button, DatePicker, Empty, Form, Modal, Segmented, Select, Spin, Table, Tooltip } from "antd";
 import dayjs, { type Dayjs } from "dayjs";
 import { useEffect, useState } from "react";
-import { LuReceipt, LuShoppingBag, LuTrendingDown, LuTrendingUp, LuUsers } from "react-icons/lu";
+import { LuFileSpreadsheet, LuReceipt, LuShoppingBag, LuTrendingDown, LuTrendingUp, LuUsers } from "react-icons/lu";
 import { ApiError } from "../data/platform-api";
-import { fetchReport, type RevenueReport } from "../data/pos-api";
+import { downloadTaxExport, fetchReport, TAX_GROUPS, type RevenueReport, type TaxGroup } from "../data/pos-api";
 import type { StoreConfig } from "../data/store-api";
 import { TABLE_KIND } from "./StorePosViews";
 import { FilterBar, FilterRange, PageHeader, StatCard, StatGrid } from "./ui";
@@ -96,6 +96,7 @@ export function ReportsSection({ store }: { store: StoreConfig }) {
     };
   }, [store.id, from, to, message]);
 
+  const [taxOpen, setTaxOpen] = useState(false);
   const s = r?.summary;
   const delta = s && s.prevRevenue ? Math.round(((s.revenue - s.prevRevenue) / s.prevRevenue) * 100) : null;
   const days = r?.byDay ?? [];
@@ -104,6 +105,7 @@ export function ReportsSection({ store }: { store: StoreConfig }) {
 
   return (
     <div className="space-y-4">
+      <TaxExportModal open={taxOpen} storeId={store.id} range={range} onClose={() => setTaxOpen(false)} />
       <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
         <PageHeader title="Báo cáo" description="Doanh thu từ đơn đã hoàn thành (Mini App, tạo tại quầy, bán hàng tại bàn). Chỉ chủ cửa hàng nên xem trang này." />
         <FilterBar
@@ -138,7 +140,14 @@ export function ReportsSection({ store }: { store: StoreConfig }) {
               />
             </>
           }
-          actions={loading ? <Spin size="small" /> : null}
+          actions={
+            <>
+              {loading && <Spin size="small" />}
+              <Button icon={<LuFileSpreadsheet size={14} />} onClick={() => setTaxOpen(true)}>
+                Xuất file kê khai thuế
+              </Button>
+            </>
+          }
         />
       </div>
 
@@ -319,5 +328,126 @@ export function ReportsSection({ store }: { store: StoreConfig }) {
         </>
       )}
     </div>
+  );
+}
+
+type TaxPeriod = "month" | "quarter" | "year" | "range";
+
+/**
+ * TaxExportModal — xuất Excel phục vụ kê khai / nộp thuế hộ kinh doanh:
+ * tổng hợp doanh thu – giá vốn – lợi nhuận, thuế GTGT & TNCN ước tính theo nhóm ngành, sổ doanh thu (S1-HKD),
+ * doanh thu theo ngày / sản phẩm, phiếu nhập hàng trong kỳ.
+ */
+function TaxExportModal({ open, storeId, range, onClose }: { open: boolean; storeId: string; range: [Dayjs, Dayjs]; onClose: () => void }) {
+  const { message } = AntApp.useApp();
+  const [period, setPeriod] = useState<TaxPeriod>("quarter");
+  const [anchor, setAnchor] = useState<Dayjs>(dayjs().subtract(3, "month"));
+  const [custom, setCustom] = useState<[Dayjs, Dayjs]>(range);
+  const [goods, setGoods] = useState<TaxGroup>("production");
+  const [services, setServices] = useState<TaxGroup>("services");
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (open) setCustom(range);
+  }, [open, range]);
+
+  // Kỳ kê khai: tháng / quý / năm chứa ngày đã chọn, hoặc khoảng tuỳ ý
+  const [from, to] = ((): [Dayjs, Dayjs] => {
+    if (period === "month") return [anchor.startOf("month"), anchor.endOf("month")];
+    if (period === "year") return [anchor.startOf("year"), anchor.endOf("year")];
+    if (period === "quarter") {
+      const q0 = Math.floor(anchor.month() / 3) * 3;
+      const st = anchor.month(q0).startOf("month");
+      return [st, st.add(2, "month").endOf("month")];
+    }
+    return custom;
+  })();
+  const label =
+    period === "quarter" ? `Quý ${Math.floor(anchor.month() / 3) + 1}/${anchor.year()}` : period === "month" ? `Tháng ${anchor.format("MM/YYYY")}` : period === "year" ? `Năm ${anchor.year()}` : "";
+
+  const groupOptions = (Object.keys(TAX_GROUPS) as TaxGroup[]).map((k) => ({
+    value: k,
+    label: `${TAX_GROUPS[k].label} — GTGT ${TAX_GROUPS[k].vat}% · TNCN ${TAX_GROUPS[k].pit}%`,
+  }));
+
+  const run = async () => {
+    setBusy(true);
+    try {
+      await downloadTaxExport(storeId, { from: from.format("YYYY-MM-DD"), to: to.format("YYYY-MM-DD"), goods, services });
+      message.success("Đã tải file Excel");
+      onClose();
+    } catch (e) {
+      message.error(e instanceof ApiError ? e.message : "Không xuất được file");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal
+      title="Xuất file kê khai thuế"
+      open={open}
+      onCancel={onClose}
+      width={560}
+      okText="Tải file Excel"
+      cancelText="Đóng"
+      okButtonProps={{ icon: <LuFileSpreadsheet size={14} />, loading: busy }}
+      onOk={run}
+      destroyOnHidden
+    >
+      <div data-ui="TaxExportModal">
+        <Form layout="vertical" requiredMark={false}>
+          <Form.Item label="Kỳ kê khai" className="!mb-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <Segmented
+                value={period}
+                onChange={(v) => setPeriod(v as TaxPeriod)}
+                options={[
+                  { value: "month", label: "Tháng" },
+                  { value: "quarter", label: "Quý" },
+                  { value: "year", label: "Năm" },
+                  { value: "range", label: "Tuỳ chọn" },
+                ]}
+              />
+              {period === "range" ? (
+                <DatePicker.RangePicker
+                  allowClear={false}
+                  format="DD/MM/YYYY"
+                  value={custom}
+                  disabledDate={(d) => d.isAfter(dayjs(), "day")}
+                  onChange={(v) => v?.[0] && v[1] && setCustom([v[0], v[1]])}
+                />
+              ) : (
+                <DatePicker
+                  allowClear={false}
+                  picker={period}
+                  value={anchor}
+                  format={period === "month" ? "MM/YYYY" : period === "year" ? "YYYY" : "[Quý] Q/YYYY"}
+                  disabledDate={(d) => d.isAfter(dayjs(), "day")}
+                  onChange={(v) => v && setAnchor(v)}
+                />
+              )}
+            </div>
+            <div className="mt-1 text-2xs text-slate-500">
+              {label && `${label}: `}
+              {from.format("DD/MM/YYYY")} – {to.format("DD/MM/YYYY")}
+            </div>
+          </Form.Item>
+          <Form.Item label="Nhóm ngành của hàng hoá / món bán" className="!mb-3" extra="Quán ăn, cà phê, đồ uống thường thuộc nhóm “ăn uống” (3% + 1,5%); bán lẻ hàng có sẵn thuộc nhóm phân phối (1% + 0,5%).">
+            <Select value={goods} onChange={setGoods} options={groupOptions} />
+          </Form.Item>
+          <Form.Item label="Nhóm ngành của dịch vụ (tiền giờ bàn, dịch vụ, dòng tự nhập)" className="!mb-3">
+            <Select value={services} onChange={setServices} options={groupOptions} />
+          </Form.Item>
+        </Form>
+        <div className="rounded-lg bg-slate-50 p-3 text-2xs leading-relaxed text-slate-600">
+          File Excel gồm: <b>Tổng hợp</b> (doanh thu, giá vốn, lợi nhuận gộp, thuế GTGT & TNCN ước tính theo nhóm ngành) ·{" "}
+          <b>Sổ doanh thu (S1-HKD)</b> từng đơn · <b>Theo ngày</b> · <b>Theo sản phẩm</b> · <b>Nhập hàng</b> trong kỳ.
+          <div className="mt-1 text-amber-700">
+            Tỷ lệ thuế theo Thông tư 40/2021/TT-BTC, chỉ để tham khảo — đối chiếu quy định hiện hành (ngưỡng doanh thu chịu thuế, cách kê khai) hoặc hỏi kế toán / cơ quan thuế trước khi nộp.
+          </div>
+        </div>
+      </div>
+    </Modal>
   );
 }

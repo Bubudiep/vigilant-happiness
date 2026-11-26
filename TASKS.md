@@ -111,6 +111,8 @@ Quota Zalo: Development 11/300, Testing 19/60.
 | T72 Bán hàng: hộp thanh toán 2 nút — "Thanh toán" (bàn sang Đang dọn) · "Thanh toán & dọn bàn" (bàn trống ngay) | `demo-89` | [x] |
 | T73 Lựa chọn size/topping: nhập nguyên liệu dùng thêm + SL ngay cạnh tên | `demo-89` | [x] |
 | T74 Combo: nút "Thêm combo" (`StoreComboViews.tsx`) chọn món + SL + giảm (đ / %); `StoreProduct.combo` (migration `20261126120000_product_combo`), giá = tổng món − giảm (máy chủ tính), bán combo trừ kho & tính giá vốn từng món, "làm được" theo tồn món | `demo-89` | [x] |
+| T75 Combo: chọn size/topping cố định cho từng món (giá, giá vốn, trừ kho theo lựa chọn) | `demo-89` | [x] |
+| T76 Báo cáo → "Xuất file kê khai thuế" (Excel, `exceljs`): Tổng hợp (doanh thu, giá vốn, LN gộp, thuế GTGT/TNCN ước tính theo nhóm ngành TT40/2021), Sổ doanh thu S1-HKD, Theo ngày, Theo sản phẩm, Nhập hàng — `GET /stores/:id/reports/tax-export` | `demo-89` | [x] tỷ lệ thuế chỉ tham khảo |
 | T55 Thang chữ quản trị 9/10/11px (`ui/AdminTheme.tsx` + `index.css`) | `demo-88` | [x] người dùng đang thử |
 | T45 Nhãn tiếng Việt cho action audit mới | `frontend-2b` | [x] test 45/45 (`data/audit-labels.ts`) |
 | T44b Thư viện ảnh dùng cờ `inUse/usedIn` + xử lý 409 | `frontend-2b` | [x] test 53/53 |

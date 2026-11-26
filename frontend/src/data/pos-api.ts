@@ -1,4 +1,6 @@
-import { api } from "./platform-api";
+import { getStoredAuthToken } from "./auth";
+import { api, ApiError, apiErrorFromResponse } from "./platform-api";
+import { siteConfig } from "./site";
 import type { PaymentMethod } from "./store-api";
 
 export type TableKind = "table" | "billiards" | "karaoke" | "room" | "other";
@@ -134,3 +136,35 @@ export interface RevenueReport {
 }
 
 export const fetchReport = (storeId: string, from: string, to: string) => api<RevenueReport>(`/stores/${storeId}/reports?from=${from}&to=${to}`);
+
+/** Nhóm ngành tính thuế (giống backend tax-export.service.ts) — tỷ lệ % trên doanh thu theo Thông tư 40/2021/TT-BTC */
+export const TAX_GROUPS = {
+  distribution: { label: "Phân phối, cung cấp hàng hoá", vat: 1, pit: 0.5 },
+  production: { label: "Sản xuất, vận tải, dịch vụ gắn với hàng hoá, ăn uống", vat: 3, pit: 1.5 },
+  services: { label: "Dịch vụ, xây dựng không bao thầu nguyên vật liệu", vat: 5, pit: 2 },
+  other: { label: "Hoạt động kinh doanh khác", vat: 2, pit: 1 },
+} as const;
+export type TaxGroup = keyof typeof TAX_GROUPS;
+
+/** Tải file Excel kê khai thuế (doanh thu, lợi nhuận, thuế ước tính, sổ doanh thu S1-HKD…) */
+export async function downloadTaxExport(storeId: string, q: { from: string; to: string; goods: TaxGroup; services: TaxGroup }) {
+  const token = getStoredAuthToken();
+  const qs = new URLSearchParams(q).toString();
+  let res: Response;
+  try {
+    res = await fetch(`${siteConfig.apiUrl}/stores/${storeId}/reports/tax-export?${qs}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  } catch {
+    throw new ApiError("Không kết nối được máy chủ", 0);
+  }
+  if (!res.ok) throw apiErrorFromResponse(res.status, await res.json().catch(() => null));
+  const blob = await res.blob();
+  const name = /filename="([^"]+)"/.exec(res.headers.get("Content-Disposition") ?? "")?.[1] ?? `doanh-thu-thue_${q.from}_${q.to}.xlsx`;
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}

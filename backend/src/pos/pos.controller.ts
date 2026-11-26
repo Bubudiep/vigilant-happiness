@@ -1,9 +1,11 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UseGuards } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, Res, UseGuards } from "@nestjs/common";
+import type { Response } from "express";
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { AppAuthGuard, RequireScopes, type AppRequest } from "../common/guards/app-auth.guard";
 import { PosService } from "./pos.service";
 import { InventoryService } from "./inventory.service";
 import { ReportsService } from "./reports.service";
+import { TaxExportService } from "./tax-export.service";
 
 /** Bán hàng tại quầy: /stores/:id/pos/... và báo cáo /stores/:id/reports */
 @ApiTags("pos")
@@ -16,6 +18,7 @@ export class PosController {
     private readonly pos: PosService,
     private readonly reports: ReportsService,
     private readonly inventory: InventoryService,
+    private readonly taxExport: TaxExportService,
   ) {}
 
   @Get("inventory")
@@ -118,5 +121,22 @@ export class PosController {
   @ApiOperation({ summary: "Báo cáo doanh thu ?from=YYYY-MM-DD&to=YYYY-MM-DD (giờ VN)" })
   report(@Req() req: AppRequest, @Param("id") id: string, @Query("from") from: string, @Query("to") to: string) {
     return this.reports.revenue(req.auth!, id, String(from ?? ""), String(to ?? ""));
+  }
+
+  @Get("reports/tax-export")
+  @ApiOperation({
+    summary:
+      "Xuất Excel kê khai thuế ?from&to (YYYY-MM-DD) &goods&services = distribution | production | services | other (nhóm ngành tính thuế của hàng hoá / dịch vụ)",
+  })
+  async exportTax(
+    @Req() req: AppRequest,
+    @Param("id") id: string,
+    @Query() q: { from?: string; to?: string; goods?: string; services?: string },
+    @Res() res: Response,
+  ) {
+    const { buffer, filename } = await this.taxExport.build(req.auth!, id, q);
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.send(buffer);
   }
 }
