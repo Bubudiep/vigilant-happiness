@@ -47,7 +47,11 @@ import {
   StoreSupportTicket,
 } from "../data/store-api";
 import { FilterBar, FilterSelect, PageHeader, StatCard, StatGrid } from "./ui";
-import { BookingCheckoutModal, paidOrderOf } from "./StoreBillingViews";
+import {
+  BookingCheckoutModal,
+  paidOrderOf,
+  withPaidCustomer,
+} from "./StoreBillingViews";
 import {
   TIME_SLOTS,
   TreatmentBadge,
@@ -870,9 +874,10 @@ export function OverviewSection({
         store={store}
         booking={checkout}
         onClose={() => setCheckout(null)}
-        onDone={(b, order) => {
+        onDone={(b, order, customer) => {
           updateCurrentStore((s) => ({
             ...s,
+            customers: withPaidCustomer(s.customers, customer),
             bookings: (s.bookings ?? []).map((x) =>
               x.id === b.id ? { ...x, status: b.status, result: b.result } : x,
             ),
@@ -1515,9 +1520,10 @@ export function BookingsSection({
         store={store}
         booking={checkout}
         onClose={() => setCheckout(null)}
-        onDone={(b, order) => {
+        onDone={(b, order, customer) => {
           updateCurrentStore((s) => ({
             ...s,
+            customers: withPaidCustomer(s.customers, customer),
             bookings: (s.bookings ?? []).map((x) =>
               x.id === b.id ? { ...x, status: b.status, result: b.result } : x,
             ),

@@ -33,6 +33,21 @@ export interface CheckoutInput {
   treatmentPaid?: number;
   result?: string;
   note?: string;
+  /** Trừ ví khách vào bill */
+  walletUse?: number;
+  /** Khách trả thừa → cộng phần thừa vào ví */
+  overpayToWallet?: boolean;
+  walletReason?: string;
+}
+
+/** Khách sau khi thu tiền (số dư ví, chi tiêu… mới) */
+export interface CustomerAfterPay {
+  id: string;
+  walletBalance: number;
+  totalSpent: number;
+  totalOrders: number;
+  points: number;
+  tier: string;
 }
 
 export interface DebtOrder extends StoreOrderItem {
@@ -60,10 +75,14 @@ export const checkoutBooking = (
   bookingId: string,
   body: CheckoutInput,
 ) =>
-  api<{ order: StoreOrderItem | null; booking: StoreBookingItem }>(
-    `/stores/${storeId}/bookings/${bookingId}/checkout`,
-    { method: "POST", body: JSON.stringify(body) },
-  );
+  api<{
+    order: StoreOrderItem | null;
+    booking: StoreBookingItem;
+    customer: CustomerAfterPay | null;
+  }>(`/stores/${storeId}/bookings/${bookingId}/checkout`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
 
 export const fetchTreatmentBilling = (storeId: string) =>
   api<TreatmentBilling[]>(`/stores/${storeId}/treatments`);
@@ -103,9 +122,18 @@ export const collectDebt = (
     amount: number;
     paymentMethod: PaymentMethod;
     note?: string;
+    walletUse?: number;
+    overpayToWallet?: boolean;
+    walletReason?: string;
   },
 ) =>
-  api<{ collected: number; change: number }>(
-    `/stores/${storeId}/debts/collect`,
-    { method: "POST", body: JSON.stringify(body) },
-  );
+  api<{
+    collected: number;
+    fromWallet: number;
+    toWallet: number;
+    change: number;
+    customer: CustomerAfterPay | null;
+  }>(`/stores/${storeId}/debts/collect`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });

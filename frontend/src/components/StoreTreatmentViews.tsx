@@ -45,6 +45,7 @@ import {
 import {
   BILLING_LABEL,
   BookingCheckoutModal,
+  withPaidCustomer,
   DebtCollectModal,
   money as fmtMoney,
   paidOrderOf,
@@ -982,9 +983,10 @@ export function TreatmentsSection({
         store={store}
         booking={checkout}
         onClose={() => setCheckout(null)}
-        onDone={(b, order) => {
+        onDone={(b, order, customer) => {
           updateCurrentStore((s) => ({
             ...s,
+            customers: withPaidCustomer(s.customers, customer),
             bookings: (s.bookings ?? []).map((x) =>
               x.id === b.id ? { ...x, status: b.status, result: b.result } : x,
             ),
@@ -1000,6 +1002,7 @@ export function TreatmentsSection({
         title={collect ? `Thu tiền ${collect.name}` : ""}
         max={collect?.debt ?? 0}
         target={{ orderId: collect?.orderId ?? undefined }}
+        customerId={cur?.customerId}
         qrStore={store}
         onClose={() => setCollect(null)}
         onDone={() => {

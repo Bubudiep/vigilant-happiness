@@ -5,6 +5,7 @@ import { PrismaService } from "../prisma/prisma.service";
 import { PAYMENT_METHODS, serializeBooking, serializeOrder } from "./store-data";
 import { type AdminOrderInput, StoreDataService } from "./store-data.service";
 import { StoresService } from "./stores.service";
+import { WalletService, walletReason } from "./wallet.service";
 
 const BILLING = ["session", "package", "flexible"] as const;
 type Billing = (typeof BILLING)[number];
@@ -23,7 +24,12 @@ export class BillingService {
     private readonly prisma: PrismaService,
     private readonly stores: StoresService,
     private readonly data: StoreDataService,
+    private readonly wallet: WalletService,
   ) {}
+
+  private customerView(tx: Prisma.TransactionClient, id: string | null | undefined) {
+    return id ? tx.storeCustomer.findUnique({ where: { id }, select: { id: true, walletBalance: true, totalSpent: true, totalOrders: true, points: true, tier: true } }) : null;
+  }
 
   /** Ghi 1 lần thu tiền vào đơn (cộng paidAmount, không vượt tổng) */
   private async pay(tx: Prisma.TransactionClient, storeId: string, orderId: string, amount: number, m: string, note?: string) {
@@ -55,6 +61,11 @@ export class BillingService {
       treatmentPaid?: number;
       result?: string;
       note?: string;
+      /** Trừ ví khách vào bill */
+      walletUse?: number;
+      /** Khách trả thừa → cộng phần thừa vào ví (không thì coi như đã thối lại) */
+      overpayToWallet?: boolean;
+      walletReason?: string;
     },
   ) {
     await this.stores.ensureSection(auth, storeId, "bookings", "orders");
@@ -66,6 +77,9 @@ export class BillingService {
       if (paidOrder) throw new BadRequestException(`Lịch hẹn đã được thu tiền (đơn ${paidOrder.code})`);
 
       const items = Array.isArray(body?.items) ? body.items : [];
+      const walletUse = money(body?.walletUse);
+      if ((walletUse || body?.overpayToWallet) && !b.customerId) throw new BadRequestException("Khách chưa có hồ sơ khách hàng nên chưa dùng ví được");
+      const by = auth.email ?? null;
       let order: ReturnType<typeof serializeOrder> | null = null;
       if (items.length) {
         const created = await this.data.createOrderTx(
@@ -83,13 +97,27 @@ export class BillingService {
             note: [`Lịch hẹn ${b.code} · ${b.serviceName}`, body.note?.trim()].filter(Boolean).join(" — "),
           },
           "booking",
-          { paid: body.paid, bookingId: b.id, treatmentId: b.treatmentId ?? undefined },
+          // paid = tiền khách đưa (mặc định đủ phần còn lại sau khi trừ ví) + phần trừ ví
+          { paid: body.paid === undefined || body.paid === null ? undefined : money(body.paid) + walletUse, bookingId: b.id, treatmentId: b.treatmentId ?? undefined },
         );
         order = created;
-        if (created.paid > 0) {
+        const walletPart = Math.min(walletUse, created.total);
+        const cashIn = body.paid === undefined || body.paid === null ? created.total - walletPart : money(body.paid);
+        const cashPart = Math.max(0, created.paid - walletPart);
+        if (walletPart > 0) {
+          await this.wallet.move(tx, storeId, b.customerId!, -walletPart, { kind: "pay", reason: `Trừ vào đơn ${created.code} (lịch hẹn ${b.code})`, orderId: created.id, orderCode: created.code, by });
+          await tx.storePayment.create({ data: { storeId, orderId: created.id, customerId: created.customerId, amount: walletPart, method: "wallet", note: "Trừ ví khách" } });
+        }
+        if (cashPart > 0) {
           await tx.storePayment.create({
-            data: { storeId, orderId: created.id, customerId: created.customerId, amount: created.paid, method: m, note: `Thu tiền lịch hẹn ${b.code}` },
+            data: { storeId, orderId: created.id, customerId: created.customerId, amount: cashPart, method: m, note: `Thu tiền lịch hẹn ${b.code}` },
           });
+        }
+        // Trả thừa → quán đang nợ khách: cộng vào ví (kèm lý do)
+        const excess = Math.max(0, cashIn - (created.total - walletPart));
+        if (excess > 0 && body.overpayToWallet) {
+          const reason = body.walletReason?.trim() ? walletReason(body.walletReason) : `Khách trả thừa khi thanh toán lịch hẹn ${b.code} (đơn ${created.code})`;
+          await this.wallet.move(tx, storeId, b.customerId!, excess, { kind: "overpay", reason, method: m, orderId: created.id, orderCode: created.code, by });
         }
       }
       // Thu thêm nợ gói liệu trình (trọn gói / linh hoạt)
@@ -101,7 +129,7 @@ export class BillingService {
         where: { id: b.id },
         data: { status: "completed", ...(typeof body?.result === "string" && body.result.trim() ? { result: body.result.trim().slice(0, 2000) } : {}) },
       });
-      return { order, booking: serializeBooking(booking) };
+      return { order, booking: serializeBooking(booking), customer: await this.customerView(tx, b.customerId) };
     });
   }
 
@@ -217,11 +245,24 @@ export class BillingService {
   async collect(
     auth: AuthContext,
     storeId: string,
-    body: { orderId?: string; customerId?: string; phone?: string; amount?: number; paymentMethod?: string; note?: string },
+    body: {
+      orderId?: string;
+      customerId?: string;
+      phone?: string;
+      amount?: number;
+      paymentMethod?: string;
+      note?: string;
+      /** Trừ ví khách để trả nợ */
+      walletUse?: number;
+      /** Thu dư → cộng phần dư vào ví */
+      overpayToWallet?: boolean;
+      walletReason?: string;
+    },
   ) {
     await this.stores.ensureSection(auth, storeId, "customers", "orders");
     let left = money(body?.amount);
-    if (!left) throw new BadRequestException("Nhập số tiền thu");
+    let walletLeft = money(body?.walletUse);
+    if (!left && !walletLeft) throw new BadRequestException("Nhập số tiền thu");
     const m = method(body.paymentMethod);
     return this.prisma.$transaction(async (tx) => {
       const where: Prisma.StoreOrderWhereInput = body.orderId
@@ -237,14 +278,34 @@ export class BillingService {
         (o) => o.paidAmount < o.totalAmount,
       );
       if (!list.length) throw new BadRequestException("Không còn khoản nợ nào");
+      const customerId = body.customerId ?? list[0].customerId;
+      if ((walletLeft || body.overpayToWallet) && !customerId) throw new BadRequestException("Khách chưa có hồ sơ khách hàng nên chưa dùng ví được");
+      const by = auth.email ?? null;
       let collected = 0;
+      let fromWallet = 0;
+      const codes: string[] = [];
       for (const o of list) {
-        if (!left) break;
-        const amt = await this.pay(tx, storeId, o.id, left, m, body.note?.trim() || "Thu nợ");
-        left -= amt;
-        collected += amt;
+        if (!left && !walletLeft) break;
+        // Trừ ví trước, phần còn lại thu tiền mặt / chuyển khoản
+        const w = walletLeft ? await this.pay(tx, storeId, o.id, walletLeft, "wallet", "Trừ ví khách — thu nợ") : 0;
+        walletLeft -= w;
+        fromWallet += w;
+        const c = left ? await this.pay(tx, storeId, o.id, left, m, body.note?.trim() || "Thu nợ") : 0;
+        left -= c;
+        collected += w + c;
+        if (w + c) codes.push(o.code);
       }
-      return { collected, change: left };
+      if (fromWallet) {
+        await this.wallet.move(tx, storeId, customerId!, -fromWallet, { kind: "pay", reason: `Trừ ví trả nợ đơn ${codes.join(", ")}`.slice(0, 300), orderCode: codes[0] ?? null, by });
+      }
+      let toWallet = 0;
+      if (left > 0 && body.overpayToWallet) {
+        const reason = body.walletReason?.trim() ? walletReason(body.walletReason) : `Khách trả dư khi thu nợ đơn ${codes.join(", ")}`.slice(0, 300);
+        await this.wallet.move(tx, storeId, customerId!, left, { kind: "overpay", reason, method: m, orderCode: codes[0] ?? null, by });
+        toWallet = left;
+        left = 0;
+      }
+      return { collected, fromWallet, toWallet, change: left, customer: await this.customerView(tx, customerId) };
     });
   }
 }

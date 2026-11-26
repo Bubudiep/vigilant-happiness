@@ -229,12 +229,12 @@ model CustomerStaff {
 
 /// Gian hàng / Mini App đã đăng ký và cấu hình trên recloud.vn
 model Store {
-  id               String              @id @default(cuid())
+  id               String                 @id @default(cuid())
   customerId       String?
-  customer         PlatformCustomer?   @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  customer         PlatformCustomer?      @relation(fields: [customerId], references: [id], onDelete: SetNull)
   subscriptionId   String?
-  subscription     Subscription?       @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
-  slug             String              @unique
+  subscription     Subscription?          @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+  slug             String                 @unique
   name             String
   subtitle         String?
   logoUrl          String?
@@ -260,9 +260,9 @@ model Store {
   /// Tingee (báo tiền về tài khoản): Client ID + Secret Token (mã hoá AES-GCM) — xác nhận chuyển khoản tự động
   tingeeClientId   String?
   tingeeSecretEnc  String?
-  active           Boolean             @default(true)
-  createdAt        DateTime            @default(now())
-  updatedAt        DateTime            @updatedAt
+  active           Boolean                @default(true)
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
   products         StoreProduct[]
   customers        StoreCustomer[]
   staff            CustomerStaff[]
@@ -290,6 +290,7 @@ model Store {
   buildRequests    StoreBuildRequest[]
   paymentRequests  StorePaymentRequest[]
   bankTransactions StoreBankTransaction[]
+  walletTxns       StoreWalletTxn[]
 
   @@index([templateId])
   @@index([customerId])
@@ -336,40 +337,40 @@ model StoreBanner {
 
 /// Sản phẩm / Dịch vụ của từng Store
 model StoreProduct {
-  id          String           @id @default(cuid())
-  storeId     String
-  store       Store            @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  sku         String?
+  id                    String           @id @default(cuid())
+  storeId               String
+  store                 Store            @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  sku                   String?
   /// product = hàng hoá (có tồn kho) | service = dịch vụ (không quản lý kho) | material = nguyên liệu (không bán trên Mini App)
-  kind        String           @default("product")
-  name        String
-  category    String           @default("Chung")
-  description String?
-  price       Int
-  salePrice   Int?
-  unit        String?
-  tag         String?
-  stock       Int              @default(0)
+  kind                  String           @default("product")
+  name                  String
+  category              String           @default("Chung")
+  description           String?
+  price                 Int
+  salePrice             Int?
+  unit                  String?
+  tag                   String?
+  stock                 Int              @default(0)
   /// Giá vốn bình quân (đ / đơn vị) — cập nhật khi nhập kho
-  costPrice   Int              @default(0)
+  costPrice             Int              @default(0)
   /// Định mức nguyên liệu (BOM): [{ productId, quantity }] — bán 1 đơn vị thì trừ kho nguyên liệu, giá vốn = tổng nguyên liệu
-  bom         Json?
+  bom                   Json?
   /// Phân loại & bán kèm: [{ id, name, multiple, required, max, choices: [{ id, name, price, bom? }] }]
-  options     Json?
+  options               Json?
   /// Combo: { items: [{ productId, quantity }], discountType: amount|percent, discountValue } — giá = tổng món − giảm
-  combo       Json?
+  combo                 Json?
   /// Thời lượng dịch vụ (phút) — chỉ dùng khi kind = service
-  durationMin Int?
+  durationMin           Int?
   /// Liệu trình mặc định của dịch vụ: số buổi & số ngày giữa 2 buổi (gợi ý khi tạo liệu trình cho khách)
   treatmentSessions     Int?
   treatmentIntervalDays Int?
-  imageUrl    String?
-  gallery     Json?
-  active      Boolean          @default(true)
-  sortOrder   Int              @default(0)
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
-  orderItems  StoreOrderItem[]
+  imageUrl              String?
+  gallery               Json?
+  active                Boolean          @default(true)
+  sortOrder             Int              @default(0)
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+  orderItems            StoreOrderItem[]
 
   @@index([storeId, active, sortOrder])
   @@index([storeId, sku])
@@ -448,29 +449,32 @@ model StoreAttendance {
 /// Tệp khách hàng của từng Store — cũng là tài khoản của khách trong Mini App của store đó.
 /// Mỗi store giữ dữ liệu khách riêng: cùng một người Zalo mua ở 2 store là 2 bản ghi khác nhau.
 model StoreCustomer {
-  id           String         @id @default(cuid())
-  storeId      String
-  store        Store          @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  name         String
-  phone        String
-  zaloUserId   String?
-  avatarUrl    String?
-  address      String?
-  lastLoginAt  DateTime?
-  tier         String         @default("Thành viên")
-  points       Int            @default(0)
+  id            String           @id @default(cuid())
+  storeId       String
+  store         Store            @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  name          String
+  phone         String
+  zaloUserId    String?
+  avatarUrl     String?
+  address       String?
+  lastLoginAt   DateTime?
+  tier          String           @default("Thành viên")
+  points        Int              @default(0)
   /// Số tem đang có (thẻ tích tem) & số lần đã đổi quà
-  stamps       Int            @default(0)
-  stampRewards Int            @default(0)
-  totalOrders  Int            @default(0)
-  totalSpent   Int            @default(0)
-  note         String?
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
-  orders       StoreOrder[]
-  bookings     StoreBooking[]
-  albums       StoreAlbum[]
-  messages     StoreMessage[]
+  stamps        Int              @default(0)
+  stampRewards  Int              @default(0)
+  /// Ví khách: tiền quán đang giữ của khách (trả thừa, nạp trước…) — dùng trừ vào lần thanh toán sau
+  walletBalance Int              @default(0)
+  totalOrders   Int              @default(0)
+  totalSpent    Int              @default(0)
+  note          String?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  orders        StoreOrder[]
+  bookings      StoreBooking[]
+  albums        StoreAlbum[]
+  messages      StoreMessage[]
+  walletTxns    StoreWalletTxn[]
 
   @@unique([storeId, zaloUserId])
   @@index([storeId, phone])
@@ -570,20 +574,20 @@ model StoreOrderItem {
 
 /// Lịch hẹn / Đặt lịch dịch vụ của khách tại Store
 model StoreBooking {
-  id           String         @id @default(cuid())
-  storeId      String
-  store        Store          @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  customerId   String?
-  customer     StoreCustomer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  code         String         @unique
-  customerName String
-  phone        String
-  serviceName  String
-  bookingDate  DateTime
-  timeSlot     String
-  staffName    String?
-  status       String         @default("pending")
-  note         String?
+  id             String         @id @default(cuid())
+  storeId        String
+  store          Store          @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  customerId     String?
+  customer       StoreCustomer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  code           String         @unique
+  customerName   String
+  phone          String
+  serviceName    String
+  bookingDate    DateTime
+  timeSlot       String
+  staffName      String?
+  status         String         @default("pending")
+  note           String?
   /// Liệu trình: các buổi cùng 1 liệu trình chung treatmentId; buổi thứ treatmentSeq / treatmentTotal
   treatmentId    String?
   treatmentName  String?
@@ -591,8 +595,8 @@ model StoreBooking {
   treatmentTotal Int?
   /// Kết quả / ghi chú của buổi (nhập khi hoàn thành — VD tình trạng da, liều dùng)
   result         String?
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
 
   @@index([storeId, bookingDate, status])
   @@index([storeId, treatmentId])
@@ -1269,4 +1273,27 @@ model StoreBankTransaction {
 
   @@unique([storeId, transactionCode])
   @@index([storeId, createdAt])
+}
+
+/// Lịch sử ví khách: + tiền vào ví (trả thừa, nạp trước), − tiền ra (trừ vào đơn, hoàn tiền cho khách). Luôn có lý do.
+model StoreWalletTxn {
+  id           String        @id @default(cuid())
+  storeId      String
+  store        Store         @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  customerId   String
+  customer     StoreCustomer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  /// Số tiền có dấu: > 0 vào ví, < 0 ra khỏi ví
+  amount       Int
+  balanceAfter Int
+  /// overpay (trả thừa) | topup (nạp trước) | pay (trừ vào đơn) | refund (hoàn tiền cho khách) | adjust (điều chỉnh)
+  kind         String
+  reason       String
+  /// Hình thức tiền mặt / chuyển khoản… khi nạp hoặc hoàn tiền
+  method       String?
+  orderId      String?
+  orderCode    String?
+  createdBy    String?
+  createdAt    DateTime      @default(now())
+
+  @@index([storeId, customerId, createdAt])
 }

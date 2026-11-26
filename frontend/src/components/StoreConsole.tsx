@@ -705,6 +705,7 @@ export default function StoreConsole({
               onEdit={(c) => openCustomerModal(c)}
               onDelete={deleteCustomer}
               onCreateBooking={(b) => updateCurrentStore((s) => ({ ...s, bookings: [b, ...(s.bookings ?? [])] }))}
+              onCustomerPatch={(id, patch) => applyLocal((s) => ({ ...s, customers: s.customers.map((c) => (c.id === id ? { ...c, ...patch } : c)) }))}
             />
           )}
 

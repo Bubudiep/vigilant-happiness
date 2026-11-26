@@ -7,10 +7,11 @@ import { StoresController } from "./stores.controller";
 import { StoresService } from "./stores.service";
 import { TingeeController, TingeeWebhookController } from "./tingee.controller";
 import { TingeeService } from "./tingee.service";
+import { WalletService } from "./wallet.service";
 
 @Module({
   controllers: [StoresController, StoreDataController, BillingController, TingeeController, TingeeWebhookController],
-  providers: [StoresService, StoreDataService, BillingService, TingeeService],
+  providers: [StoresService, StoreDataService, BillingService, TingeeService, WalletService],
   exports: [StoresService, StoreDataService],
 })
 export class StoresModule {}

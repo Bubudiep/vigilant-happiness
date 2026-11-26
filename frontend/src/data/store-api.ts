@@ -262,6 +262,8 @@ export interface StoreCustomerItem {
   /** Thẻ tích tem: số tem hiện có / số lần đã đổi quà */
   stamps?: number;
   stampRewards?: number;
+  /** Ví khách: tiền quán đang giữ của khách (chỉ đổi qua giao dịch ví) */
+  walletBalance?: number;
 }
 
 export interface StoreConfig {

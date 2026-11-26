@@ -26,6 +26,7 @@ import {
 import {
   checkoutBooking,
   collectDebt,
+  type CustomerAfterPay,
   type DebtGroup,
   fetchDebts,
   fetchTreatmentBilling,
@@ -39,9 +40,11 @@ import {
   type PaymentMethod,
   type StoreBookingItem,
   type StoreConfig,
+  type StoreCustomerItem,
   type StoreOrderItem,
 } from "../data/store-api";
 import { BankQrPanel, type QrStore } from "./BankQr";
+import { useWalletBalance } from "./CustomerWalletViews";
 import { PageHeader, StatCard, StatGrid } from "./ui";
 
 /**
@@ -105,8 +108,12 @@ export function BookingCheckoutModal({
   store: StoreConfig;
   booking: StoreBookingItem | null;
   onClose: () => void;
-  /** Đã thu tiền: lịch hẹn mới (đã hoàn thành) + đơn vừa tạo (null nếu không có dòng tính tiền) */
-  onDone: (booking: StoreBookingItem, order: StoreOrderItem | null) => void;
+  /** Đã thu tiền: lịch hẹn mới (đã hoàn thành) + đơn vừa tạo (null nếu không có dòng tính tiền) + khách (số dư ví mới) */
+  onDone: (
+    booking: StoreBookingItem,
+    order: StoreOrderItem | null,
+    customer?: CustomerAfterPay | null,
+  ) => void;
 }) {
   const { message } = AntApp.useApp();
   const [lines, setLines] = useState<Line[]>([]);
@@ -127,6 +134,11 @@ export function BookingCheckoutModal({
   } | null>(null);
   const [voucherErr, setVoucherErr] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
+  // Ví khách: trừ ví vào bill; khách trả thừa → cộng vào ví (quán đang nợ khách) hoặc thối lại
+  const [walletUse, setWalletUse] = useState(0);
+  const [overpay, setOverpay] = useState<"wallet" | "change">("wallet");
+  const [walletNote, setWalletNote] = useState("");
+  const balance = useWalletBalance(store.id, booking?.customerId, open);
 
   const sellable = useMemo(
     () =>
@@ -153,6 +165,9 @@ export function BookingCheckoutModal({
     setVoucherErr(null);
     setMethod("cash");
     setPaid(null);
+    setWalletUse(0);
+    setOverpay(booking.customerId ? "wallet" : "change");
+    setWalletNote("");
     setPlan(null);
     setPlanPaid(0);
     setResult(booking.result ?? "");
@@ -227,8 +242,13 @@ export function BookingCheckoutModal({
   const voucherOptions = (store.vouchers ?? [])
     .filter((v) => v.active && dayjs().isBefore(dayjs(v.endDate).endOf("day")))
     .map((v) => ({ value: v.code, label: `${v.code} — ${v.title}` }));
-  const pay = paid ?? total;
-  const owe = Math.max(0, total - pay);
+  const walletPart = Math.min(walletUse, total, balance ?? 0);
+  /** Còn phải trả sau khi trừ ví */
+  const due = total - walletPart;
+  const pay = paid ?? due;
+  const owe = Math.max(0, due - pay);
+  const excess = Math.max(0, pay - due);
+  const toWallet = excess > 0 && overpay === "wallet" && !!booking?.customerId;
   const patch = (key: string, p: Partial<Line>) =>
     setLines((l) => l.map((x) => (x.key === key ? { ...x, ...p } : x)));
 
@@ -272,6 +292,10 @@ export function BookingCheckoutModal({
         voucherCode: voucher?.code,
         paymentMethod: method,
         paid: pay,
+        walletUse: walletPart || undefined,
+        overpayToWallet: toWallet || undefined,
+        walletReason:
+          toWallet && walletNote.trim() ? walletNote.trim() : undefined,
         treatmentPaid: planPaid || undefined,
         result: booking.treatmentId ? result : undefined,
       });
@@ -282,11 +306,19 @@ export function BookingCheckoutModal({
         );
       }
       message.success(
-        owe
-          ? `Đã thu ${money(pay)} · ghi nợ ${money(owe)}`
-          : `Đã thu ${money(pay)}`,
+        [
+          `Đã thu ${money(Math.min(pay, due))}`,
+          walletPart && `trừ ví ${money(walletPart)}`,
+          owe && `ghi nợ ${money(owe)}`,
+          excess &&
+            (toWallet
+              ? `cộng ví ${money(excess)}`
+              : `thối lại ${money(excess)}`),
+        ]
+          .filter(Boolean)
+          .join(" · "),
       );
-      onDone(r.booking, r.order);
+      onDone(r.booking, r.order, r.customer);
     } catch (e) {
       message.error(errText(e, "Không thu tiền được"));
     } finally {
@@ -315,7 +347,7 @@ export function BookingCheckoutModal({
             icon={<LuCircleDollarSign size={15} />}
             onClick={submit}
           >
-            Xác nhận thanh toán · {money(pay)}
+            Xác nhận thanh toán · {money(Math.min(pay, due) + walletPart)}
           </Button>
         </div>
       }
@@ -624,12 +656,45 @@ export function BookingCheckoutModal({
               <span>Tổng thanh toán</span>
               <span>{money(total)}</span>
             </div>
+            {(balance ?? 0) > 0 && total > 0 && (
+              <div className="flex items-center justify-between gap-2 text-slate-600">
+                <span className="flex min-w-0 flex-col leading-tight">
+                  <span className="flex items-center gap-1 whitespace-nowrap">
+                    <LuWallet size={13} className="text-emerald-600" /> Trừ ví
+                  </span>
+                  <button
+                    type="button"
+                    className="whitespace-nowrap text-left text-2xs text-emerald-700 hover:underline"
+                    onClick={() => setWalletUse(Math.min(balance ?? 0, total))}
+                  >
+                    còn {money(balance ?? 0)} · dùng hết
+                  </button>
+                </span>
+                <span className="flex items-center gap-1">
+                  <InputNumber
+                    size="small"
+                    min={0}
+                    max={Math.min(balance ?? 0, total)}
+                    step={10000}
+                    value={walletUse}
+                    onChange={(v) => setWalletUse(Number(v) || 0)}
+                    className="!w-32"
+                    suffix="đ"
+                  />
+                </span>
+              </div>
+            )}
+            {walletPart > 0 && (
+              <div className="flex justify-between font-semibold text-slate-800">
+                <span>Còn phải trả</span>
+                <span>{money(due)}</span>
+              </div>
+            )}
             <div className="flex items-center justify-between text-slate-600">
               <span>Khách trả</span>
               <InputNumber
                 size="small"
                 min={0}
-                max={total}
                 step={10000}
                 value={pay}
                 onChange={(v) => setPaid(v === null ? null : Number(v))}
@@ -637,6 +702,45 @@ export function BookingCheckoutModal({
                 suffix="đ"
               />
             </div>
+            {excess > 0 && (
+              <div
+                data-ui="OverpayBox"
+                className="space-y-1.5 rounded-lg border border-amber-200 bg-amber-50 p-2"
+              >
+                <div className="flex items-center justify-between font-semibold text-amber-800">
+                  <span>Khách trả thừa</span>
+                  <span>{money(excess)}</span>
+                </div>
+                {booking.customerId ? (
+                  <>
+                    <Segmented
+                      size="small"
+                      block
+                      value={overpay}
+                      onChange={(v) => setOverpay(v as "wallet" | "change")}
+                      options={[
+                        { value: "wallet", label: "Cộng vào ví khách" },
+                        { value: "change", label: "Thối lại tiền" },
+                      ]}
+                    />
+                    {overpay === "wallet" && (
+                      <Input
+                        size="small"
+                        value={walletNote}
+                        maxLength={300}
+                        onChange={(e) => setWalletNote(e.target.value)}
+                        placeholder={`Lý do (mặc định: Khách trả thừa khi thanh toán lịch hẹn ${booking.code})`}
+                      />
+                    )}
+                  </>
+                ) : (
+                  <div className="text-2xs text-amber-700">
+                    Khách lẻ chưa có hồ sơ — thối lại tiền cho khách (lưu hồ sơ
+                    khách để dùng ví).
+                  </div>
+                )}
+              </div>
+            )}
             <div className="flex items-center justify-between">
               <Button
                 size="small"
@@ -661,13 +765,23 @@ export function BookingCheckoutModal({
   );
 }
 
-/** DebtCollectModal — thu nợ 1 đơn hoặc cả khách (trừ đơn cũ trước) */
+/** Cập nhật khách trong danh sách sau khi thu tiền (số dư ví, chi tiêu, điểm, hạng) */
+export function withPaidCustomer(
+  list: StoreCustomerItem[],
+  c: CustomerAfterPay | null | undefined,
+): StoreCustomerItem[] {
+  if (!c) return list;
+  return list.map((x) => (x.id === c.id ? { ...x, ...c } : x));
+}
+
+/** DebtCollectModal — thu nợ 1 đơn hoặc cả khách (trừ đơn cũ trước); trừ ví / trả dư vào ví */
 export function DebtCollectModal({
   open,
   storeId,
   title,
   max,
   target,
+  customerId,
   qrStore,
   onClose,
   onDone,
@@ -677,32 +791,65 @@ export function DebtCollectModal({
   title: string;
   max: number;
   target: { orderId?: string; customerId?: string | null; phone?: string };
+  /** Khách có hồ sơ → dùng được ví */
+  customerId?: string | null;
   /** Gian hàng (tài khoản ngân hàng, Tingee) → mã VietQR khi thu bằng chuyển khoản */
   qrStore?: QrStore;
   onClose: () => void;
   onDone: () => void;
 }) {
   const { message } = AntApp.useApp();
+  const cid = customerId ?? target.customerId ?? null;
+  const balance = useWalletBalance(storeId, cid, open);
+  const [walletUse, setWalletUse] = useState(0);
   const [amount, setAmount] = useState(max);
   const [method, setMethod] = useState<PaymentMethod>("cash");
   const [note, setNote] = useState("");
+  const [overpay, setOverpay] = useState<"wallet" | "change">("wallet");
+  const [walletNote, setWalletNote] = useState("");
   const [busy, setBusy] = useState(false);
   useEffect(() => {
     if (open) {
       setAmount(max);
+      setWalletUse(0);
       setNote("");
+      setOverpay(cid ? "wallet" : "change");
+      setWalletNote("");
     }
-  }, [open, max]);
+  }, [open, max, cid]);
+  const walletPart = Math.min(walletUse, max, balance ?? 0);
+  const due = max - walletPart;
+  const excess = Math.max(0, amount - due);
+  const toWallet = excess > 0 && overpay === "wallet" && !!cid;
+  const collectNow = Math.min(amount, due) + walletPart;
+  const applyWallet = (v: number) => {
+    const w = Math.min(v, balance ?? 0, max);
+    setWalletUse(w);
+    setAmount(max - w);
+  };
   const submit = async () => {
     setBusy(true);
     try {
       const r = await collectDebt(storeId, {
         ...target,
-        amount,
+        amount: Math.min(amount, due) + (toWallet ? excess : 0),
         paymentMethod: method,
         note: note.trim() || undefined,
+        walletUse: walletPart || undefined,
+        overpayToWallet: toWallet || undefined,
+        walletReason:
+          toWallet && walletNote.trim() ? walletNote.trim() : undefined,
       });
-      message.success(`Đã thu ${money(r.collected)}`);
+      message.success(
+        [
+          `Đã thu ${money(r.collected)}`,
+          r.fromWallet && `trừ ví ${money(r.fromWallet)}`,
+          r.toWallet && `cộng ví ${money(r.toWallet)}`,
+          !toWallet && excess && `thối lại ${money(excess)}`,
+        ]
+          .filter(Boolean)
+          .join(" · "),
+      );
       onDone();
     } catch (e) {
       message.error(errText(e, "Không thu được"));
@@ -715,29 +862,51 @@ export function DebtCollectModal({
       open={open}
       onCancel={onClose}
       title={title}
-      okText={`Thu ${money(amount)}`}
+      okText={`Thu ${money(collectNow)}`}
       onOk={submit}
-      okButtonProps={{ loading: busy, disabled: !amount }}
+      okButtonProps={{ loading: busy, disabled: !collectNow }}
       cancelText="Huỷ"
       destroyOnHidden
-      width={420}
+      width={440}
     >
       <div data-ui="DebtCollectModal" className="space-y-3 text-xs">
         <div className="rounded-lg bg-red-50 px-3 py-2 text-red-700">
           Còn nợ <b>{money(max)}</b>
         </div>
+        {(balance ?? 0) > 0 && (
+          <div className="flex items-center gap-2">
+            <span className="flex w-20 items-center gap-1 text-slate-500">
+              <LuWallet size={13} className="text-emerald-600" /> Trừ ví
+            </span>
+            <InputNumber
+              min={0}
+              max={Math.min(balance ?? 0, max)}
+              step={50000}
+              value={walletUse}
+              onChange={(v) => applyWallet(Number(v) || 0)}
+              className="!w-44"
+              suffix="đ"
+            />
+            <Button
+              size="small"
+              type="link"
+              onClick={() => applyWallet(balance ?? 0)}
+            >
+              Dùng ví ({money(balance ?? 0)})
+            </Button>
+          </div>
+        )}
         <div className="flex items-center gap-2">
-          <span className="w-20 text-slate-500">Số tiền thu</span>
+          <span className="w-20 text-slate-500">Khách đưa</span>
           <InputNumber
             min={0}
-            max={max}
             step={50000}
             value={amount}
             onChange={(v) => setAmount(Number(v) || 0)}
             className="!w-44"
             suffix="đ"
           />
-          <Button size="small" type="link" onClick={() => setAmount(max)}>
+          <Button size="small" type="link" onClick={() => setAmount(due)}>
             Thu hết
           </Button>
         </div>
@@ -756,6 +925,44 @@ export function DebtCollectModal({
             amount={amount}
             info={`TT no ${title.replace(/^Thu (nợ|tiền) /, "")}`}
           />
+        )}
+        {excess > 0 && (
+          <div
+            data-ui="OverpayBox"
+            className="space-y-1.5 rounded-lg border border-amber-200 bg-amber-50 p-2"
+          >
+            <div className="flex items-center justify-between font-semibold text-amber-800">
+              <span>Khách đưa dư</span>
+              <span>{money(excess)}</span>
+            </div>
+            {cid ? (
+              <>
+                <Segmented
+                  size="small"
+                  block
+                  value={overpay}
+                  onChange={(v) => setOverpay(v as "wallet" | "change")}
+                  options={[
+                    { value: "wallet", label: "Cộng vào ví khách" },
+                    { value: "change", label: "Thối lại tiền" },
+                  ]}
+                />
+                {overpay === "wallet" && (
+                  <Input
+                    size="small"
+                    value={walletNote}
+                    maxLength={300}
+                    onChange={(e) => setWalletNote(e.target.value)}
+                    placeholder="Lý do (mặc định: Khách trả dư khi thu nợ đơn …)"
+                  />
+                )}
+              </>
+            ) : (
+              <div className="text-2xs text-amber-700">
+                Khách lẻ chưa có hồ sơ — thối lại tiền cho khách.
+              </div>
+            )}
+          </div>
         )}
         <Input
           value={note}
@@ -783,6 +990,7 @@ export function DebtsSection({ store }: { store: StoreConfig }) {
     title: string;
     max: number;
     target: { orderId?: string; customerId?: string | null; phone?: string };
+    customerId?: string | null;
   } | null>(null);
   const load = () =>
     fetchDebts(store.id)
@@ -868,6 +1076,7 @@ export function DebtsSection({ store }: { store: StoreConfig }) {
                           title: `Thu nợ đơn ${o.code}`,
                           max: o.debt,
                           target: { orderId: o.id },
+                          customerId: o.customerId,
                         })
                       }
                     >
@@ -945,6 +1154,7 @@ export function DebtsSection({ store }: { store: StoreConfig }) {
         title={collect?.title ?? ""}
         max={collect?.max ?? 0}
         target={collect?.target ?? {}}
+        customerId={collect?.customerId}
         qrStore={store}
         onClose={() => setCollect(null)}
         onDone={() => {

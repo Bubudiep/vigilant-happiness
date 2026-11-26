@@ -34,6 +34,7 @@ import {
 } from "../data/album-api";
 import { ApiError } from "../data/platform-api";
 import type { StoreBookingItem, StoreConfig, StoreCustomerItem, StoreOrderItem } from "../data/store-api";
+import { WalletPanel } from "./CustomerWalletViews";
 import { AlbumDrawer, AlbumKindsModal, CustomerThread, guessProvider, PROVIDERS, useAlbumKinds } from "./AlbumViews";
 import { BookingCreateModal } from "./StoreOperationsViews";
 import { StampGrid } from "./StoreStampViews";
@@ -108,6 +109,7 @@ export function CustomersSection({
   onEdit,
   onDelete,
   onCreateBooking,
+  onCustomerPatch,
 }: {
   store: StoreConfig;
   unreadMap: Record<string, number>;
@@ -116,6 +118,8 @@ export function CustomersSection({
   onEdit: (c: StoreCustomerItem) => void;
   onDelete: (customerId: string) => Promise<boolean>;
   onCreateBooking: (b: StoreBookingItem) => void;
+  /** Cập nhật khách trên giao diện (VD số dư ví sau giao dịch) — không gửi lên máy chủ */
+  onCustomerPatch?: (id: string, patch: Partial<StoreCustomerItem>) => void;
 }) {
   const { message } = AntApp.useApp();
   const [q, setQ] = useState("");
@@ -390,6 +394,7 @@ export function CustomersSection({
             onOpenAlbum={setAlbumOpen}
             onBooking={() => setBookingFor(profileCustomer)}
             onSendPhotos={() => setSendTo({ customer: profileCustomer, files: [], links: [] })}
+            onWallet={(walletBalance) => onCustomerPatch?.(profileCustomer.id, { walletBalance })}
           />
           </div>
         )}
@@ -692,9 +697,11 @@ function CustomerProfile({
   onSendPhotos,
   initialTab = "info",
   chat,
+  onWallet,
 }: {
   store: StoreConfig;
   customer: StoreCustomerItem;
+  onWallet?: (balance: number) => void;
   albumsVersion?: number;
   onEdit: (c: StoreCustomerItem) => void;
   onDelete: (customerId: string) => void | Promise<void>;
@@ -779,7 +786,7 @@ function CustomerProfile({
       </div>
 
       <div className="px-4">
-        <div className="grid grid-cols-3 divide-x divide-slate-200 rounded-xl border border-slate-200">
+        <div className="grid grid-cols-4 divide-x divide-slate-200 rounded-xl border border-slate-200">
           {[
             { label: "Chi tiêu", value: money(customer.totalSpent) },
             { label: "Đơn", value: customer.totalOrders.toLocaleString("vi-VN") },
@@ -790,6 +797,12 @@ function CustomerProfile({
               <div className="text-xs text-slate-500">{x.label}</div>
             </div>
           ))}
+          <button type="button" className="px-1.5 py-2 text-center hover:bg-emerald-50" onClick={() => setTab("wallet")}>
+            <div className={`truncate text-sm font-extrabold ${(customer.walletBalance ?? 0) > 0 ? "text-emerald-700" : "text-slate-900"}`}>
+              {money(customer.walletBalance ?? 0)}
+            </div>
+            <div className="text-xs text-slate-500">Ví</div>
+          </button>
         </div>
         {nextTier ? (
           <div className="mt-2.5">
@@ -856,6 +869,11 @@ function CustomerProfile({
                 </Block>
               </div>
             ),
+          },
+          {
+            key: "wallet",
+            label: "Ví",
+            children: <WalletPanel store={store} customer={customer} onBalance={onWallet} />,
           },
           {
             key: "orders",
