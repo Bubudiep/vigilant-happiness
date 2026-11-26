@@ -13,7 +13,7 @@ const money = (n: number) => `${n.toLocaleString("vi-VN")}đ`;
 const short = (n: number) => (n >= 1_000_000 ? `${(n / 1_000_000).toLocaleString("vi-VN", { maximumFractionDigits: 1 })}tr` : n >= 1000 ? `${Math.round(n / 1000)}k` : String(n));
 const SOURCE: Record<string, string> = { miniapp: "Mini App", admin: "Tạo tại quầy (web)", pos: "Bán hàng tại bàn" };
 const PAYMENT: Record<string, string> = { cod: "Thu khi giao (COD)", cash: "Tiền mặt", bank_transfer: "Chuyển khoản", card: "Thẻ", ewallet: "Ví điện tử" };
-/** Chiều cao vùng cột — dùng chung cho "Doanh thu theo ngày" và "Giờ cao điểm" để 2 khung bằng nhau */
+/** Chiều cao vùng cột — dùng chung cho "Doanh thu theo ngày / tháng" và "Giờ cao điểm" để 2 khung bằng nhau */
 const CHART_H = 180;
 const BAR = "#1657f3"; // màu thương hiệu — 1 chuỗi số liệu, không cần chú thích
 
@@ -23,6 +23,8 @@ const PRESETS: Record<string, () => [Dayjs, Dayjs]> = {
   "30d": () => [dayjs().subtract(29, "day"), dayjs()],
   month: () => [dayjs().startOf("month"), dayjs()],
   lastMonth: () => [dayjs().subtract(1, "month").startOf("month"), dayjs().subtract(1, "month").endOf("month")],
+  year: () => [dayjs().startOf("year"), dayjs()],
+  lastYear: () => [dayjs().subtract(1, "year").startOf("year"), dayjs().subtract(1, "year").endOf("year")],
 };
 
 /** Cột dọc 1 chuỗi: thanh mảnh, bo 4px đầu thanh, khe 2px, lưới mờ, tooltip từng cột */
@@ -101,8 +103,20 @@ export function ReportsSection({ store }: { store: StoreConfig }) {
   const [taxOpen, setTaxOpen] = useState(false);
   const s = r?.summary;
   const delta = s && s.prevRevenue ? Math.round(((s.revenue - s.prevRevenue) / s.prevRevenue) * 100) : null;
-  const days = r?.byDay ?? [];
-  const every = days.length > 20 ? Math.ceil(days.length / 10) : 1;
+  // Kỳ dài (> 62 ngày, VD cả năm) → gộp cột theo tháng cho dễ đọc
+  const byMonth = (r?.byDay.length ?? 0) > 62;
+  const days = !r
+    ? []
+    : byMonth
+      ? [...r.byDay.reduce((m, d) => {
+          const k = d.date.slice(0, 7);
+          const g = m.get(k) ?? { date: k, revenue: 0, orders: 0 };
+          g.revenue += d.revenue;
+          g.orders += d.orders;
+          return m.set(k, g);
+        }, new Map<string, { date: string; revenue: number; orders: number }>()).values()]
+      : r.byDay;
+  const every = !byMonth && days.length > 20 ? Math.ceil(days.length / 10) : 1;
   const hours = (r?.byHour ?? []).filter((h) => h.hour >= 6);
 
   return (
@@ -126,6 +140,8 @@ export function ReportsSection({ store }: { store: StoreConfig }) {
                   { value: "30d", label: "30 ngày" },
                   { value: "month", label: "Tháng này" },
                   { value: "lastMonth", label: "Tháng trước" },
+                  { value: "year", label: "Năm nay" },
+                  { value: "lastYear", label: "Năm trước" },
                 ]}
               />
               <FilterRange
@@ -195,7 +211,7 @@ export function ReportsSection({ store }: { store: StoreConfig }) {
 
           <div className="grid gap-4 lg:grid-cols-3">
             <div className="rounded-xl border border-slate-200 bg-white p-4 lg:col-span-2">
-              <div className="mb-3 text-sm font-semibold text-slate-900">Doanh thu theo ngày</div>
+              <div className="mb-3 text-sm font-semibold text-slate-900">{byMonth ? "Doanh thu theo tháng" : "Doanh thu theo ngày"}</div>
               {s.revenue ? (
                 <Bars
                   height={CHART_H}
@@ -204,13 +220,13 @@ export function ReportsSection({ store }: { store: StoreConfig }) {
                     value: d.revenue,
                     tip: (
                       <div className="text-xs">
-                        <div className="font-semibold">{dayjs(d.date).format("ddd DD/MM")}</div>
+                        <div className="font-semibold">{byMonth ? `Tháng ${dayjs(`${d.date}-01`).format("MM/YYYY")}` : dayjs(d.date).format("ddd DD/MM")}</div>
                         <div className="tabular-nums">{money(d.revenue)}</div>
                         <div className="opacity-75">{d.orders} đơn</div>
                       </div>
                     ),
                   }))}
-                  label={(k, i) => (i % every === 0 ? dayjs(k).format("DD/MM") : null)}
+                  label={(k, i) => (byMonth ? `T${Number(k.slice(5, 7))}` : i % every === 0 ? dayjs(k).format("DD/MM") : null)}
                 />
               ) : (
                 <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có doanh thu trong kỳ" />
