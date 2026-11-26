@@ -137,3 +137,20 @@ export const collectDebt = (
     method: "POST",
     body: JSON.stringify(body),
   });
+
+export interface OrderPayments {
+  total: number;
+  paid: number;
+  /** Còn nợ (chỉ đơn đã hoàn thành) */
+  debt: number;
+  payments: {
+    id: string;
+    amount: number;
+    method: string;
+    note?: string | null;
+    createdAt: string;
+  }[];
+}
+
+export const fetchOrderPayments = (storeId: string, orderId: string) =>
+  api<OrderPayments>(`/stores/${storeId}/orders/${orderId}/payments`);

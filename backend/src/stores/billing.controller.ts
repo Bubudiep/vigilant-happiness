@@ -46,6 +46,12 @@ export class BillingController {
     return this.billing.saveTreatment(req.auth!, id, body ?? {});
   }
 
+  @Get("orders/:orderId/payments")
+  @ApiOperation({ summary: "Các lần thu tiền của 1 đơn + còn nợ" })
+  orderPayments(@Req() req: AppRequest, @Param("id") id: string, @Param("orderId") orderId: string) {
+    return this.billing.orderPayments(req.auth!, id, orderId);
+  }
+
   @Get("debts")
   @ApiOperation({ summary: "Công nợ: khách còn nợ & các đơn chưa thu đủ" })
   debts(@Req() req: AppRequest, @Param("id") id: string) {

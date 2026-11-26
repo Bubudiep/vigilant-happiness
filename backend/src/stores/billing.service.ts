@@ -213,6 +213,20 @@ export class BillingService {
     });
   }
 
+  /** Lịch sử thu tiền của 1 đơn (các lần thu, trừ ví) — khung chi tiết đơn */
+  async orderPayments(auth: AuthContext, storeId: string, orderId: string) {
+    await this.stores.ensureSection(auth, storeId, "orders", "customers");
+    const o = await this.prisma.storeOrder.findFirst({ where: { id: orderId, storeId }, select: { id: true, totalAmount: true, paidAmount: true, status: true } });
+    if (!o) throw new NotFoundException("Không tìm thấy đơn");
+    const payments = await this.prisma.storePayment.findMany({ where: { storeId, orderId }, orderBy: { createdAt: "asc" } });
+    return {
+      total: o.totalAmount,
+      paid: o.paidAmount,
+      debt: o.status === "completed" ? Math.max(0, o.totalAmount - o.paidAmount) : 0,
+      payments: payments.map((p) => ({ id: p.id, amount: p.amount, method: p.method, note: p.note, createdAt: p.createdAt.toISOString() })),
+    };
+  }
+
   // ───────────── Công nợ ─────────────
 
   /** Khách còn nợ: gom các đơn hoàn thành chưa thu đủ theo khách (có customerId thì theo khách, không thì theo SĐT) */
