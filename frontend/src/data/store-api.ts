@@ -47,7 +47,8 @@ export interface OptionGroup {
 
 /** Combo = nhiều món đang bán gộp thành 1 sản phẩm, có giảm giá */
 export interface ComboConfig {
-  items: { productId: string; quantity: number }[];
+  /** selections: size / topping cố định của món trong combo */
+  items: { productId: string; quantity: number; selections?: { groupId: string; choiceIds: string[] }[] }[];
   discountType: "amount" | "percent";
   discountValue: number;
 }

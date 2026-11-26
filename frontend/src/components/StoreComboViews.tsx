@@ -7,6 +7,15 @@ import { FORM_PROPS, FormFooter, FormGrid } from "./ui";
 
 const money = (n: number) => `${Math.round(n).toLocaleString("vi-VN")}đ`;
 const priceOf = (p: StoreProductItem) => p.salePrice ?? p.price;
+/** Lựa chọn trong form: groupId → id lựa chọn (chọn 1) hoặc danh sách (chọn nhiều) */
+type OptPick = Record<string, string | string[] | undefined>;
+const pickIds = (v: string | string[] | undefined) => (Array.isArray(v) ? v : v ? [v] : []);
+/** Giá cộng thêm của các lựa chọn đã chọn */
+const extraOf = (p: StoreProductItem, pick?: OptPick) =>
+  (p.options ?? []).reduce((s, g) => s + g.choices.filter((c) => pickIds(pick?.[g.id]).includes(c.id)).reduce((x, c) => x + c.price, 0), 0);
+/** Mặc định: nhóm bắt buộc chọn 1 → lựa chọn đầu tiên */
+const defaultPick = (p?: StoreProductItem): OptPick =>
+  Object.fromEntries((p?.options ?? []).filter((g) => g.required && !g.multiple && g.choices[0]).map((g) => [g.id, g.choices[0].id]));
 
 /** Giá combo — giống máy chủ (backend/src/stores/combo.ts): % làm tròn 1.000đ */
 export function comboPrice(base: number, discountType: ComboConfig["discountType"], discountValue: number) {
@@ -14,9 +23,18 @@ export function comboPrice(base: number, discountType: ComboConfig["discountType
   return Math.max(0, base - Math.round(discountValue));
 }
 
-/** Mô tả ngắn các món trong combo: "Cà phê sữa đá ×1, Bánh croissant ×1" */
+/** Mô tả ngắn các món trong combo: "Cà phê sữa đá (L) ×1, Bánh croissant ×1" */
 export const comboSummary = (c: ComboConfig, products: StoreProductItem[]) =>
-  c.items.map((l) => `${products.find((p) => p.id === l.productId)?.name ?? "?"} ×${l.quantity}`).join(", ");
+  c.items
+    .map((l) => {
+      const p = products.find((x) => x.id === l.productId);
+      const opts = (l.selections ?? []).flatMap((s) => {
+        const g = p?.options?.find((x) => x.id === s.groupId);
+        return s.choiceIds.map((id) => g?.choices.find((ch) => ch.id === id)?.name).filter(Boolean);
+      });
+      return `${p?.name ?? "?"}${opts.length ? ` (${opts.join(", ")})` : ""} ×${l.quantity}`;
+    })
+    .join(", ");
 
 type ComboForm = {
   name: string;
@@ -24,7 +42,7 @@ type ComboForm = {
   imageUrl?: string;
   description?: string;
   active: boolean;
-  items: { productId?: string; quantity?: number }[];
+  items: { productId?: string; quantity?: number; pick?: OptPick }[];
   discountType: ComboConfig["discountType"];
   discountValue?: number;
 };
@@ -55,7 +73,11 @@ export function ComboModal({
   // Món chọn được: đang có trong cửa hàng, không phải nguyên liệu / combo khác / chính combo này
   const choosable = store.products.filter((p) => !isMaterial(p) && !p.combo && p.id !== item?.id);
   const byId = new Map(store.products.map((p) => [p.id, p]));
-  const base = items.reduce((s, l) => s + (l?.productId && byId.get(l.productId) ? priceOf(byId.get(l.productId)!) * (l.quantity ?? 1) : 0), 0);
+  const lineTotal = (l?: ComboForm["items"][number]) => {
+    const p = l?.productId ? byId.get(l.productId) : undefined;
+    return p ? (priceOf(p) + extraOf(p, l?.pick)) * (l?.quantity ?? 1) : 0;
+  };
+  const base = items.reduce((s, l) => s + lineTotal(l), 0);
   const final = comboPrice(base, discountType, discountValue);
 
   useEffect(() => {
@@ -69,16 +91,29 @@ export function ComboModal({
             imageUrl: item.imageUrl,
             description: item.description,
             active: item.active,
-            items: item.combo.items,
+            items: item.combo.items.map((l) => {
+              const p = byId.get(l.productId);
+              const pick: OptPick = {};
+              for (const sel of l.selections ?? []) pick[sel.groupId] = p?.options?.find((g) => g.id === sel.groupId)?.multiple ? sel.choiceIds : sel.choiceIds[0];
+              return { productId: l.productId, quantity: l.quantity, pick };
+            }),
             discountType: item.combo.discountType,
             discountValue: item.combo.discountValue,
           }
         : { name: "", category: "Combo", active: true, items: [{ quantity: 1 }, { quantity: 1 }], discountType: "amount", discountValue: 0 },
     );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, item, form]);
 
   const save = async (v: ComboForm) => {
-    const lines = (v.items ?? []).filter((l) => l?.productId).map((l) => ({ productId: l.productId!, quantity: l.quantity ?? 1 }));
+    const lines = (v.items ?? [])
+      .filter((l) => l?.productId)
+      .map((l) => {
+        const selections = Object.entries(l.pick ?? {})
+          .map(([groupId, val]) => ({ groupId, choiceIds: pickIds(val) }))
+          .filter((x) => x.choiceIds.length);
+        return { productId: l.productId!, quantity: l.quantity ?? 1, ...(selections.length ? { selections } : {}) };
+      });
     if (lines.length < 2) return message.warning("Combo cần ít nhất 2 món");
     const data = {
       name: v.name.trim(),
@@ -121,9 +156,11 @@ export function ComboModal({
                 {fields.map((f) => {
                   const p = items[f.name]?.productId ? byId.get(items[f.name]!.productId!) : undefined;
                   return (
-                    <div key={f.key} className="grid grid-cols-[minmax(0,1fr)_88px_96px_28px] items-center gap-2">
+                    <div key={f.key} data-ui="ComboItem" className="rounded-lg border border-slate-100 bg-slate-50/50 p-2">
+                    <div className="grid grid-cols-[minmax(0,1fr)_88px_96px_28px] items-center gap-2">
                       <Form.Item name={[f.name, "productId"]} className="!mb-0" rules={[{ required: true, message: "Chọn món" }]}>
                         <Select
+                          onChange={(id: string) => form.setFieldValue(["items", f.name, "pick"], defaultPick(byId.get(id)))}
                           showSearch
                           optionFilterProp="label"
                           placeholder="Chọn sản phẩm / dịch vụ"
@@ -137,8 +174,31 @@ export function ComboModal({
                       <Form.Item name={[f.name, "quantity"]} className="!mb-0" initialValue={1}>
                         <InputNumber className="!w-full" min={1} max={99} precision={0} prefix="×" />
                       </Form.Item>
-                      <span className="text-right text-xs tabular-nums text-slate-600">{p ? money(priceOf(p) * (items[f.name]?.quantity ?? 1)) : "—"}</span>
+                      <span className="text-right text-xs tabular-nums text-slate-600">{p ? money(lineTotal(items[f.name])) : "—"}</span>
                       <Button type="text" danger icon={<LuTrash2 size={14} />} onClick={() => remove(f.name)} disabled={fields.length <= 2} />
+                    </div>
+                    {/* Size / topping cố định của món trong combo */}
+                    {!!p?.options?.length && (
+                      <div data-ui="ComboItemOptions" className="mt-1.5 flex flex-wrap gap-2">
+                        {p.options.map((g) => (
+                          <Form.Item
+                            key={g.id}
+                            name={[f.name, "pick", g.id]}
+                            className="!mb-0 min-w-[140px] flex-1"
+                            rules={[{ required: g.required, message: `Chọn ${g.name}` }]}
+                          >
+                            <Select
+                              size="small"
+                              allowClear={!g.required}
+                              mode={g.multiple ? "multiple" : undefined}
+                              maxCount={g.multiple && g.max ? g.max : undefined}
+                              placeholder={`${g.name}${g.required ? "" : " (tuỳ chọn)"}`}
+                              options={g.choices.map((c) => ({ value: c.id, label: `${g.name}: ${c.name}${c.price ? ` +${money(c.price)}` : ""}` }))}
+                            />
+                          </Form.Item>
+                        ))}
+                      </div>
+                    )}
                     </div>
                   );
                 })}

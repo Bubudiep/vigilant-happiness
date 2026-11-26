@@ -35,10 +35,28 @@ export async function parseBom(tx: Tx, storeId: string, productId: string | null
   return lines;
 }
 
+/** Nguyên liệu thêm của các lựa chọn đã chọn (size L thêm sữa…) — dùng cho món trong combo */
+function selectionBom(rawOptions: unknown, selections: { groupId: string; choiceIds: string[] }[] | undefined): BomLine[] {
+  if (!selections?.length || !Array.isArray(rawOptions)) return [];
+  const groups = rawOptions as { id?: string; choices?: { id?: string; bom?: unknown }[] }[];
+  return selections.flatMap((s) => {
+    const g = groups.find((x) => x?.id === s.groupId);
+    return (s.choiceIds ?? []).flatMap((cid) => readBom(g?.choices?.find((c) => c?.id === cid)?.bom));
+  });
+}
+
 /** Giá vốn 1 đơn vị: combo → tổng giá vốn các món; có BOM → tổng giá vốn nguyên liệu; không → costPrice */
 export function unitCostOf(p: ProductLite, byId: Map<string, ProductLite>): number {
   const combo = readCombo(p.combo);
-  if (combo) return Math.round(combo.items.reduce((s, l) => { const it = byId.get(l.productId); return s + (it ? unitCostOf(it, byId) : 0) * l.quantity; }, 0));
+  if (combo)
+    return Math.round(
+      combo.items.reduce((s, l) => {
+        const it = byId.get(l.productId);
+        if (!it) return s;
+        const extra = selectionBom(it.options, l.selections).reduce((x, b) => x + (byId.get(b.productId)?.costPrice ?? 0) * b.quantity, 0);
+        return s + (unitCostOf(it, byId) + extra) * l.quantity;
+      }, 0),
+    );
   const bom = readBom(p.bom);
   if (!bom.length) return p.costPrice;
   return Math.round(bom.reduce((sum, l) => sum + (byId.get(l.productId)?.costPrice ?? 0) * l.quantity, 0));
@@ -94,7 +112,12 @@ export async function moveStockForOrder(
   const lines: typeof items = items.flatMap((i) => {
     const combo = i.productId ? readCombo(byId.get(i.productId)?.combo) : null;
     if (!combo) return [i];
-    return combo.items.map((l) => ({ productId: l.productId, quantity: l.quantity * i.quantity }));
+    return combo.items.map((l) => ({
+      productId: l.productId,
+      quantity: l.quantity * i.quantity,
+      // Lựa chọn cố định của món (size L…) → trừ thêm nguyên liệu của lựa chọn
+      options: selectionBom(byId.get(l.productId)?.options, l.selections).length ? [{ bom: selectionBom(byId.get(l.productId)?.options, l.selections) }] : undefined,
+    }));
   });
   const delta = new Map<string, number>();
   for (const i of lines) {
