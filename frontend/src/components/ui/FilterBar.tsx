@@ -11,7 +11,7 @@ import type { ReactNode } from "react";
  */
 export function FilterBar({ search, filters, actions, className = "" }: { search?: ReactNode; filters?: ReactNode; actions?: ReactNode; className?: string }) {
   return (
-    <div className={`mb-4 flex flex-wrap items-center gap-2 ${className}`}>
+    <div data-ui="FilterBar" className={`mb-4 flex flex-wrap items-center gap-2 ${className}`}>
       {search && <div className="w-full sm:w-auto sm:min-w-[240px] sm:max-w-sm sm:flex-1">{search}</div>}
       {filters && <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 sm:flex-none">{filters}</div>}
       {actions && <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2">{actions}</div>}

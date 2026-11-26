@@ -107,6 +107,8 @@ Quota Zalo: Development 11/300, Testing 19/60.
 | T68 Mini App gian hàng: giỏ hàng & đặt hàng thật — bấm món → chọn size/topping (`store-runtime/cart.tsx`), thanh giỏ nổi, đặt hàng `POST /shop/:slug/me/orders` (giá + giá vốn + tuỳ chọn tính lại ở máy chủ); mục nhập tay trong thiết kế khớp món theo tên; nút "Đăng nhập 1 chạm bằng Zalo" đăng nhập thật | `demo-89` | [x] **chưa deploy Mini App** |
 | T69 Tạo đơn (trang Đơn hàng): món có size/topping mở hộp chọn tuỳ chọn như bán tại bàn | `demo-89` | [x] |
 | T70 Tài khoản web cho nhân viên: hồ sơ nhân sự → email Google + tick mục được xem (mẫu Thu ngân / Quản lý ca / Toàn quyền). Menu chỉ hiện mục được cấp; máy chủ chặn theo mục (`StoresService.ensureSection`): Báo cáo, Nhân sự & lương (ẩn lương nếu không có quyền), Thiết lập, Sản phẩm, Bán hàng… Chỉ chủ shop cấp quyền | `demo-89` | [x] migration `20261126090000_staff_web_login` |
+| T71 Tên nhóm menu trái nhỏ, không viết hoa; tách khung quản trị thành component có tên + `data-ui` (TopBar, Sidebar, SidebarGroupLabel, SidebarItem, Breadcrumbs, CommandPalette, SectionTabs, PageHeader, StatCard…) — bảng tên ở `frontend/src/components/ui/README.md` | `demo-89` | [x] |
+| T72 Bán hàng: hộp thanh toán 2 nút — "Thanh toán" (bàn sang Đang dọn) · "Thanh toán & dọn bàn" (bàn trống ngay) | `demo-89` | [x] |
 | T55 Thang chữ quản trị 9/10/11px (`ui/AdminTheme.tsx` + `index.css`) | `demo-88` | [x] người dùng đang thử |
 | T45 Nhãn tiếng Việt cho action audit mới | `frontend-2b` | [x] test 45/45 (`data/audit-labels.ts`) |
 | T44b Thư viện ảnh dùng cờ `inUse/usedIn` + xử lý 409 | `frontend-2b` | [x] test 53/53 |

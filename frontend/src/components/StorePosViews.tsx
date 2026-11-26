@@ -1,7 +1,6 @@
 import {
   App as AntApp,
   Button,
-  Checkbox,
   Drawer,
   Empty,
   Form,
@@ -553,8 +552,8 @@ function SessionDrawer({
   const wide = !!Grid.useBreakpoint().md;
   const [q, setQ] = useState("");
   const [cat, setCat] = useState<string>("all");
-  const [pay, setPay] = useState<{ open: boolean; method: PaymentMethod; cleaning: boolean }>({ open: false, method: "cash", cleaning: true });
-  const [paying, setPaying] = useState(false);
+  const [pay, setPay] = useState<{ open: boolean; method: PaymentMethod }>({ open: false, method: "cash" });
+  const [paying, setPaying] = useState<"pay" | "clean" | null>(null);
   const saveTimer = useRef<number>();
 
   const products = store.products.filter((p) => p.active && p.kind !== "material");
@@ -629,21 +628,29 @@ function SessionDrawer({
     }
   };
 
-  const checkout = async () => {
+  /**
+   * Thu tiền: cleanNow = false → bàn chuyển "Đang dọn" (bấm "Dọn xong" sau);
+   * cleanNow = true → "Thanh toán & dọn bàn": bàn trống ngay, nhận khách mới được luôn.
+   */
+  const checkout = async (cleanNow: boolean) => {
     if (!session || !table) return;
     window.clearTimeout(saveTimer.current);
-    setPaying(true);
+    setPaying(cleanNow ? "clean" : "pay");
     try {
       await updateSession(store.id, session.id, { items: session.items });
-      const r = await checkoutSession(store.id, session.id, { paymentMethod: pay.method, discount: session.discount, cleaning: pay.cleaning });
+      const r = await checkoutSession(store.id, session.id, { paymentMethod: pay.method, discount: session.discount, cleaning: !cleanNow });
       setPay((p) => ({ ...p, open: false }));
-      onClosed(session.id, pay.cleaning ? table.id : undefined);
+      onClosed(session.id, cleanNow ? undefined : table.id);
       onCheckout?.();
-      modal.success({ title: `Đã thanh toán ${table.name}`, content: `Đơn ${r.order.code} · ${money(r.order.total)}`, okText: "Xong" });
+      modal.success({
+        title: `Đã thanh toán ${table.name}`,
+        content: `Đơn ${r.order.code} · ${money(r.order.total)}${cleanNow ? " · bàn đã trống" : " · bàn đang dọn"}`,
+        okText: "Xong",
+      });
     } catch (e) {
       message.error(errMsg(e));
     } finally {
-      setPaying(false);
+      setPaying(null);
     }
   };
 
@@ -830,10 +837,20 @@ function SessionDrawer({
         open={pay.open}
         title={`Thanh toán ${table?.name ?? ""}`}
         onCancel={() => setPay((p) => ({ ...p, open: false }))}
-        okText={`Thu ${t ? money(t.total) : ""}`}
-        cancelText="Quay lại"
-        confirmLoading={paying}
-        onOk={checkout}
+        footer={
+          <div data-ui="PosPayFooter" className="grid grid-cols-2 gap-2">
+            <Tooltip title="Thu tiền, bàn chuyển sang “Đang dọn” — bấm “Dọn xong” khi dọn xong">
+              <Button block loading={paying === "pay"} disabled={!!paying} onClick={() => checkout(false)}>
+                Thanh toán
+              </Button>
+            </Tooltip>
+            <Tooltip title="Thu tiền và trả bàn trống ngay để nhận khách mới">
+              <Button block type="primary" loading={paying === "clean"} disabled={!!paying} onClick={() => checkout(true)}>
+                Thanh toán & dọn bàn
+              </Button>
+            </Tooltip>
+          </div>
+        }
         destroyOnHidden
         width={420}
       >
@@ -866,9 +883,6 @@ function SessionDrawer({
               <div className="mb-1 font-medium text-slate-700">Hình thức</div>
               <Segmented block value={pay.method} onChange={(v) => setPay((p) => ({ ...p, method: v as PaymentMethod }))} options={PAYMENTS} />
             </div>
-            <Checkbox checked={pay.cleaning} onChange={(e) => setPay((p) => ({ ...p, cleaning: e.target.checked }))}>
-              Chuyển bàn sang “Đang dọn”
-            </Checkbox>
           </div>
         )}
       </Modal>

@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 export function StatCard({ label, value, hint, icon, tone = "default" }: { label: ReactNode; value: ReactNode; hint?: ReactNode; icon?: ReactNode; tone?: "default" | "danger" | "success" | "warning" }) {
   const color = { default: "text-slate-900", danger: "text-red-600", success: "text-emerald-600", warning: "text-amber-600" }[tone];
   return (
-    <div className="min-w-0 rounded-lg border border-slate-200 bg-white px-3.5 py-3 transition hover:border-slate-300">
+    <div data-ui="StatCard" className="min-w-0 rounded-lg border border-slate-200 bg-white px-3.5 py-3 transition hover:border-slate-300">
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0 truncate text-3xs font-semibold uppercase tracking-[0.08em] text-slate-500">{label}</div>
         {icon}

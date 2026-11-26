@@ -17,6 +17,7 @@ export function SectionTabs({ items, active, onChange }: { items: SectionTab[]; 
       activeKey={active}
       onChange={onChange}
       className="!mb-3"
+      data-ui="SectionTabs"
       items={items.map((it) => ({
         key: it.key,
         label: (

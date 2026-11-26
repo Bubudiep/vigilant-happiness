@@ -608,7 +608,7 @@ export default function StoreConsole({
         ) : (
           <div className="flex items-center justify-between gap-2 px-1">
             <div className="min-w-0 leading-tight">
-              <div className="text-3xs font-semibold uppercase tracking-[0.08em] text-slate-400">Mini App</div>
+              <div className="text-3xs font-medium text-slate-400">Mini App</div>
               <div className="mt-px text-xs font-medium text-slate-700">{store.active ? "Đang hoạt động" : "Tạm tắt"}</div>
             </div>
             <Switch
