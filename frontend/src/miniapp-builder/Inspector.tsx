@@ -1,9 +1,10 @@
 import { App as AntApp, Button, Collapse, ColorPicker, ConfigProvider, Empty, Input, InputNumber, Segmented, Select, Slider, Switch, Tabs, Tooltip } from "antd";
-import { createContext, useContext, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { ApiError } from "../data/platform-api";
 import { uploadStoreMedia } from "../data/media-api";
 import { LuArrowDown, LuArrowUp, LuCopy, LuEye, LuEyeOff, LuFingerprint, LuMousePointerClick, LuPalette, LuPlus, LuSettings, LuTrash2, LuUpload } from "react-icons/lu";
 import { Icon, ICON_OPTIONS } from "./icons";
+import { StampIconPicker } from "./StampIconPicker";
 import type { BlockAction } from "./PhoneFrame";
 import { BLOCKS, uid } from "./registry";
 import { DEFAULT_BUILDER_AUTH } from "./types";
@@ -138,7 +139,92 @@ function ImageFieldControl({ value, onChange }: { value?: string; onChange: (v: 
   );
 }
 
-function FieldControl({ field, value, onChange }: { field: FieldDef; value: unknown; onChange: (v: unknown) => void }) {
+/** Thu ảnh về PNG vuông tối đa 128px (giữ nền trong suốt; SVG được vẽ thành PNG) */
+function imageToIconPng(file: File, size = 128): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    const fail = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Không đọc được ảnh"));
+    };
+    img.onerror = fail;
+    img.onload = () => {
+      // SVG không khai báo kích thước → coi như hình vuông
+      const w = img.naturalWidth || size;
+      const h = img.naturalHeight || size;
+      const scale = size / Math.max(w, h);
+      const canvas = document.createElement("canvas");
+      canvas.width = canvas.height = size;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return fail();
+      ctx.drawImage(img, (size - w * scale) / 2, (size - h * scale) / 2, w * scale, h * scale);
+      URL.revokeObjectURL(url);
+      canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("Không đọc được ảnh"))), "image/png");
+    };
+    img.src = url;
+  });
+}
+
+function IconImageControl({ value, onChange }: { value?: string; onChange: (v: string | undefined) => void }) {
+  const { message } = AntApp.useApp();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const storeId = useContext(BuilderStoreContext);
+
+  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      message.error("Vui lòng chọn file hình ảnh (PNG, SVG, WebP...)");
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      message.error("Biểu tượng quá lớn (tối đa 2MB)");
+      return;
+    }
+    if (!storeId) {
+      message.error("Chưa xác định gian hàng để lưu ảnh");
+      return;
+    }
+    setUploading(true);
+    try {
+      const blob = await imageToIconPng(file);
+      onChange(await uploadStoreMedia(storeId, blob, `stamp-icon-${Date.now()}.png`, "general"));
+      message.success("Đã tải biểu tượng lên!");
+    } catch (err) {
+      message.error(err instanceof Error && err.message ? err.message : "Tải ảnh thất bại");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <div>
+      <input ref={inputRef} type="file" accept="image/png,image/svg+xml,image/webp,image/gif,image/jpeg" className="hidden" onChange={handleFile} />
+      <div className="flex items-center gap-2">
+        {value && (
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-100">
+            <img src={value} alt="Biểu tượng đã tải" className="h-6 w-6 object-contain" />
+          </span>
+        )}
+        <Button size="small" type="dashed" className="flex-1" icon={<LuUpload size={13} />} loading={uploading} onClick={() => inputRef.current?.click()}>
+          {value ? "Đổi ảnh" : "Tải ảnh lên"}
+        </Button>
+        {value && (
+          <Tooltip title="Bỏ ảnh">
+            <Button size="small" danger aria-label="Bỏ ảnh" icon={<LuTrash2 size={13} />} onClick={() => onChange(undefined)} />
+          </Tooltip>
+        )}
+      </div>
+      <div className="mt-1 text-[11px] text-slate-400">Nên dùng PNG / SVG nền trong suốt, hình vuông.</div>
+    </div>
+  );
+}
+
+function FieldControl({ field, value: raw, theme, onChange }: { field: FieldDef; value: unknown; theme: BuilderTheme; onChange: (v: unknown) => void }) {
+  const value = raw ?? (typeof field.fallback === "function" ? field.fallback(theme) : field.fallback);
   switch (field.kind) {
     case "text":
       return <Input size="small" value={(value as string) ?? ""} onChange={(e) => onChange(e.target.value)} />;
@@ -150,7 +236,10 @@ function FieldControl({ field, value, onChange }: { field: FieldDef; value: unkn
       return (
         <div className="flex items-center gap-3">
           <Slider className="!my-1 flex-1" min={field.min} max={field.max} step={field.step ?? 1} value={(value as number) ?? field.min} onChange={(v) => onChange(v)} />
-          <span className="w-8 text-right text-xs font-semibold tabular-nums text-slate-600">{(value as number) ?? field.min}</span>
+          <span className="min-w-9 text-right text-xs font-semibold tabular-nums text-slate-600">
+            {(value as number) ?? field.min}
+            {field.unit}
+          </span>
         </div>
       );
     case "select":
@@ -167,13 +256,18 @@ function FieldControl({ field, value, onChange }: { field: FieldDef; value: unkn
           size="small"
           showText
           allowClear
-          value={(value as string) || undefined}
-          onChange={(_, hex) => onChange(hex)}
+          value={(value as string) || null}
+          // Lưu mã hex (antd trả chuỗi rgb()); bấm xoá → quay về màu mặc định
+          onChange={(c) => onChange(c.cleared ? undefined : c.toHexString())}
           onClear={() => onChange(undefined)}
         />
       );
     case "image":
       return <ImageFieldControl value={value as string | undefined} onChange={(v) => onChange(v)} />;
+    case "stampIcon":
+      return <StampIconPicker value={value as string | undefined} onChange={onChange} />;
+    case "iconImage":
+      return <IconImageControl value={value as string | undefined} onChange={onChange} />;
     default:
       return null;
   }
@@ -207,8 +301,33 @@ function ItemFieldControl({ field, value, onChange }: { field: ItemFieldDef; val
 
 function BlockInspector({ block, props }: { block: Block; props: InspectorProps }) {
   const meta = BLOCKS[block.type];
-  const contentFields = meta.fields.filter((f) => f.group !== "style");
-  const styleFields = meta.fields.filter((f) => f.group === "style");
+  const fields = meta.fields.filter((f) => !f.showIf || f.showIf(block.props));
+  const contentFields = fields.filter((f) => f.group !== "style");
+  const styleFields = fields.filter((f) => f.group === "style");
+  /** Công tắc & chọn màu nằm cùng hàng với nhãn, còn lại nhãn ở trên */
+  const renderField = (f: FieldDef) => {
+    const control = (
+      <FieldControl
+        field={f}
+        // Đang dùng ảnh tự tải → không đánh dấu biểu tượng có sẵn nào
+        value={f.kind === "stampIcon" && block.props.stampIconImage ? "" : block.props[f.key]}
+        theme={props.schema.theme}
+        // Chọn biểu tượng có sẵn → bỏ ảnh tự tải (nếu không ảnh vẫn che biểu tượng vừa chọn)
+        onChange={(v) => props.onPatchBlock(block.id, { [f.key]: v, ...(f.kind === "stampIcon" ? { stampIconImage: undefined } : null) } as Partial<BlockProps>)}
+      />
+    );
+    return f.kind === "switch" || f.kind === "color" ? (
+      <div key={f.key} className="flex items-center justify-between gap-2">
+        <span className="text-xs text-slate-600">{f.label}</span>
+        {control}
+      </div>
+    ) : (
+      <div key={f.key}>
+        <Label>{f.label}</Label>
+        {control}
+      </div>
+    );
+  };
   const items = block.props.items ?? [];
   const selectedItemId = props.selection?.itemId;
   const usesStoreSource =
@@ -275,19 +394,7 @@ function BlockInspector({ block, props }: { block: Block; props: InspectorProps 
       {contentFields.length > 0 && (
         <section className="space-y-3">
           <div className="text-xs font-bold text-slate-800">Nội dung</div>
-          {contentFields.map((f) =>
-            f.kind === "switch" ? (
-              <div key={f.key} className="flex items-center justify-between">
-                <span className="text-xs text-slate-600">{f.label}</span>
-                <FieldControl field={f} value={block.props[f.key]} onChange={(v) => props.onPatchBlock(block.id, { [f.key]: v } as Partial<BlockProps>)} />
-              </div>
-            ) : (
-              <div key={f.key}>
-                <Label>{f.label}</Label>
-                <FieldControl field={f} value={block.props[f.key]} onChange={(v) => props.onPatchBlock(block.id, { [f.key]: v } as Partial<BlockProps>)} />
-              </div>
-            ),
-          )}
+          {contentFields.map(renderField)}
         </section>
       )}
 
@@ -367,12 +474,7 @@ function BlockInspector({ block, props }: { block: Block; props: InspectorProps 
       {styleFields.length > 0 && (
         <section className="space-y-3 border-t border-slate-100 pt-3">
           <div className="text-xs font-bold text-slate-800">Kiểu hiển thị</div>
-          {styleFields.map((f) => (
-            <div key={f.key}>
-              <Label>{f.label}</Label>
-              <FieldControl field={f} value={block.props[f.key]} onChange={(v) => props.onPatchBlock(block.id, { [f.key]: v } as Partial<BlockProps>)} />
-            </div>
-          ))}
+          {styleFields.map(renderField)}
         </section>
       )}
     </div>
@@ -479,7 +581,7 @@ function ThemeInspector({ schema, onPatchTheme }: { schema: BuilderSchema; onPat
         ).map(([k, label]) => (
           <div key={k} className="flex items-center justify-between">
             <span className="text-xs text-slate-600">{label}</span>
-            <ColorPicker size="small" showText value={t[k]} onChange={(_, hex) => onPatchTheme({ [k]: hex } as Partial<BuilderTheme>)} />
+            <ColorPicker size="small" showText value={t[k]} onChange={(c) => onPatchTheme({ [k]: c.toHexString() } as Partial<BuilderTheme>)} />
           </div>
         ))}
       </div>
@@ -730,6 +832,11 @@ function AuthInspector({
 
 export function Inspector(props: InspectorProps) {
   const block = props.selection ? props.page.blocks.find((b) => b.id === props.selection!.blockId) : undefined;
+  // Chọn khối / trang khác → tab Thuộc tính cuộn về đầu (các tab khác giữ nguyên)
+  const propsTopRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    propsTopRef.current?.closest(".ant-tabs-content")?.scrollTo({ top: 0 });
+  }, [block?.id, props.page?.id]);
   return (
     <ConfigProvider
       theme={{
@@ -740,7 +847,7 @@ export function Inspector(props: InspectorProps) {
       <Tabs
         size="small"
         className="builder-inspector text-[12px]"
-        tabBarStyle={{ marginBottom: 12 }}
+        tabBarStyle={{ marginBottom: 0 }}
         items={[
           {
             key: "props",
@@ -749,7 +856,11 @@ export function Inspector(props: InspectorProps) {
                 <LuSettings size={12} /> Thuộc tính
               </span>
             ),
-            children: block ? <BlockInspector key={block.id} block={block} props={props} /> : props.page ? <PageInspector page={props.page} props={props} /> : <Empty />,
+            children: (
+              <div ref={propsTopRef}>
+                {block ? <BlockInspector key={block.id} block={block} props={props} /> : props.page ? <PageInspector page={props.page} props={props} /> : <Empty />}
+              </div>
+            ),
           },
           {
             key: "theme",

@@ -63,6 +63,29 @@ export interface BlockProps {
   /** Thẻ tích tem: số ô tem & biểu tượng (khi cửa hàng đã bật thẻ tích tem, Mini App dùng cấu hình thật) */
   stampCount?: number;
   stampIcon?: string;
+  /** Biểu tượng tự tải lên (ảnh PNG nền trong) — thay cho biểu tượng có sẵn */
+  stampIconImage?: string;
+  /** Ô cuối (phần quà): biểu tượng tự tải lên, bỏ trống = hộp quà */
+  stampRewardImage?: string;
+  stampShape?: "circle" | "rounded" | "square";
+  stampSize?: number;
+  stampIconSize?: number;
+  stampGap?: number;
+  stampItemBg?: string;
+  stampIconColor?: string;
+  stampEmptyBg?: string;
+  stampEmptyIconColor?: string;
+  /** Thẻ thành viên: gradient (kiểu VIP), màu nền (tối giản / tem) và màu chung của thẻ — bỏ trống = theo giao diện */
+  gradientFrom?: string;
+  gradientTo?: string;
+  gradientAngle?: number;
+  cardDecor?: boolean;
+  cardBg?: string;
+  cardTextColor?: string;
+  cardBarColor?: string;
+  cardButtonColor?: string;
+  cardBorderColor?: string;
+  cardRadius?: number;
   items?: BlockItem[];
 }
 
@@ -157,7 +180,7 @@ export interface Selection {
   itemId?: string;
 }
 
-export type FieldKind = "text" | "textarea" | "number" | "slider" | "select" | "switch" | "color" | "image";
+export type FieldKind = "text" | "textarea" | "number" | "slider" | "select" | "switch" | "color" | "image" | "stampIcon" | "iconImage";
 
 export interface FieldDef {
   key: keyof BlockProps;
@@ -168,6 +191,11 @@ export interface FieldDef {
   min?: number;
   max?: number;
   step?: number;
+  unit?: string;
+  /** Giá trị đang áp dụng khi chưa chỉnh (để hiển thị trên điều khiển) */
+  fallback?: string | number | boolean | ((theme: BuilderTheme) => string);
+  /** Chỉ hiện thuộc tính khi thoả điều kiện (VD theo kiểu thẻ) */
+  showIf?: (props: BlockProps) => boolean;
 }
 
 export interface ItemFieldDef {

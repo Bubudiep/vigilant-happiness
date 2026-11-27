@@ -1,30 +1,12 @@
 import { App as AntApp, Button, Form, Input, InputNumber, Popconfirm, Segmented, Select, Switch, Table, Tooltip } from "antd";
 import { useMemo, useState } from "react";
-import { LuCoffee, LuCrown, LuCupSoda, LuGift, LuHeart, LuMinus, LuPlus, LuScissors, LuSparkles, LuStar } from "react-icons/lu";
+import { LuCoffee, LuGift, LuMinus, LuPlus } from "react-icons/lu";
 import { ApiError } from "../data/platform-api";
 import { adjustCustomerStamps, saveStampProgram, type StampProgram, type StoreConfig, type StoreCustomerItem } from "../data/store-api";
+import { STAMP_ICON } from "../miniapp-builder/icons";
+import { StampIconPicker } from "../miniapp-builder/StampIconPicker";
 import { FORM_PROPS, FormGrid } from "./ui";
 
-export const STAMP_ICON: Record<string, typeof LuCoffee> = {
-  coffee: LuCoffee,
-  cup: LuCupSoda,
-  star: LuStar,
-  heart: LuHeart,
-  gift: LuGift,
-  scissors: LuScissors,
-  sparkles: LuSparkles,
-  crown: LuCrown,
-};
-const ICON_LABEL: Record<string, string> = {
-  coffee: "Cà phê",
-  cup: "Ly nước",
-  star: "Ngôi sao",
-  heart: "Trái tim",
-  gift: "Hộp quà",
-  scissors: "Kéo (tóc / nail)",
-  sparkles: "Lấp lánh (spa)",
-  crown: "Vương miện",
-};
 const DEFAULT: StampProgram = { enabled: true, required: 10, productIds: [], countBy: "item", reward: "Tặng 1 ly bất kỳ", icon: "coffee" };
 const errMsg = (e: unknown, fb = "Thao tác thất bại") => (e instanceof ApiError ? e.message : fb);
 
@@ -112,22 +94,10 @@ export function StampProgramPanel({ store, applyLocal }: { store: StoreConfig; a
                 ]}
               />
             </Form.Item>
-            <Form.Item label="Biểu tượng tem" name="icon">
-              <Select
-                options={Object.keys(STAMP_ICON).map((k) => {
-                  const I = STAMP_ICON[k];
-                  return {
-                    value: k,
-                    label: (
-                      <span className="inline-flex items-center gap-2">
-                        <I size={14} /> {ICON_LABEL[k]}
-                      </span>
-                    ),
-                  };
-                })}
-              />
-            </Form.Item>
           </FormGrid>
+          <Form.Item label="Biểu tượng tem" name="icon">
+            <StampIconPicker />
+          </Form.Item>
           <Form.Item
             label="Sản phẩm / dịch vụ được tính tem"
             name="productIds"

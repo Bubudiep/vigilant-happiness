@@ -25,6 +25,62 @@ const titleFields: FieldDef[] = [
   { key: "showViewAll", label: "Hiện nút \"Xem tất cả\"", kind: "switch" },
 ];
 
+/** Thuộc tính hiển thị của Thẻ thành viên — mỗi kiểu thẻ có bộ riêng */
+const isVip = (p: BlockProps) => (p.variant ?? "vip") === "vip";
+const isMinimal = (p: BlockProps) => p.variant === "minimal";
+const isStamp = (p: BlockProps) => p.variant === "stamp";
+const only = (showIf: (p: BlockProps) => boolean, fields: FieldDef[]): FieldDef[] => fields.map((f) => ({ ...f, group: "style", showIf }));
+const radiusField = (fallback: number): FieldDef => ({ key: "cardRadius", label: "Bo góc thẻ", kind: "slider", min: 0, max: 32, unit: "px", fallback });
+
+const memberCardStyleFields: FieldDef[] = [
+  ...only(isVip, [
+    { key: "gradientFrom", label: "Màu bắt đầu", kind: "color", fallback: "#0f172a" },
+    { key: "gradientTo", label: "Màu kết thúc", kind: "color", fallback: (t) => t.primary },
+    { key: "gradientAngle", label: "Góc chuyển màu", kind: "slider", min: 0, max: 360, step: 5, unit: "°", fallback: 135 },
+    { key: "cardTextColor", label: "Màu chữ", kind: "color", fallback: "#ffffff" },
+    { key: "cardBarColor", label: "Màu thanh điểm", kind: "color", fallback: (t) => t.accent },
+    { key: "cardButtonColor", label: "Màu nút", kind: "color" },
+    { key: "cardDecor", label: "Vòng tròn trang trí", kind: "switch", fallback: true },
+    radiusField(20),
+  ]),
+  ...only(isMinimal, [
+    { key: "cardBg", label: "Màu nền thẻ", kind: "color", fallback: "#ffffff" },
+    { key: "cardTextColor", label: "Màu chữ", kind: "color", fallback: "#0f172a" },
+    { key: "cardBarColor", label: "Màu thanh điểm", kind: "color", fallback: (t) => t.accent },
+    { key: "cardButtonColor", label: "Màu nút", kind: "color", fallback: (t) => t.primary },
+    radiusField(20),
+  ]),
+  ...only(isStamp, [
+    { key: "stampCount", label: "Số tem", kind: "slider", min: 2, max: 50, fallback: 10 },
+    { key: "stampIcon", label: "Biểu tượng tem", kind: "stampIcon", fallback: "coffee" },
+    { key: "stampIconImage", label: "Hoặc tải biểu tượng riêng", kind: "iconImage" },
+    { key: "stampRewardImage", label: "Biểu tượng ô quà cuối (mặc định hộp quà)", kind: "iconImage" },
+    {
+      key: "stampShape",
+      label: "Hình dạng ô tem",
+      kind: "select",
+      fallback: "circle",
+      options: [
+        { value: "circle", label: "Tròn" },
+        { value: "rounded", label: "Bo góc" },
+        { value: "square", label: "Vuông" },
+      ],
+    },
+    { key: "stampSize", label: "Cỡ ô tem", kind: "slider", min: 22, max: 64, unit: "px", fallback: 32 },
+    { key: "stampIconSize", label: "Cỡ biểu tượng", kind: "slider", min: 8, max: 40, unit: "px", fallback: 14 },
+    { key: "stampGap", label: "Khoảng cách giữa các ô", kind: "slider", min: 0, max: 20, unit: "px", fallback: 8 },
+    { key: "stampItemBg", label: "Nền ô đã tích", kind: "color", fallback: (t) => t.primary },
+    { key: "stampIconColor", label: "Biểu tượng đã tích", kind: "color", fallback: "#ffffff" },
+    { key: "stampEmptyBg", label: "Nền ô chưa tích", kind: "color", fallback: "#f1f5f9" },
+    { key: "stampEmptyIconColor", label: "Biểu tượng chưa tích", kind: "color", fallback: "#cbd5e1" },
+    { key: "cardBg", label: "Màu nền thẻ", kind: "color", fallback: "#ffffff" },
+    { key: "cardTextColor", label: "Màu chữ", kind: "color", fallback: "#0f172a" },
+    { key: "cardButtonColor", label: "Màu nút", kind: "color", fallback: (t) => t.primary },
+    { key: "cardBorderColor", label: "Màu viền", kind: "color", fallback: (t) => t.primary },
+    radiusField(16),
+  ]),
+];
+
 export const BLOCKS: Record<BlockType, BlockMeta> = {
   header: {
     type: "header",
@@ -280,9 +336,6 @@ export const BLOCKS: Record<BlockType, BlockMeta> = {
     description: "Hạng, điểm tích luỹ, mã QR",
     defaults: () => ({ title: "Thành viên Vàng", subtitle: "1.250 điểm", variant: "vip", ctaLabel: "Đổi quà" }),
     fields: [
-      { key: "title", label: "Hạng thẻ", kind: "text" },
-      { key: "subtitle", label: "Điểm / Mô tả", kind: "text" },
-      { key: "ctaLabel", label: "Chữ nút", kind: "text" },
       {
         key: "variant",
         label: "Kiểu thẻ",
@@ -293,22 +346,10 @@ export const BLOCKS: Record<BlockType, BlockMeta> = {
           { value: "stamp", label: "Tem tích điểm" },
         ],
       },
-      { key: "stampCount", label: "Số tem (kiểu Tem tích điểm)", kind: "number", min: 2, max: 50 },
-      {
-        key: "stampIcon",
-        label: "Biểu tượng tem",
-        kind: "select",
-        options: [
-          { value: "coffee", label: "Cà phê" },
-          { value: "star", label: "Ngôi sao" },
-          { value: "heart", label: "Trái tim" },
-          { value: "gift", label: "Hộp quà" },
-          { value: "scissors", label: "Kéo (tóc / nail)" },
-          { value: "sparkles", label: "Lấp lánh (spa)" },
-          { value: "crown", label: "Vương miện" },
-        ],
-      },
-      ...styleFields,
+      { key: "title", label: "Hạng thẻ / Tiêu đề", kind: "text" },
+      { key: "subtitle", label: "Điểm / Mô tả", kind: "text" },
+      { key: "ctaLabel", label: "Chữ nút", kind: "text" },
+      ...memberCardStyleFields,
     ],
   },
   voucherList: {

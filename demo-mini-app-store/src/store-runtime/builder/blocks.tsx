@@ -1,7 +1,7 @@
 // ⚠️ Tự sinh từ frontend/src/miniapp-builder — đừng sửa ở đây, sửa bên frontend rồi chạy `node scripts/sync-builder.mjs`.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { LuBadgeCheck, LuChevronRight, LuMapPin, LuMessageCircle, LuPhone, LuQrCode, LuSearch, LuStar } from "react-icons/lu";
-import { Icon } from "./icons";
+import { Icon, STAMP_ICON } from "./icons";
 import { FREEPIK_STOCK } from "../stock";
 import type { Block, BlockItem, BuilderAuthConfig, BuilderTheme } from "./types";
 
@@ -727,6 +727,15 @@ function ProductListBlock({ block, ctx }: { block: Block; ctx: RenderCtx }) {
   );
 }
 
+/** Biểu tượng trong ô tem: ảnh tự tải (ô chưa tích → xám mờ) hoặc biểu tượng có sẵn */
+function StampMark({ image, icon, size, dim }: { image?: string; icon: string; size: number; dim: boolean }) {
+  if (image) {
+    return <img src={image} alt="" className="shrink-0 object-contain" style={{ width: size, height: size, ...(dim ? { filter: "grayscale(1)", opacity: 0.35 } : null) }} />;
+  }
+  const Cmp = STAMP_ICON[icon] ?? STAMP_ICON.coffee;
+  return <Cmp size={size} />;
+}
+
 function MemberCardBlock({ block, ctx }: { block: Block; ctx: RenderCtx }) {
   const v = block.props.variant ?? "vip";
   const { theme } = ctx;
@@ -734,35 +743,61 @@ function MemberCardBlock({ block, ctx }: { block: Block; ctx: RenderCtx }) {
     const real = ctx.memberStamps;
     const total = Math.min(50, Math.max(2, real?.required ?? block.props.stampCount ?? 10));
     const filled = real ? Math.min(total, real.count) : Math.round(total * 0.6);
-    const icon = real?.icon === "cup" ? "coffee" : (real?.icon ?? block.props.stampIcon ?? "coffee");
+    const iconKey = real?.icon ?? block.props.stampIcon ?? "coffee";
     const cols = total <= 6 ? total : total <= 12 ? Math.ceil(total / 2) : 8;
+    const pr = block.props;
+    const size = pr.stampSize;
+    const shape = pr.stampShape === "square" ? 4 : pr.stampShape === "rounded" ? 10 : 9999;
     return (
       <div className="px-4 py-2">
-        <div className="rounded-2xl border border-dashed bg-white p-3.5" style={{ borderColor: `${theme.primary}55` }}>
+        <div
+          className="border border-dashed p-3.5"
+          style={{
+            borderColor: pr.cardBorderColor ?? `${theme.primary}55`,
+            background: pr.cardBg ?? "#ffffff",
+            color: pr.cardTextColor ?? "#0f172a",
+            borderRadius: pr.cardRadius ?? 16,
+          }}
+        >
           <div className="flex items-center justify-between">
             <div>
-              <EditableText value={block.props.title} editable={ctx.editable} onCommit={(x) => ctx.onEditProp("title", x)} className="block text-[14px] font-extrabold text-slate-900" />
-              <EditableText value={block.props.subtitle} editable={ctx.editable} onCommit={(x) => ctx.onEditProp("subtitle", x)} className="block text-[11px] text-slate-500" />
+              <EditableText value={block.props.title} editable={ctx.editable} onCommit={(x) => ctx.onEditProp("title", x)} className="block text-[14px] font-extrabold" />
+              <EditableText value={block.props.subtitle} editable={ctx.editable} onCommit={(x) => ctx.onEditProp("subtitle", x)} className="block text-[11px] opacity-65" />
             </div>
-            <span className="rounded-full px-3 py-1.5 text-[11px] font-bold text-white" style={{ background: theme.primary }}>
+            <span className="rounded-full px-3 py-1.5 text-[11px] font-bold text-white" style={{ background: pr.cardButtonColor ?? theme.primary }}>
               <EditableText value={block.props.ctaLabel} editable={ctx.editable} onCommit={(x) => ctx.onEditProp("ctaLabel", x)} />
             </span>
           </div>
-          <div className="mt-3 grid gap-2" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
+          {/* Có chỉnh cỡ ô → tự xuống hàng theo cỡ; chưa chỉnh → chia cột theo số tem */}
+          <div
+            className="mt-3 grid"
+            style={{ gap: pr.stampGap ?? 8, gridTemplateColumns: size ? `repeat(auto-fill, minmax(${size}px, 1fr))` : `repeat(${cols}, minmax(0, 1fr))` }}
+          >
             {Array.from({ length: total }).map((_, i) => (
               <div
                 key={i}
-                className="flex aspect-square items-center justify-center rounded-full text-white"
-                style={i < filled ? { background: theme.primary } : { background: "#f1f5f9", color: "#cbd5e1" }}
+                className="flex aspect-square items-center justify-center"
+                style={{
+                  borderRadius: shape,
+                  ...(size ? { width: size, justifySelf: "center" } : null),
+                  ...(i < filled
+                    ? { background: pr.stampItemBg ?? theme.primary, color: pr.stampIconColor ?? "#ffffff" }
+                    : { background: pr.stampEmptyBg ?? "#f1f5f9", color: pr.stampEmptyIconColor ?? "#cbd5e1" }),
+                }}
               >
-                <Icon name={i === total - 1 ? "gift" : icon} size={14} />
+                <StampMark
+                  image={i === total - 1 ? pr.stampRewardImage : pr.stampIconImage}
+                  icon={i === total - 1 ? "gift" : iconKey}
+                  size={pr.stampIconSize ?? 14}
+                  dim={i >= filled}
+                />
               </div>
             ))}
           </div>
           {real && (
-            <div className="mt-2 text-[11px] text-slate-500">
+            <div className="mt-2 text-[11px] opacity-65">
               {real.count >= total ? "Đủ tem — báo nhân viên để nhận: " : `Còn ${total - real.count} tem nữa để nhận: `}
-              <b className="text-slate-700">{real.reward}</b>
+              <b>{real.reward}</b>
             </div>
           )}
         </div>
@@ -770,17 +805,25 @@ function MemberCardBlock({ block, ctx }: { block: Block; ctx: RenderCtx }) {
     );
   }
   const vip = v === "vip";
+  const pr = block.props;
+  const textColor = pr.cardTextColor ?? (vip ? "#ffffff" : "#0f172a");
+  const buttonStyle = pr.cardButtonColor
+    ? { background: pr.cardButtonColor, color: "#ffffff" }
+    : vip
+      ? { background: `color-mix(in srgb, ${textColor} 15%, transparent)`, color: textColor }
+      : { background: `${theme.primary}14`, color: theme.primary };
   return (
     <div className="px-4 py-2">
       <div
-        className="relative overflow-hidden rounded-[20px] p-4"
+        className="relative overflow-hidden p-4"
         style={{
-          background: vip ? `linear-gradient(135deg, #0f172a, ${theme.primary})` : "#ffffff",
-          color: vip ? "#fff" : "#0f172a",
+          background: vip ? `linear-gradient(${pr.gradientAngle ?? 135}deg, ${pr.gradientFrom ?? "#0f172a"}, ${pr.gradientTo ?? theme.primary})` : (pr.cardBg ?? "#ffffff"),
+          color: textColor,
+          borderRadius: pr.cardRadius ?? 20,
           boxShadow: vip ? "0 10px 24px -12px rgba(15,23,42,0.6)" : "0 1px 3px rgba(15,23,42,0.06)",
         }}
       >
-        {vip && <div className="absolute -right-8 -top-12 h-36 w-36 rounded-full" style={{ background: `${theme.accent}55` }} />}
+        {vip && pr.cardDecor !== false && <div className="absolute -right-8 -top-12 h-36 w-36 rounded-full" style={{ background: `${theme.accent}55` }} />}
         <div className="relative flex items-start justify-between">
           <div>
             <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.14em] opacity-70">
@@ -795,10 +838,10 @@ function MemberCardBlock({ block, ctx }: { block: Block; ctx: RenderCtx }) {
         </div>
         <div className="relative mt-3.5">
           <div className={`h-1.5 overflow-hidden rounded-full ${vip ? "bg-white/20" : "bg-slate-100"}`}>
-            <div className="h-full w-[68%] rounded-full" style={{ background: theme.accent }} />
+            <div className="h-full w-[68%] rounded-full" style={{ background: pr.cardBarColor ?? theme.accent }} />
           </div>
-          <div className="mt-1.5 flex items-center justify-between text-[10.5px] opacity-80">
-            <span>Còn 750 điểm lên hạng tiếp theo</span>
+          <div className="mt-1.5 flex items-center justify-between text-[10.5px]">
+            <span className="opacity-80">Còn 750 điểm lên hạng tiếp theo</span>
             <span
               onClick={(e) => {
                 if (ctx.editable) return;
@@ -806,7 +849,7 @@ function MemberCardBlock({ block, ctx }: { block: Block; ctx: RenderCtx }) {
                 ctx.onRequireMemberAuth?.("memberCard", "Đổi quà & dùng ưu đãi hội viên");
               }}
               className="cursor-pointer rounded-full px-2 py-0.5 font-bold"
-              style={{ background: vip ? "rgba(255,255,255,0.15)" : `${theme.primary}14`, color: vip ? "#fff" : theme.primary }}
+              style={buttonStyle}
             >
               <EditableText value={block.props.ctaLabel} editable={ctx.editable} onCommit={(x) => ctx.onEditProp("ctaLabel", x)} />
             </span>

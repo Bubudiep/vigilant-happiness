@@ -114,3 +114,19 @@ html.admin-ui .ant-empty-description { font-size: var(--fs-xs); color: rgb(var(-
 .ant-modal-wrap .ant-modal .ant-modal-body:not([style*="padding"]) {
   margin: -4px -24px; padding: 4px 24px;
 }
+
+/* Miniapp Studio — khung thuộc tính: thanh tab đứng yên, mỗi tab cuộn riêng và giữ vị trí cuộn */
+.builder-inspector > .ant-tabs-nav { padding: 0 14px; }
+.builder-inspector > .ant-tabs-body-holder > .ant-tabs-body > .ant-tabs-content { padding: 12px 14px 16px; }
+@media (min-width: 1024px) {
+  .builder-inspector { flex: 1; min-height: 0; }
+  .builder-inspector > .ant-tabs-body-holder { flex: 1; min-height: 0; }
+  .builder-inspector > .ant-tabs-body-holder > .ant-tabs-body { position: relative; height: 100%; }
+  .builder-inspector > .ant-tabs-body-holder > .ant-tabs-body > .ant-tabs-content { position: absolute; inset: 0; overflow-y: auto; overscroll-behavior: contain; }
+  /* Ẩn bằng visibility thay cho display:none để trình duyệt không mất vị trí cuộn */
+  .builder-inspector > .ant-tabs-body-holder > .ant-tabs-body > .ant-tabs-content-hidden { display: block !important; visibility: hidden; }
+}
+
+/* Màn hình điện thoại trong bản xem trước: ẩn thanh cuộn như trên máy thật (vẫn cuộn được) */
+html .phone-ui *, html.admin-ui .phone-ui * { scrollbar-width: none; }
+html .phone-ui *::-webkit-scrollbar, html.admin-ui .phone-ui *::-webkit-scrollbar { display: none; }

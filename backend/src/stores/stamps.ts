@@ -15,7 +15,8 @@ export interface StampProgram {
   icon: string;
 }
 
-export const STAMP_ICONS = ["coffee", "cup", "star", "heart", "gift", "scissors", "sparkles", "crown"] as const;
+/** Giữ khớp với STAMP_ICON_GROUPS ở frontend/src/miniapp-builder/icons.tsx */
+export const STAMP_ICONS = ["flower", "flower2", "lotus", "tulip", "blossom", "leaf", "clover", "sprout", "potted", "cactus", "tree", "pine", "palm", "butterfly", "sun", "moon", "snow", "rainbow", "droplet", "feather", "shell", "coffee", "cup", "beer", "wine", "cocktail", "icecream", "cake", "cookie", "croissant", "donut", "candy", "pizza", "sandwich", "soup", "food", "cherry", "apple", "citrus", "grape", "paw", "dog", "cat", "rabbit", "bird", "fish", "baby", "star", "heart", "gift", "crown", "sparkles", "gem", "scissors", "bath", "smile", "like", "check", "zap", "flame", "award", "trophy", "medal", "shirt", "dumbbell", "car", "bike", "music", "book", "game", "camera"] as const;
 
 export const DEFAULT_STAMP_PROGRAM: StampProgram = {
   enabled: false,

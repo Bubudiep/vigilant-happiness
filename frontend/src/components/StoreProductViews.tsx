@@ -16,6 +16,7 @@ import {
   updateStoreProduct,
 } from "../data/store-api";
 import { ComboModal, comboSummary } from "./StoreComboViews";
+import { ProductImageField } from "./ProductImageField";
 import { BomEditor, OptionsEditor, StockReceiptModal, StockReceiptsDrawer } from "./StoreInventoryViews";
 import { FilterBar, FilterSelect, FORM_PROPS, FormFooter, FormGrid, PageHeader, StatCard, StatGrid } from "./ui";
 
@@ -440,6 +441,9 @@ export function ProductsSection({
             <Input
               placeholder={formKind === "service" ? "VD: Siêu âm 5D, Gội đầu dưỡng sinh…" : formKind === "material" ? "VD: Cà phê hạt, Sữa đặc, Ly nhựa 500ml" : "VD: Cà phê sữa đá, Áo thun…"}
             />
+          </Form.Item>
+          <Form.Item label="Ảnh hiển thị" name="imageUrl">
+            <ProductImageField storeId={store.id} />
           </Form.Item>
           <FormGrid cols={3}>
             <Form.Item label="Danh mục" name="category">

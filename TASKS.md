@@ -130,6 +130,21 @@ Quota Zalo: Development 11/300, Testing 19/60.
 
 Quy ước khi chạy song song: phiên backend chỉ sửa `backend/`, phiên frontend chỉ sửa `frontend/`; **không sửa TASKS.md / PROJECT.md** (báo lại `demo-f7` để cập nhật), **không commit / push**, không in giá trị `.env`.
 
+### [x] T86. Miniapp Studio: thuộc tính Thẻ thành viên theo từng kiểu thẻ (27/11/2026)
+- **Đã làm:** `FieldDef` có `showIf` / `fallback` / `unit`; khối `memberCard` chỉ hiện thuộc tính của kiểu đang chọn. VIP gradient: 2 màu, góc, màu chữ / thanh điểm / nút, vòng trang trí, bo góc. Tối giản: màu nền, chữ, thanh điểm, nút, bo góc. Tem: số tem, biểu tượng, hình dạng / cỡ ô, cỡ biểu tượng, khoảng cách, màu ô & biểu tượng (đã tích / chưa tích), màu thẻ / chữ / nút / viền, bo góc.
+- Ô chọn màu lưu mã hex (trước đây theme lưu `rgb()` làm hỏng chỗ ghép độ trong suốt `${primary}55`). Đã chạy `sync-builder.mjs`. **Chưa:** xem trên trình duyệt / điện thoại, deploy Mini App.
+
+### [x] T87. Biểu tượng tem: thêm bộ biểu tượng + tải icon riêng (27/11/2026)
+- **Đã làm:** 71 biểu tượng theo nhóm (hoa cỏ, đồ uống & món ăn, thú cưng & mẹ bé, khác) ở `STAMP_ICON_GROUPS` (`miniapp-builder/icons.tsx`, phải khớp `STAMP_ICONS` ở `backend/src/stores/stamps.ts`); chọn bằng lưới ô icon (`StampIconPicker`) ở Studio và form Thẻ tích tem. Studio: tải biểu tượng riêng cho ô tem và ô quà cuối (PNG/SVG/WebP ≤ 2MB, đổi thành PNG 128px; ô chưa tích hiện xám mờ); ảnh tự tải được ưu tiên hơn biểu tượng của thẻ tích tem.
+- **Chưa:** tải icon riêng trong form Thẻ tích tem (cần đổi schema `StampProgram`), xem trên trình duyệt / điện thoại, deploy Mini App + backend.
+
+### [x] T88. Miniapp Studio: mỗi tab cuộn riêng (27/11/2026)
+- **Đã làm:** khung phải (Thuộc tính / Giao diện / Hội viên) và khung trái (Trang / Lớp / Thư viện): thanh tab đứng yên, mỗi tab có khung cuộn riêng, đổi tab giữ vị trí cuộn; cuộn hết khung không kéo theo cả trang (`overscroll-contain`). Chọn khối khác → tab Thuộc tính về đầu. Màn < 1024px giữ kiểu cũ. **Chưa:** thử trên trình duyệt.
+- Sửa zoom "Vừa": đo đúng vùng đặt điện thoại (trước trừ cứng 104px, thiếu ~24px nên phải cuộn); thanh chọn trang & breadcrumb đứng yên ngoài vùng cuộn.
+
+### [x] T89. Ảnh hiển thị cho sản phẩm / dịch vụ (27/11/2026)
+- **Đã làm:** form Thêm / Sửa sản phẩm, dịch vụ, nguyên liệu trước đây không có ô ảnh → thêm `ProductImageField` (tải lên / dán URL / bỏ ảnh); form combo dùng cùng ô này. Bỏ ảnh gửi `imageUrl: ""`. `shrinkImage` lót nền trắng khi đổi sang JPEG. **Chưa:** thử trên trình duyệt.
+
 ### [x] T31. Hạn mức dung lượng theo gói (backend)
 - **Đã làm (25/11):** migration `20261125090000_plan_storage_quota`; `src/storage-stats/storage-quota.service.ts` (usage / quotaOf / assertCanUpload), `store-storage.controller.ts` (`GET /stores/:id/storage`, shop khác → 404). Media: kiểm `file.size` trước khi ghi. Album: đã đầy → 413 ngay; còn chỗ → kiểm từng ảnh **sau khi nén**, ảnh làm vượt bị xoá và dừng; lưu được một phần → 201 `{ added, errors, quotaExceeded: true }`. PATCH gói: không gửi = giữ nguyên, `null` = bỏ giới hạn. Test `storage-quota.api.test.ts` (5), `projects.api.test.ts` (2); API 39/39, unit 16/16.
 - **Chưa xử lý:** 2 lần tải song song có thể vượt hạn mức một chút (không khoá); ảnh hộp thư + thumbnail không tính vào hạn mức. Server dev cổng 4000 cần khởi động lại.

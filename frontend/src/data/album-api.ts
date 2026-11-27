@@ -144,7 +144,11 @@ export async function shrinkImage(file: File, maxSide = 2048): Promise<Blob> {
     const canvas = document.createElement("canvas");
     canvas.width = Math.round(bmp.width * scale);
     canvas.height = Math.round(bmp.height * scale);
-    canvas.getContext("2d")!.drawImage(bmp, 0, 0, canvas.width, canvas.height);
+    const ctx = canvas.getContext("2d")!;
+    // JPEG không có nền trong suốt → lót trắng (nếu không PNG trong suốt thành nền đen)
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(bmp, 0, 0, canvas.width, canvas.height);
     const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, "image/jpeg", 0.85));
     return blob && blob.size < file.size ? blob : file;
   } catch {

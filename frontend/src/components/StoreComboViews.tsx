@@ -4,6 +4,7 @@ import { LuPlus, LuTrash2 } from "react-icons/lu";
 import { ApiError } from "../data/platform-api";
 import { addStoreProduct, type ComboConfig, isMaterial, type StoreConfig, type StoreProductItem, updateStoreProduct } from "../data/store-api";
 import { FORM_PROPS, FormFooter, FormGrid } from "./ui";
+import { ProductImageField } from "./ProductImageField";
 
 const money = (n: number) => `${Math.round(n).toLocaleString("vi-VN")}đ`;
 const priceOf = (p: StoreProductItem) => p.salePrice ?? p.price;
@@ -118,7 +119,8 @@ export function ComboModal({
     const data = {
       name: v.name.trim(),
       category: v.category?.trim() || "Combo",
-      imageUrl: v.imageUrl?.trim() || undefined,
+      // Chuỗi rỗng = bỏ ảnh (undefined thì máy chủ giữ ảnh cũ)
+      imageUrl: v.imageUrl?.trim() ?? "",
       description: v.description?.trim() || undefined,
       active: v.active,
       kind: "product" as const,
@@ -247,10 +249,10 @@ export function ComboModal({
             <div className="mt-1 text-2xs text-slate-400">Giá combo tính theo giá món lúc lưu — đổi giá món thì mở combo và lưu lại để cập nhật.</div>
           </div>
 
+          <Form.Item label="Ảnh hiển thị" name="imageUrl">
+            <ProductImageField storeId={store.id} />
+          </Form.Item>
           <FormGrid>
-            <Form.Item label="Ảnh (URL)" name="imageUrl">
-              <Input placeholder="https://…" />
-            </Form.Item>
             <Form.Item label="Hiện trên Mini App" name="active" valuePropName="checked">
               <Switch />
             </Form.Item>

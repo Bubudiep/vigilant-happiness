@@ -359,8 +359,9 @@ export function MiniAppBuilder({ storeId, brand, initialSchema, products, docume
     return () => ro.disconnect();
   }, []);
   const fs = frameSize(device);
-  const fitScale = Math.min(1, (canvasSize.h - 104) / fs.h, (canvasSize.w - 32) / fs.w);
-  const scale = zoom === "fit" ? Math.max(0.38, fitScale) : zoom;
+  // canvasSize = đúng vùng dành cho điện thoại (đã trừ thanh chọn trang, breadcrumb và lề)
+  const fitScale = Math.min(1, canvasSize.h / fs.h, canvasSize.w / fs.w);
+  const scale = zoom === "fit" ? Math.max(0.3, fitScale) : zoom;
 
   const selectedBlock = selection ? page?.blocks.find((b) => b.id === selection.blockId) : undefined;
   const selectedItem = selectedBlock && selection?.itemId ? selectedBlock.props.items?.find((i) => i.id === selection.itemId) : undefined;
@@ -630,7 +631,7 @@ export function MiniAppBuilder({ storeId, brand, initialSchema, products, docume
       </ConfigProvider>
 
       <div
-        className="grid min-h-0 flex-1 gap-2.5 lg:grid-cols-[232px_minmax(0,1fr)_280px] 2xl:grid-cols-[256px_minmax(0,1fr)_316px]"
+        className="grid min-h-0 flex-1 gap-2.5 lg:grid-rows-[minmax(0,1fr)] lg:grid-cols-[232px_minmax(0,1fr)_280px] 2xl:grid-cols-[256px_minmax(0,1fr)_316px]"
         // Vừa khít màn hình: header 56 + lề trên/dưới 40 + thanh công cụ ~48
         style={{ height: fullscreen ? undefined : "calc(100vh - 150px)", minHeight: 480 }}
       >
@@ -676,23 +677,31 @@ export function MiniAppBuilder({ storeId, brand, initialSchema, products, docume
                 ]}
               />
             </div>
-            <div className="min-h-0 flex-1 overflow-y-auto p-2.5">
-              {leftTab === "pages" && pagesPanel}
-              {leftTab === "layers" && layersPanel}
-              {leftTab === "library" && libraryPanel}
+            {/* Mỗi tab một khung cuộn riêng; tab ẩn dùng `invisible` (không `display:none`) để giữ nguyên vị trí cuộn */}
+            <div className="relative min-h-0 flex-1">
+              {(
+                [
+                  ["pages", pagesPanel],
+                  ["layers", layersPanel],
+                  ["library", libraryPanel],
+                ] as const
+              ).map(([key, panel]) => (
+                <div key={key} className={`p-2.5 lg:absolute lg:inset-0 lg:overflow-y-auto lg:overscroll-contain ${leftTab === key ? "" : "hidden lg:invisible lg:block"}`}>
+                  {panel}
+                </div>
+              ))}
             </div>
           </aside>
         </ConfigProvider>
 
         {/* Canvas */}
         <section
-          ref={canvasRef}
-          className="relative flex min-h-0 flex-col items-center overflow-auto rounded-2xl border border-slate-200 shadow-inner"
+          className="relative flex min-h-0 flex-col items-center overflow-hidden rounded-2xl border border-slate-200 shadow-inner"
           style={{ backgroundColor: "#eef1f5", backgroundImage: "radial-gradient(#cbd5e1 1px, transparent 1px)", backgroundSize: "18px 18px" }}
           onClick={() => setSelection(null)}
         >
           {/* page pills */}
-          <div className="sticky top-0 z-10 flex w-full justify-center gap-1 px-3 pb-2 pt-3">
+          <div className="z-10 flex w-full shrink-0 justify-center gap-1 px-3 pb-1 pt-3">
             <div className="no-scrollbar flex max-w-full gap-1 overflow-x-auto rounded-full bg-white/90 p-1 shadow-sm ring-1 ring-slate-200 backdrop-blur" onClick={(e) => e.stopPropagation()}>
               {schema.pages.map((p) => (
                 <button
@@ -713,8 +722,9 @@ export function MiniAppBuilder({ storeId, brand, initialSchema, products, docume
             </div>
           </div>
 
-          <div className="flex flex-1 items-start justify-center pb-6 pt-2">
-            <div style={{ width: fs.w * scale, height: fs.h * scale }} onClick={(e) => e.stopPropagation()}>
+          {/* Vùng điện thoại: chỉ cuộn khi phóng to hơn mức "Vừa"; `m-auto` để phóng to không bị cắt mép */}
+          <div ref={canvasRef} className="flex min-h-0 w-full flex-1 overflow-auto overscroll-contain px-4 py-2">
+            <div className="m-auto shrink-0" style={{ width: fs.w * scale, height: fs.h * scale }} onClick={(e) => e.stopPropagation()}>
               <div style={{ transform: `scale(${scale})`, transformOrigin: "top left", width: fs.w, height: fs.h }}>
                 <DeviceFrame device={device}>
                   <PhoneScreen
@@ -746,7 +756,7 @@ export function MiniAppBuilder({ storeId, brand, initialSchema, products, docume
           </div>
 
           {/* breadcrumb */}
-          <div className="sticky bottom-3 z-10 mb-3 flex items-center gap-1 rounded-full bg-slate-900/90 px-3 py-1.5 text-[11.5px] text-white shadow-lg backdrop-blur" onClick={(e) => e.stopPropagation()}>
+          <div className="z-10 mb-2 mt-1 flex shrink-0 items-center gap-1 rounded-full bg-slate-900/90 px-3 py-1.5 text-[11.5px] text-white shadow-lg backdrop-blur" onClick={(e) => e.stopPropagation()}>
             <LuMousePointerClick size={13} className="text-sky-300" />
             <button type="button" className="hover:text-sky-300" onClick={() => setSelection(null)}>
               {page.name}
@@ -770,9 +780,9 @@ export function MiniAppBuilder({ storeId, brand, initialSchema, products, docume
         </section>
 
         {/* Right inspector */}
-        <aside className="min-h-0 overflow-y-auto rounded-2xl border border-slate-200 bg-white px-3.5 pb-4 shadow-sm">
+        <aside className="flex min-h-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           {migrate && (
-            <div className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
+            <div className="mx-3.5 mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
               Đang chuyển ảnh cũ lên máy chủ {migrate.done}/{migrate.total}…
             </div>
           )}
